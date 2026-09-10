@@ -1,0 +1,34 @@
+# cordis.yml —— dsh 本地开发挂载（hot reload 用 patch overlay）
+# 用法：dsh --profile desktop --patch D:/666/gzh/dsh-plugin/cordis.yml
+# 正式安装请改用 profile 依赖（本包已声明 dsh.bundle）：
+#   dsh plugin --profile desktop add link:D:/666/gzh/dsh-plugin
+# 注意：安装为 profile 依赖后不要再叠加本 overlay —— 两个层用同一个 id 会报 duplicate loader entry id，
+# 所以这里用 id gzh-publisher-dev 与 bundle 层的 gzh-publisher 区分。
+# 加载器按 URL 解析 name，Windows 绝对路径必须写成 file:/// URL（'D:/...' 会被 ESM 拒绝）。
+# 凭据留空 = 沿用 scripts/wx_config.json 现状；在 dsh web 设置界面可随时修改并热重载。
+- insert:
+  - id: gzh-publisher-dev
+    name: 'file:///D:/666/gzh/dsh-plugin/src/index.ts'
+    config:
+      wechat:
+        appid: ''
+        app_secret: ''
+        author_name: 文映学术win00.cn
+        brand_name: 文映千秋学术网
+      content:
+        articles_per_day: 6
+        min_words: 2000
+      typography:
+        headline_theme: wenying
+        secondary_theme: rotate
+      image_api:
+        base_url: https://api.a6api.com
+        api_key: ''
+        model: gpt-image-2
+        headline_cover_ratio: '21:9'
+        secondary_cover_ratio: '1:1'
+        content_images_per_article: 2
+      runtime:
+        project_root: D:/666/gzh/文映千秋学术网
+        python_path: python
+        dry_run: false

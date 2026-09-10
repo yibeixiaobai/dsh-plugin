@@ -1,0 +1,94 @@
+# -*- coding: utf-8 -*-
+"""草稿核验（draft/get 必须 POST）：逐篇核对标题/作者/摘要/图片数/CDN/品牌/禁词。
+
+与 scripts/verify_draft.py 的差异：参数化（media_id、author、brand_name、min_words、
+forbidden 由命令行传入），token 复用 publish_template.get_access_token（无落盘缓存）。
+输出协议：{ok, data:{article_count, expected, articles:[{index, title, author, digest,
+digest_len, plain_chars, img_count, all_cdn, problems}]}}
+"""
+import argparse
+import json
+import os
+import re
+import sys
+
+MARKER = "###RESULT### "
+
+
+def emit(payload):
+    print(MARKER + json.dumps(payload, ensure_ascii=False))
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--media-id", required=True)
+    ap.add_argument("--scripts-dir", required=True)
+    ap.add_argument("--expected-count", type=int, default=6)
+    ap.add_argument("--author", default="文映学术win00.cn")
+    ap.add_argument("--brand-name", default="文映千秋学术网")
+    ap.add_argument("--min-words", type=int, default=2000)
+    ap.add_argument("--forbidden", default="[]")
+    args = ap.parse_args()
+
+    scripts_abs = os.path.abspath(args.scripts_dir)
+    conf = json.load(open(os.path.join(scripts_abs, "wx_config.json"), encoding="utf-8"))
+    forbidden = json.loads(args.forbidden)
+
+    sys.path.insert(0, scripts_abs)
+    from publish_template import get_access_token, verify_draft
+
+    token = get_access_token(conf["appid"], conf["app_secret"])
+    draft = verify_draft(token, args.media_id)
+    if "news_item" not in draft:
+        raise SystemExit("draft/get 失败: " + json.dumps(draft, ensure_ascii=False)[:400])
+
+    items = draft["news_item"]
+    articles = []
+    for idx, it in enumerate(items, 1):
+        title, author, digest = it.get("title", ""), it.get("author", ""), it.get("digest", "")
+        content = it.get("content", "")
+        imgs = re.findall(r'(?:data-src|src)="(http[^"]+)"', content)
+        n_img = len(re.findall(r"<img", content))
+        all_cdn = bool(imgs) and all("mmbiz.qpic.cn" in u for u in imgs)
+        txt = re.sub(r"<[^>]+>", "", content)
+        plain = re.sub(r"\s", "", txt)
+        problems = []
+        if author != args.author:
+            problems.append("作者不符: " + author)
+        if len(title) > 64:
+            problems.append("标题超长 %d 字" % len(title))
+        if len(digest) > 120:
+            problems.append("摘要超长 %d 字" % len(digest))
+        if n_img != 4 or not all_cdn:
+            problems.append("图片数 %d / 全CDN %s" % (n_img, all_cdn))
+        if len(plain) < args.min_words:
+            problems.append("纯文字 %d 字 < %d" % (len(plain), args.min_words))
+        if args.brand_name not in txt:
+            problems.append("缺少品牌引导语")
+        for w in forbidden:
+            if w in txt or w in title or w in digest:
+                problems.append("含禁词: " + w)
+        articles.append({
+            "index": idx, "title": title, "author": author,
+            "digest": digest, "digest_len": len(digest),
+            "plain_chars": len(plain), "img_count": n_img,
+            "all_cdn": all_cdn, "problems": problems,
+        })
+        print("第%d篇「%s」%s" % (idx, title[:24], "通过" if not problems else "存在问题"))
+
+    ok = len(articles) == args.expected_count and all(not a["problems"] for a in articles)
+    if len(articles) != args.expected_count:
+        articles.append({"index": len(articles) + 1, "problems": ["篇数 %d != 预期 %d" % (len(articles), args.expected_count)]})
+    emit({"ok": ok, "data": {"article_count": len(items), "expected": args.expected_count, "articles": articles}})
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except SystemExit as e:
+        if e.code not in (0, None):
+            emit({"ok": False, "error": e.code if isinstance(e.code, str) else "exit " + str(e.code)})
+        raise
+    except Exception as e:
+        emit({"ok": False, "error": type(e).__name__ + ": " + str(e)})
+        raise

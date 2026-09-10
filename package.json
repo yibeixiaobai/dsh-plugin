@@ -1,0 +1,33 @@
+{
+  "name": "dsh-gzh-publisher",
+  "version": "0.1.0",
+  "description": "文映千秋学术网公众号自动化流水线插件：选题查重 → 写文排版 → AI 配图 → 草稿发布 → 核验，全部参数走插件快捷设置",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "keywords": ["dsh-plugin", "dsh", "wechat", "gzh", "publisher"],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

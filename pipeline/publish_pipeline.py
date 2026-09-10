@@ -1,0 +1,256 @@
+# -*- coding: utf-8 -*-
+"""参数化发布流水线：上传素材（缓存断点续跑）→ 替换占位符 → 机器校验 → draft/add → 核验。
+
+纯计算 + 网络，不写任何文件：上传缓存（job.cache 传入、结果 cache 返回）、
+publish_result.json、draft_media_id.txt 均由 TS 侧落盘。
+凭据读 scripts/wx_config.json（appid/app_secret），与 publish_template.py 的 API 函数复用。
+
+job（TS 侧生成的 JSON 文件，scripts 目录内）:
+{
+  "titles": [...], "digests": [...],
+  "article_files": [...], "cover_files": [...],          // 绝对路径
+  "content_files": {"IMG_A1_1": "...", "IMG_A1_2": "...", ...},
+  "brand_top": "...", "brand_bot": "...",                // brand_assets 内绝对路径
+  "cache": {"__BRAND_TOP__": "https://...", "COVER_1": "media_id", ...},
+  "use_cache": true, "dry_run": false,
+  "need_open_comment": 1, "only_fans_can_comment": 0,
+  "author": "...", "brand_name": "...", "min_words": 2000,
+  "forbidden": [...]
+}
+输出协议：{ok, data:{dry_run, media_id?, verify?, cache, checks?}}
+"""
+import argparse
+import json
+import os
+import re
+import sys
+import time
+
+MARKER = "###RESULT### "
+
+
+def emit(payload):
+    print(MARKER + json.dumps(payload, ensure_ascii=False))
+
+
+def under(base, p):
+    """规范化 p 并强制其位于 base 之内；越界（上级目录引用、目录外绝对路径）一律拒绝。"""
+    bp = os.path.abspath(base)
+    cp = os.path.abspath(p)
+    if cp != bp and not cp.startswith(bp + os.sep):
+        raise SystemExit("路径越界: " + str(p))
+    return cp
+
+
+def precheck(html, idx, min_words, forbidden, brand_name):
+    """发布前校验（占位符阶段）：换行/转义/字数/禁词/品牌/图片数/占位符齐全。"""
+    problems = []
+    if "\n" in html or "\r" in html:
+        problems.append("文章%d 存在换行符" % idx)
+    if "\\u" in html:
+        problems.append("文章%d 存在 unicode 转义残留" % idx)
+    txt = re.sub(r"<[^>]+>", "", html)
+    plain = re.sub(r"\s", "", txt)
+    if len(plain) < min_words:
+        problems.append("文章%d 纯文字 %d 字，低于下限 %d" % (idx, len(plain), min_words))
+    for w in forbidden:
+        if w in plain:
+            problems.append("文章%d 含禁词: %s" % (idx, w))
+    if brand_name not in plain:
+        problems.append("文章%d 缺少品牌引导语: %s" % (idx, brand_name))
+    if html.count("<img") != 4:
+        problems.append("文章%d img 数量 %d != 4" % (idx, html.count("<img")))
+    for ph in ("__BRAND_TOP__", "__BRAND_BOT__"):
+        if ph not in html:
+            problems.append("文章%d 缺少占位符 %s" % (idx, ph))
+    # 正文图占位符兼容两代格式：IMG_A{idx}_{j} 与 __IMG_{idx}_{j}__
+    for j in (1, 2):
+        if ("IMG_A" + str(idx) + "_" + str(j)) not in html and ("__IMG_" + str(idx) + "_" + str(j) + "__") not in html:
+            problems.append("文章%d 缺少正文图占位符（第 %d 张）" % (idx, j))
+    return problems, len(plain)
+
+
+def postcheck(html, idx, min_words, forbidden, brand_name):
+    """占位符替换后的最终校验：全部 src 必须是 mmbiz CDN。"""
+    problems = []
+    if "IMG_A" in html or "__BRAND" in html:
+        problems.append("文章%d 仍有占位符残留" % idx)
+    srcs = re.findall(r'(?:data-src|src)="([^"]+)"', html)
+    bad = [s for s in srcs if "mmbiz.qpic.cn" not in s]
+    if bad:
+        problems.append("文章%d 存在非 CDN 图片: %s" % (idx, bad[:2]))
+    txt = re.sub(r"<[^>]+>", "", html)
+    plain = re.sub(r"\s", "", txt)
+    if len(plain) < min_words:
+        problems.append("文章%d 纯文字 %d 字，低于下限 %d" % (idx, len(plain), min_words))
+    for w in forbidden:
+        if w in plain:
+            problems.append("文章%d 含禁词: %s" % (idx, w))
+    if brand_name not in plain:
+        problems.append("文章%d 缺少品牌引导语: %s" % (idx, brand_name))
+    return problems, len(srcs), len(plain)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--job", default="", help="job JSON 文件名（scripts 目录内）")
+    ap.add_argument("--job-json", default="", help="job JSON 内联字符串（与 --job 二选一）")
+    ap.add_argument("--scripts-dir", required=True)
+    ap.add_argument("--brand-dir", required=True)
+    args = ap.parse_args()
+
+    scripts_abs = os.path.abspath(args.scripts_dir)
+    if args.job_json:
+        job = json.loads(args.job_json)
+    else:
+        if not args.job:
+            raise SystemExit("必须提供 --job 或 --job-json")
+        job_path = os.path.normpath(os.path.join(scripts_abs, args.job))
+        if not job_path.startswith(scripts_abs + os.sep):
+            raise SystemExit("job 路径越界: " + job_path)
+        job = json.load(open(job_path, encoding="utf-8"))
+
+    titles = job["titles"]
+    digests = job["digests"]
+    n = len(titles)
+    if n == 0 or len(digests) != n:
+        raise SystemExit("titles 与 digests 必须为等长非空数组")
+    if n > 99:
+        raise SystemExit("篇数过多")
+    forbidden = job.get("forbidden", [])
+    brand_name = job.get("brand_name", "文映千秋学术网")
+    min_words = int(job.get("min_words", 2000))
+    cache = dict(job.get("cache", {}))
+
+    # 路径边界校验：文章/封面/正文图必须位于 scripts 目录，品牌图必须位于 brand_assets
+    article_paths = [under(scripts_abs, p) for p in job["article_files"]]
+    cover_paths = [under(scripts_abs, p) for p in job["cover_files"]]
+    content_paths = {}
+    for k, p in job.get("content_files", {}).items():
+        cp = under(scripts_abs, p)
+        content_paths[k] = cp
+        # 键名兼容两代占位符：IMG_A{i}_{j} ↔ __IMG_{i}_{j}__
+        m = re.fullmatch(r"IMG_A(\d+)_(\d+)", k)
+        if m:
+            content_paths["__IMG_" + m.group(1) + "_" + m.group(2) + "__"] = cp
+        m2 = re.fullmatch(r"__IMG_(\d+)_(\d+)__", k)
+        if m2:
+            content_paths["IMG_A" + m2.group(1) + "_" + m2.group(2)] = cp
+    brand_top = under(os.path.abspath(args.brand_dir), job["brand_top"])
+    brand_bot = under(os.path.abspath(args.brand_dir), job["brand_bot"])
+
+    if len(article_paths) != n or len(cover_paths) != n:
+        raise SystemExit("article_files/cover_files 数量必须与 titles 一致")
+
+    htmls = []
+    for i, p in enumerate(article_paths, 1):
+        if not os.path.exists(p):
+            raise SystemExit("文章文件不存在: " + p)
+        htmls.append(open(p, encoding="utf-8").read())
+
+    # [1] 发布前校验（占位符阶段）
+    all_checks = []
+    for i, html in enumerate(htmls, 1):
+        problems, chars = precheck(html, i, min_words, forbidden, brand_name)
+        all_checks.extend(problems)
+        if not problems:
+            print("文章%d 校验通过（纯文字 %d 字）" % (i, chars))
+    if all_checks:
+        emit({"ok": False, "error": "发布前校验未通过", "data": {"checks": all_checks, "cache": cache}})
+        sys.exit(1)
+
+    if job.get("dry_run"):
+        emit({"ok": True, "data": {"dry_run": True, "checks": ["全部 %d 篇通过发布前校验" % n], "cache": cache}})
+        return
+
+    # [2] 上传素材（缓存断点续跑）
+    sys.path.insert(0, scripts_abs)
+    from publish_template import (create_draft, get_access_token, upload_content_image,
+                                  upload_cover, verify_draft)
+
+    conf = json.load(open(os.path.join(scripts_abs, "wx_config.json"), encoding="utf-8"))
+    token = get_access_token(conf["appid"], conf["app_secret"])
+
+    uploads = {"__BRAND_TOP__": brand_top, "__BRAND_BOT__": brand_bot}
+    uploads.update(content_paths)
+    for key in sorted(uploads):
+        if job.get("use_cache") and key in cache:
+            print("%s （缓存）" % key)
+            continue
+        if not os.path.exists(uploads[key]):
+            raise SystemExit("缺少素材: " + uploads[key])
+        cache[key] = upload_content_image(token, uploads[key])
+        print(key + " -> " + cache[key][:60])
+        time.sleep(0.3)
+
+    # [3] 替换占位符 + 最终校验
+    final_htmls = []
+    for i, html in enumerate(htmls, 1):
+        for key, url in cache.items():
+            if key.startswith("IMG_A") or key.startswith("__IMG_") or key.startswith("__BRAND"):
+                html = html.replace(key, url)
+        problems, n_img, chars = postcheck(html, i, min_words, forbidden, brand_name)
+        if problems:
+            emit({"ok": False, "error": "最终校验未通过", "data": {"checks": problems, "cache": cache}})
+            sys.exit(1)
+        final_htmls.append(html)
+        print("文章%d 最终校验通过（%d 张图，纯文字 %d 字）" % (i, n_img, chars))
+
+    # [4] 上传封面（material/add_material → media_id）
+    cover_ids = []
+    for i, p in enumerate(cover_paths, 1):
+        key = "COVER_" + str(i)
+        if job.get("use_cache") and key in cache:
+            cover_ids.append(cache[key])
+            print(key + " （缓存）")
+            continue
+        if not os.path.exists(p):
+            raise SystemExit("缺少封面: " + p)
+        cache[key] = upload_cover(token, p)
+        cover_ids.append(cache[key])
+        print(key + " -> " + cache[key][:40])
+        time.sleep(0.5)
+
+    # [5] draft/add 组合多图文草稿
+    articles = []
+    for i in range(n):
+        articles.append({
+            "title": titles[i],
+            "content": final_htmls[i],
+            "thumb_media_id": cover_ids[i],
+            "author": job.get("author", "文映学术win00.cn"),
+            "digest": digests[i],
+            "need_open_comment": int(job.get("need_open_comment", 1)),
+            "only_fans_can_comment": int(job.get("only_fans_can_comment", 0)),
+        })
+    media_id = create_draft(token, articles)
+    print("草稿创建成功 media_id: " + media_id)
+
+    # [6] draft/get 核验（必须 POST）
+    verify = {"checked": False}
+    if job.get("verify", True):
+        draft = verify_draft(token, media_id)
+        items = draft.get("news_item", [])
+        verify = {"checked": True, "article_count": len(items)}
+        if len(items) != n:
+            emit({"ok": False, "error": "草稿篇数不符：草稿 %d / 预期 %d" % (len(items), n),
+                  "data": {"media_id": media_id, "cache": cache, "verify": verify}})
+            sys.exit(1)
+
+    emit({"ok": True, "data": {"dry_run": False, "media_id": media_id, "article_count": n,
+                               "titles": titles, "cache": cache, "verify": verify}})
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except AssertionError as e:
+        emit({"ok": False, "error": "断言失败：" + str(e)})
+        sys.exit(1)
+    except SystemExit as e:
+        if e.code not in (0, None):
+            emit({"ok": False, "error": e.code if isinstance(e.code, str) else "exit " + str(e.code)})
+        raise
+    except Exception as e:
+        emit({"ok": False, "error": type(e).__name__ + ": " + str(e)})
+        raise
