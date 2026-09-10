@@ -73,6 +73,20 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 
 ## 工具（7 个）
 
+### 快捷指令
+
+在任意 dsh 会话输入以下指令即可直接启动任务：
+
+```text
+/gzh
+/gzh account-id
+/gzh account-id 本次重点关注职称评审政策
+```
+
+- `/gzh`：使用默认账号，自动选题并执行查重、写作、排版、生图、校验、草稿发布和核验。
+- 指定 `account-id`：使用对应账号的凭据、内容规则和品牌图。
+- 账号 ID 后的文字作为本次任务补充要求；省略账号 ID 时，整段文字作为默认账号的补充要求。
+
 | 工具 | 作用 |
 |---|---|
 | `gzh_check_topics` | 选题查重：候选选题 vs 110+ 次历史标题，返回 high/medium/low 风险 |

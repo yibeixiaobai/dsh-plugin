@@ -12,6 +12,18 @@ declare module '@deepseek-ai/cordis' {
   }
   export interface Context {
     tools: { register(tool: unknown): void }
+    commands: {
+      register(definition: {
+        name: string
+        description: string
+        input?: { hint: string; attachments?: boolean }
+        handler(invocation: {
+          rawInput: string
+          agent: { followup(message: unknown): void }
+          signal: AbortSignal
+        }): { kind: 'success'; text?: string } | { kind: 'error'; text: string }
+      }): () => void
+    }
     logger: Logger
     effect(...args: unknown[]): unknown
     inject(services: string[], callback: (ctx: Context) => void): void
@@ -33,6 +45,13 @@ declare module '@deepseek-ai/cordis' {
       }): () => void
     }
   }
+}
+
+declare module '@deepseek-ai/dsh-llm' {
+  export function createUserMessage(input: {
+    content: Array<{ type: 'text'; text: string }>
+    source: { kind: 'user' }
+  }): unknown
 }
 
 declare module '@deepseek-ai/dsh-settings' {

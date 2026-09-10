@@ -5,6 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigT } from './config.ts'
 import { applyNormalizedConfig } from './config-runtime.ts'
 import { registerBrandImageRoutes } from './brand-images.ts'
+import { registerQuickCommand } from './command.ts'
 import { hydrateConfigFromWx, syncConfig } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
 import { checkTopicsTool } from './tools/checkTopics.ts'
@@ -15,7 +16,7 @@ import { validateHtmlTool } from './tools/validateHtml.ts'
 import { verifyTool } from './tools/verify.ts'
 
 export const name = 'dsh-gzh-publisher'
-export const inject = ['tools']
+export const inject = ['tools', 'commands']
 export { Config }
 export type { ConfigT }
 
@@ -72,7 +73,8 @@ export function apply(ctx: Context, config: ConfigT) {
   ctx.tools.register(validateHtmlTool(config))
   ctx.tools.register(publishTool(config))
   ctx.tools.register(verifyTool(config))
+  registerQuickCommand(ctx, config)
 
-  ctx.logger.info('[gzh] dsh-gzh-publisher v' + VERSION + ' 已加载：7 个工具就绪' +
+  ctx.logger.info('[gzh] dsh-gzh-publisher v' + VERSION + ' 已加载：7 个工具与 /gzh 快捷指令就绪' +
     (config.runtime.dry_run ? '（演练模式：不联网生图、不发布）' : ''))
 }
