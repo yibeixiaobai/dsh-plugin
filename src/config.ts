@@ -102,7 +102,7 @@ export interface Config {
 
 // gzh_components.py THEMES 的键，主题名映射见 styleGuide 工具
 export type ThemeKey = 'wenying' | 'olive' | 'graphite' | 'moyu' | 'redwhite' | 'zen'
-export type CoverRatio = '21:9' | '16:9' | '1:1'
+export type CoverRatio = '2.35:1' | '21:9' | '16:9' | '1:1'
 
 export const THEME_KEYS: ThemeKey[] = ['wenying', 'olive', 'graphite', 'moyu', 'redwhite', 'zen']
 
@@ -116,6 +116,7 @@ export const THEME_NAMES: Record<ThemeKey, string> = {
 }
 
 export const COVER_SIZES: Record<CoverRatio, [number, number]> = {
+  '2.35:1': [3520, 1498],
   '21:9': [3520, 1500],
   '16:9': [3024, 1701],
   '1:1': [1920, 1920],
@@ -247,7 +248,7 @@ export const Config: Schema<Config> = Schema.object({
     base_url: Schema.string().default('https://api.a6api.com').description('生图 API 地址（OpenAI 兼容 /v1/images/generations）'),
     api_key: Schema.string().role('secret').default('').description('生图 API Key（sk- 开头，留空则沿用现有 wx_config.json）'),
     model: Schema.string().default('gpt-image-2').description('生图模型'),
-    headline_cover_ratio: Schema.union(['21:9', '16:9', '1:1']).default('21:9').description('头条封面比例'),
+    headline_cover_ratio: Schema.union(['2.35:1', '21:9', '16:9', '1:1']).default('2.35:1').description('头条封面比例'),
     secondary_cover_ratio: Schema.union(['21:9', '16:9', '1:1']).default('1:1').description('次条封面比例'),
     content_images_per_article: Schema.number().min(0).max(4).step(1).default(2).description('每篇正文配图数（第1张AI信息图+第2张真实图）'),
     image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),

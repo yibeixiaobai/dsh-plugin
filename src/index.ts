@@ -5,6 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigT } from './config.ts'
 import { applyNormalizedConfig } from './config-runtime.ts'
 import { registerBrandImageRoutes } from './brand-images.ts'
+import { registerImageTestRoute } from './image-test.ts'
 import { registerQuickCommand } from './command.ts'
 import { hydrateConfigFromWx, syncConfig } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
@@ -30,6 +31,7 @@ export function apply(ctx: Context, config: ConfigT) {
   const migrateProviders = Object.keys(config.image_providers).length === 0
   applyNormalizedConfig(config, config)
   registerBrandImageRoutes(ctx, () => config)
+  registerImageTestRoute(ctx, () => config)
   let source = () => config
 
   ctx.inject(['settings'], (settingsCtx) => {

@@ -3,7 +3,7 @@
 
 - 凭据读 scripts/wx_config.json 的 image_api_providers（由插件 syncConfig 同步）
 - 输出路径由 TS 侧在 job.items[].out 中给定（绝对路径），本脚本仅做边界校验后经 PIL 保存
-- 尺寸：封面由 TS 按设置的封面比例换算（21:9=3520x1500、16:9=3024x1701、1:1=1920x1920）；
+- 尺寸：封面由 TS 按设置的封面比例换算（2.35:1=3520x1498、21:9=3520x1500、16:9=3024x1701、1:1=1920x1920）；
   正文图 size 高度为 0 时按宽度 1080 等比缩放
 
 安全约定：API 返回的图片下载 URL 必须是 http(s)、主机经 DNS 解析后不得指向
@@ -12,6 +12,8 @@
 输出协议：最后一行 "###RESULT### {json}"，{ok, data:{generated, failed, dry_run}}
 """
 import argparse
+import base64
+import binascii
 import io
 import ipaddress
 import json
@@ -81,6 +83,10 @@ class RetryableProviderError(Exception):
     pass
 
 
+class NonRetryableProviderError(Exception):
+    pass
+
+
 def generate_raw(base_url, api_key, model, prompt, timeout):
     url = base_url.rstrip("/") + "/v1/images/generations"
     try:
@@ -100,9 +106,29 @@ def generate_raw(base_url, api_key, model, prompt, timeout):
         data = resp.json()
     except ValueError as e:
         raise RetryableProviderError("接口未返回合法 JSON: " + str(e))
-    img_url = data["data"][0]["url"]
+    # OpenAI 兼容接口可能返回图片 URL，也可能直接返回 base64。
+    # 不假定 data[0] 一定有 url，避免把接口格式差异暴露成 KeyError。
+    if not isinstance(data, dict):
+        raise NonRetryableProviderError("接口返回格式错误：顶层不是 JSON 对象")
+    if data.get("error"):
+        error = data.get("error")
+        if isinstance(error, dict):
+            error = error.get("message") or error.get("code") or str(error)
+        raise RetryableProviderError("接口返回错误：" + str(error)[:240])
+    records = data.get("data")
+    if not isinstance(records, list) or not records or not isinstance(records[0], dict):
+        raise NonRetryableProviderError("接口返回中缺少 data 图片结果：" + json.dumps(data, ensure_ascii=False)[:240])
+    record = records[0]
+    if record.get("b64_json"):
+        try:
+            return base64.b64decode(str(record["b64_json"]), validate=True)
+        except (ValueError, binascii.Error) as e:
+            raise NonRetryableProviderError("接口返回的 b64_json 无法解码：" + str(e)[:180])
+    img_url = record.get("url")
+    if not img_url:
+        raise NonRetryableProviderError("接口返回图片结果但缺少 url 或 b64_json：" + json.dumps(record, ensure_ascii=False)[:240])
     try:
-        return fetch_bytes(img_url, timeout)
+        return fetch_bytes(str(img_url), timeout)
     except requests.RequestException as e:
         raise RetryableProviderError("图片下载失败 " + type(e).__name__ + ": " + str(e)[:240])
 
@@ -198,6 +224,16 @@ def generate_item_with_pool(item, providers, active, disabled, prompt, out_abs,
                     "provider_used": None, "active": active, "disabled": disabled,
                     "attempts": attempts, "terminal": "exhausted",
                 }
+        except NonRetryableProviderError as e:
+            error = type(e).__name__ + ": " + str(e)[:300]
+            print("生图终止（不可重试）：" + error)
+            return {
+                "generated": [], "failed": [{
+                    "index": item.get("index"), "sub": item.get("sub"), "error": error,
+                }],
+                "provider_used": None, "active": active, "disabled": disabled,
+                "attempts": attempts, "terminal": "nonretryable",
+            }
         except Exception as e:
             error = type(e).__name__ + ": " + str(e)[:300]
             print("生图终止（不可重试）：" + error)
@@ -261,9 +297,12 @@ def main():
         if k < len(items) - 1:
             time.sleep(2)
 
-    emit({"ok": len(failed) == 0,
-          "data": {"generated": generated, "failed": failed, "dry_run": bool(job.get("dry_run")),
-                   "provider_used": provider_used, "provider_attempts": attempts}})
+    result = {"generated": generated, "failed": failed, "dry_run": bool(job.get("dry_run")),
+              "provider_used": provider_used, "provider_attempts": attempts}
+    payload = {"ok": len(failed) == 0, "data": result}
+    if failed:
+        payload["error"] = "；".join(str(item.get("error", "生图失败")) for item in failed)
+    emit(payload)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,9 @@
+# launch-dsh.ps1 — 启动 / 重启 DeepSeek Harness 公众号工作台
+#
+# 每次双击都先关掉正在运行的 dsh web 实例（$port 上的监听者及其 npx/cmd 包装
+# 进程），再拉起一个全新的实例并打开浏览器。所以重复启动 = 重启，永远不会出现
+# “端口被旧实例占着，新实例起不来”或“开了一堆重复服务”的情况。
+
 $ErrorActionPreference = 'Stop'
 
 $root = 'D:\666\gzh\dsh-plugin'
@@ -5,50 +11,119 @@ $port = 3080
 $stateDir = Join-Path $env:LOCALAPPDATA 'dsh-gzh-publisher'
 $stateFile = Join-Path $stateDir 'web-url.txt'
 $log = Join-Path $env:TEMP 'dsh-gzh-launch.log'
+$waitForExitSeconds = 20
 
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
 
+function Get-PortOwnerPid {
+  @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique |
+    Where-Object { $_ })
+}
+
 function Test-DshPort {
-  try {
-    return [bool](Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction Stop)
-  } catch {
+  (Get-PortOwnerPid).Count -gt 0
+}
+
+function Test-IsDshProcess {
+  param($Process)
+  if (-not $Process -or -not $Process.CommandLine) { return $false }
+  if ($Process.CommandLine -match '@deepseek-ai[\\/]dsh') { return $true }
+  return ($Process.Name -eq 'node.exe') -and ($Process.CommandLine -match '(?i)\bdsh\b')
+}
+
+function Get-DshWebTargets {
+  # 正在运行的这套实例包含：占用 $port 的 dsh 服务端、其它 dsh web 的 node
+  # 进程，以及拉起它们的 npx / cmd 包装链。非 dsh 的端口占用者一律不动。
+  $table = @{}
+  foreach ($proc in Get-CimInstance Win32_Process -ErrorAction SilentlyContinue) {
+    $table[[int]$proc.ProcessId] = $proc
+  }
+
+  $ids = New-Object 'System.Collections.Generic.HashSet[int]'
+
+  foreach ($procId in Get-PortOwnerPid) {
+    $proc = $table[[int]$procId]
+    if (Test-IsDshProcess $proc) { [void]$ids.Add([int]$procId) }
+  }
+
+  foreach ($proc in $table.Values) {
+    if ($proc.Name -ne 'node.exe') { continue }
+    if (-not (Test-IsDshProcess $proc)) { continue }
+    if ($proc.CommandLine -notmatch '(?i)(^|[\s"])web([\s"]|$)') { continue }
+    # 明确跑在别的端口上的 dsh web 不是这个工作台，不动它。
+    $explicit = [regex]::Match($proc.CommandLine, '(?i)--port[=\s]+(\d+)')
+    if ($explicit.Success -and [int]$explicit.Groups[1].Value -ne $port) { continue }
+    [void]$ids.Add([int]$proc.ProcessId)
+  }
+
+  foreach ($procId in @($ids)) {
+    $cursor = $table[$procId]
+    for ($depth = 0; $depth -lt 4 -and $cursor; $depth++) {
+      $parent = $table[[int]$cursor.ParentProcessId]
+      if (-not $parent) { break }
+      if (-not $parent.CommandLine) { break }
+      if ($parent.Name -notin @('cmd.exe', 'node.exe', 'conhost.exe')) { break }
+      if ($parent.CommandLine -notmatch '@deepseek-ai[\\/]dsh') { break }
+      [void]$ids.Add([int]$parent.ProcessId)
+      $cursor = $parent
+    }
+  }
+
+  @($ids)
+}
+
+function Wait-DshPortFree {
+  param([int]$Seconds)
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $deadline) {
+    if (-not (Test-DshPort)) { return $true }
+    Start-Sleep -Milliseconds 400
+  }
+  return (-not (Test-DshPort))
+}
+
+function Stop-DshWeb {
+  # 返回 $true 表示确实关掉了一个旧实例。
+  $targets = Get-DshWebTargets
+  if ($targets.Count -eq 0) {
+    if (Test-DshPort) {
+      Write-Host "端口 $port 被非 dsh 进程占用，跳过关闭：$(Get-PortOwnerPid -join ', ')"
+    }
     return $false
   }
-}
 
-function Test-SavedUrl {
-  if (-not (Test-Path -LiteralPath $stateFile)) {
-    return $null
+  Write-Host "关闭正在运行的 dsh 实例（PID: $($targets -join ', ')）…"
+  foreach ($procId in @($targets | Sort-Object -Descending)) {
+    Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
   }
 
-  $url = (Get-Content -LiteralPath $stateFile -Raw -ErrorAction SilentlyContinue).Trim()
-  if ($url -notmatch '^http://127\.0\.0\.1:\d+/\?token=.+') {
-    return $null
-  }
-
-  try {
-    $response = Invoke-WebRequest -UseBasicParsing -Uri $url -TimeoutSec 5
-    if ($response.StatusCode -eq 200) {
-      return $url
+  if (-not (Wait-DshPortFree -Seconds $waitForExitSeconds)) {
+    foreach ($procId in Get-PortOwnerPid) {
+      Write-Host "端口 $port 仍被 PID $procId 占用，强制结束进程树…"
+      & taskkill.exe /PID $procId /T /F 2>&1 | Out-Null
     }
-  } catch {
-    return $null
+    [void](Wait-DshPortFree -Seconds 5)
   }
 
-  return $null
+  return $true
 }
+
+# ---------------------------------------------------------------- 关闭旧实例
+$restarted = Stop-DshWeb
 
 if (Test-DshPort) {
-  $existingUrl = Test-SavedUrl
-  if ($existingUrl) {
-    Start-Process $existingUrl
-    exit 0
-  }
-
-  Start-Process "http://127.0.0.1:$port/"
-  exit 0
+  Write-Host "端口 $port 仍被占用，无法启动新实例。"
+  Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
+    Select-Object LocalAddress, LocalPort, OwningProcess | Format-Table -AutoSize | Out-String | Write-Host
+  Read-Host '按 Enter 关闭'
+  exit 1
 }
 
+# 旧 token 随旧进程失效，留着只会让浏览器打开一个 401 页面。
+Remove-Item -LiteralPath $stateFile -Force -ErrorAction SilentlyContinue
+
+# ---------------------------------------------------------------- 启动新实例
 Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
 $command = "cd /d `"$root`" && npx --yes @deepseek-ai/dsh web --port $port --no-open > `"$log`" 2>&1"
 $process = Start-Process -FilePath 'cmd.exe' `
@@ -76,6 +151,7 @@ for ($i = 0; $i -lt 90 -and -not $url; $i++) {
 
 if ($url) {
   Set-Content -LiteralPath $stateFile -Value $url -Encoding ascii
+  if ($restarted) { Write-Host '已重启，正在打开浏览器…' } else { Write-Host '正在打开浏览器…' }
   Start-Process $url
   exit 0
 }
@@ -85,3 +161,4 @@ if (Test-Path -LiteralPath $log) {
   Get-Content -LiteralPath $log -Tail 30
 }
 Read-Host '按 Enter 关闭'
+exit 1

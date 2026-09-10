@@ -64,7 +64,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | ① 公众号账号 | 多账号新增、启停、删除、设为默认；每个账号独立保存 `appid`、`app_secret`、`author_name`、`brand_name` |
 | ② 内容规则 | 按账号编辑 `articles_per_day`(6)、`min_words`(2000)、`topics`、`forbidden_words`、`ending_guide_required` |
 | ③ 排版 | `headline_theme`（6 主题下拉）、`secondary_theme`（rotate=轮换）、`font_size`(13px)、`line_height`(20px)、`paragraph_margin`(25px)、`text_indent`(2em) |
-| ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；网络/超时、401/403/408/429/5xx 自动轮换 |
+| ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；网络/超时、401/403/408/429/5xx 自动轮换；每个接口可单独测试并预览结果 |
 | ⑤ 头部品牌图 | 按账号上传或拖放 JPEG/PNG/WebP（≤10 MB），即时预览，并配置尺寸、裁切、位置、圆角与边框 |
 | ⑥ 尾部品牌图 | 同头部字段，可按账号独立上传、预览、启用和变换 |
 | ⑦ 运行 | `project_root`、`python_path`、`request_timeout_ms`、`dry_run`（演练：只校验不联网）、`verify_after_publish`、`use_upload_cache`、`need_open_comment` |
@@ -92,7 +92,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | `gzh_check_topics` | 选题查重：候选选题 vs 110+ 次历史标题，返回 high/medium/low 风险 |
 | `gzh_get_style_guide` | 写作规范：主题色板、doc_spec 格式、13px 铁律、禁词、硬性规则 |
 | `gzh_build_article` | 按 doc spec 构建单行 HTML（引言卡/目录/徽章/下划线/卡片图），断言 + lint，落盘 `article_v2_{i}.html` |
-| `gzh_generate_images` | AI 生图：封面（比例按设置）+ 正文信息图，自动缩放 |
+| `gzh_generate_images` | AI 生图：封面（头条默认 `2.35:1`）+ 正文信息图，自动缩放 |
 | `gzh_validate_html` | 发布前机器校验：换行/字数/禁词/占位符/图片数/CDN + gzh-design lint |
 | `gzh_publish_draft` | 上传素材（缓存续跑）→ 替换占位符 → draft/add 组合 1 个多图文草稿 |
 | `gzh_verify_draft` | draft/get（POST）逐篇核验草稿 |
