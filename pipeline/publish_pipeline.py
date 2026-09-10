@@ -11,6 +11,7 @@ job（TS 侧生成的 JSON 文件，scripts 目录内）:
   "article_files": [...], "cover_files": [...],          // 绝对路径
   "content_files": {"IMG_A1_1": "...", "IMG_A1_2": "...", ...},
   "brand_top": "...", "brand_bot": "...",                // brand_assets 内绝对路径
+  "brand_top_enabled": true, "brand_bot_enabled": true,  // 是否要求/上传头尾品牌图
   "cache": {"__BRAND_TOP__": "https://...", "COVER_1": "media_id", ...},
   "use_cache": true, "dry_run": false,
   "need_open_comment": 1, "only_fans_can_comment": 0,
@@ -42,7 +43,8 @@ def under(base, p):
     return cp
 
 
-def precheck(html, idx, min_words, forbidden, brand_name):
+def precheck(html, idx, min_words, forbidden, brand_name, expected_img,
+             brand_top_enabled, brand_bot_enabled):
     """发布前校验（占位符阶段）：换行/转义/字数/禁词/品牌/图片数/占位符齐全。"""
     problems = []
     if "\n" in html or "\r" in html:
@@ -58,9 +60,14 @@ def precheck(html, idx, min_words, forbidden, brand_name):
             problems.append("文章%d 含禁词: %s" % (idx, w))
     if brand_name not in plain:
         problems.append("文章%d 缺少品牌引导语: %s" % (idx, brand_name))
-    if html.count("<img") != 4:
-        problems.append("文章%d img 数量 %d != 4" % (idx, html.count("<img")))
-    for ph in ("__BRAND_TOP__", "__BRAND_BOT__"):
+    if html.count("<img") != expected_img:
+        problems.append("文章%d img 数量 %d != %d" % (idx, html.count("<img"), expected_img))
+    required_brand_placeholders = []
+    if brand_top_enabled:
+        required_brand_placeholders.append("__BRAND_TOP__")
+    if brand_bot_enabled:
+        required_brand_placeholders.append("__BRAND_BOT__")
+    for ph in required_brand_placeholders:
         if ph not in html:
             problems.append("文章%d 缺少占位符 %s" % (idx, ph))
     # 正文图占位符兼容两代格式：IMG_A{idx}_{j} 与 __IMG_{idx}_{j}__
@@ -70,11 +77,18 @@ def precheck(html, idx, min_words, forbidden, brand_name):
     return problems, len(plain)
 
 
-def postcheck(html, idx, min_words, forbidden, brand_name):
+def postcheck(html, idx, min_words, forbidden, brand_name, expected_img,
+              brand_top_enabled, brand_bot_enabled):
     """占位符替换后的最终校验：全部 src 必须是 mmbiz CDN。"""
     problems = []
-    if "IMG_A" in html or "__BRAND" in html:
+    if "IMG_A" in html or "__IMG_" in html:
         problems.append("文章%d 仍有占位符残留" % idx)
+    if brand_top_enabled and "__BRAND_TOP__" in html:
+        problems.append("文章%d 仍有头部品牌图占位符" % idx)
+    if brand_bot_enabled and "__BRAND_BOT__" in html:
+        problems.append("文章%d 仍有尾部品牌图占位符" % idx)
+    if html.count("<img") != expected_img:
+        problems.append("文章%d img 数量 %d != %d" % (idx, html.count("<img"), expected_img))
     srcs = re.findall(r'(?:data-src|src)="([^"]+)"', html)
     bad = [s for s in srcs if "mmbiz.qpic.cn" not in s]
     if bad:
@@ -121,6 +135,9 @@ def main():
     brand_name = job.get("brand_name", "文映千秋学术网")
     min_words = int(job.get("min_words", 2000))
     cache = dict(job.get("cache", {}))
+    brand_top_enabled = bool(job.get("brand_top_enabled", True))
+    brand_bot_enabled = bool(job.get("brand_bot_enabled", True))
+    expected_img = 2 + (1 if brand_top_enabled else 0) + (1 if brand_bot_enabled else 0)
 
     # 路径边界校验：文章/封面/正文图必须位于 scripts 目录，品牌图必须位于 brand_assets
     article_paths = [under(scripts_abs, p) for p in job["article_files"]]
@@ -136,8 +153,8 @@ def main():
         m2 = re.fullmatch(r"__IMG_(\d+)_(\d+)__", k)
         if m2:
             content_paths["IMG_A" + m2.group(1) + "_" + m2.group(2)] = cp
-    brand_top = under(os.path.abspath(args.brand_dir), job["brand_top"])
-    brand_bot = under(os.path.abspath(args.brand_dir), job["brand_bot"])
+    brand_top = under(os.path.abspath(args.brand_dir), job["brand_top"]) if job.get("brand_top") else ""
+    brand_bot = under(os.path.abspath(args.brand_dir), job["brand_bot"]) if job.get("brand_bot") else ""
 
     if len(article_paths) != n or len(cover_paths) != n:
         raise SystemExit("article_files/cover_files 数量必须与 titles 一致")
@@ -151,7 +168,9 @@ def main():
     # [1] 发布前校验（占位符阶段）
     all_checks = []
     for i, html in enumerate(htmls, 1):
-        problems, chars = precheck(html, i, min_words, forbidden, brand_name)
+        problems, chars = precheck(
+            html, i, min_words, forbidden, brand_name, expected_img,
+            brand_top_enabled, brand_bot_enabled)
         all_checks.extend(problems)
         if not problems:
             print("文章%d 校验通过（纯文字 %d 字）" % (i, chars))
@@ -171,7 +190,11 @@ def main():
     conf = json.load(open(os.path.join(scripts_abs, "wx_config.json"), encoding="utf-8"))
     token = get_access_token(conf["appid"], conf["app_secret"])
 
-    uploads = {"__BRAND_TOP__": brand_top, "__BRAND_BOT__": brand_bot}
+    uploads = {}
+    if brand_top_enabled:
+        uploads["__BRAND_TOP__"] = brand_top
+    if brand_bot_enabled:
+        uploads["__BRAND_BOT__"] = brand_bot
     uploads.update(content_paths)
     for key in sorted(uploads):
         if job.get("use_cache") and key in cache:
@@ -189,7 +212,9 @@ def main():
         for key, url in cache.items():
             if key.startswith("IMG_A") or key.startswith("__IMG_") or key.startswith("__BRAND"):
                 html = html.replace(key, url)
-        problems, n_img, chars = postcheck(html, i, min_words, forbidden, brand_name)
+        problems, n_img, chars = postcheck(
+            html, i, min_words, forbidden, brand_name, expected_img,
+            brand_top_enabled, brand_bot_enabled)
         if problems:
             emit({"ok": False, "error": "最终校验未通过", "data": {"checks": problems, "cache": cache}})
             sys.exit(1)

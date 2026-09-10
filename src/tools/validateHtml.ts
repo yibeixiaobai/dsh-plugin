@@ -1,6 +1,6 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
-import { renderJson, runPipeline, scriptsDir } from './shared.ts'
+import { expectedArticleImageCount, renderJson, runPipeline, scriptsDir } from './shared.ts'
 
 export interface ValidateReport {
   passed: boolean
@@ -46,6 +46,7 @@ export function validateHtmlTool(cfg: Config) {
         '--min-words', String(cfg.content.min_words),
         '--forbidden', JSON.stringify(cfg.content.forbidden_words),
         '--brand-name', cfg.wechat.brand_name,
+        '--img-count', String(expectedArticleImageCount(cfg)),
         '--lint',
       ]
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')

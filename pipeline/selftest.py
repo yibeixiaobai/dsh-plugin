@@ -90,7 +90,38 @@ def main():
     ok = r["exit"] == 0 and r["result"] and r["result"].get("ok")
     results.append(("build_article 文章构建", ok, r))
 
-    # 3. HTML 校验（复用 scripts 目录内现成文章，只读）
+    # 3. 品牌头尾图变换（关闭头图、尾图裁切+卡片边框）
+    brand_images = {
+        "header": {"enabled": False},
+        "footer": {
+            "enabled": True, "file": "brand_bot.jpg", "width": 72, "height": 180,
+            "fit": "cover", "position": "bottom", "radius": 12,
+            "margin_top": 18, "margin_bottom": 6, "frame": True,
+        },
+    }
+    r = run_script(os.path.join(here, "build_article.py"), [
+        "--doc-json", json.dumps(doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--min-words", "2000", "--forbidden", "[]", "--brand-name", "文映千秋学术网",
+        "--brand-images", json.dumps(brand_images, ensure_ascii=False)])
+    data = (r["result"] or {}).get("data") or {}
+    html = data.get("html", "")
+    sys.path.insert(0, here)
+    import publish_pipeline as pp
+    precheck_problems, _ = pp.precheck(
+        html, 99, 2000, [], "文映千秋学术网", 3, False, True)
+    ok = (
+        r["exit"] == 0 and r["result"] and r["result"].get("ok")
+        and data.get("img_count") == 3
+        and "__BRAND_TOP__" not in html
+        and "__BRAND_BOT__" in html
+        and "object-fit:cover" in html
+        and "object-position:bottom" in html
+        and "border-radius:18px" in html
+        and not precheck_problems
+    )
+    results.append(("brand_images 头尾图变换", ok, r))
+
+    # 4. HTML 校验（复用 scripts 目录内现成文章，只读）
     existing = []
     for i in range(1, 7):
         p = os.path.join(scripts_abs, "article_v2_" + str(i) + ".html")
@@ -106,7 +137,7 @@ def main():
         ok = True
     results.append(("check_html HTML校验", ok, r))
 
-    # 4. 生图演练（dry_run 不联网不写图）
+    # 5. 生图演练（dry_run 不联网不写图）
     img_job = {
         "items": [
             {"kind": "cover", "index": 1, "prompt": "自测封面",
@@ -121,7 +152,7 @@ def main():
     ok = r["exit"] == 0 and r["result"] and r["result"].get("ok")
     results.append(("gen_images 生图演练", ok, r))
 
-    # 5. 发布演练（dry_run 不联网不落盘，复用现成文章）
+    # 6. 发布演练（dry_run 不联网不落盘，复用现成文章）
     if existing:
         titles = ["自测标题" + os.path.basename(p)[10] for p in existing]
         digests = ["自测摘要，用于演练模式的发布前校验，不含敏感信息。" + "x" * i for i, p in enumerate(existing)]

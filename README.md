@@ -54,7 +54,8 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 （Desktop 版重启 DeepSeek Harness Desktop；CLI 版重启 `dsh web`）。
 
 安装后打开 dsh web 工作台 → 设置 → **公众号**，
-即可通过 5 个 Tab 配置公众号凭据、内容规则、排版、AI 配图与运行参数；修改后热重载自动生效。
+即可通过 7 个 Tab 配置公众号凭据、内容规则、排版、AI 配图、头部品牌图、尾部品牌图与运行参数；
+修改后热重载自动生效。
 
 ## 快捷设置（Config schema）
 
@@ -64,7 +65,9 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | ② 内容规则 | `articles_per_day`(6)、`min_words`(2000)、`topics`（选题方向表）、`forbidden_words`（禁词表）、`ending_guide_required` |
 | ③ 排版 | `headline_theme`（6 主题下拉）、`secondary_theme`（rotate=轮换）、`font_size`(13px)、`line_height`(20px)、`paragraph_margin`(25px)、`text_indent`(2em) |
 | ④ AI 配图 | `base_url`、`api_key`（secret）、`model`(gpt-image-2)、`headline_cover_ratio`(21:9)、`secondary_cover_ratio`(1:1)、`content_images_per_article`(2)、`image_lang_zh_only` |
-| ⑤ 运行 | `project_root`、`python_path`、`request_timeout_ms`、`dry_run`（演练：只校验不联网）、`verify_after_publish`、`use_upload_cache`、`need_open_comment` |
+| ⑤ 头部品牌图 | `enabled`、`file`、`width`、`height`、`fit`（contain/cover/fill）、`position`、`radius`、`margin_top`、`margin_bottom`、`frame` |
+| ⑥ 尾部品牌图 | 同头部字段，可独立启用、换图和变换 |
+| ⑦ 运行 | `project_root`、`python_path`、`request_timeout_ms`、`dry_run`（演练：只校验不联网）、`verify_after_publish`、`use_upload_cache`、`need_open_comment` |
 
 ## 工具（7 个）
 

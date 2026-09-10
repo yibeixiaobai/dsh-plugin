@@ -1,7 +1,9 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config, ThemeKey } from '../config.ts'
 import { THEME_KEYS } from '../config.ts'
-import { renderJson, runPipeline, scriptsDir, writeTextFile } from './shared.ts'
+import {
+  expectedArticleImageCount, renderJson, runPipeline, scriptsDir, writeTextFile,
+} from './shared.ts'
 
 interface BuiltArticle {
   index: number
@@ -64,6 +66,7 @@ export function buildArticleTool(cfg: Config) {
           '--min-words', String(cfg.content.min_words),
           '--forbidden', JSON.stringify(cfg.content.forbidden_words),
           '--brand-name', cfg.wechat.brand_name,
+          '--brand-images', JSON.stringify(cfg.brand_images),
           '--typography', JSON.stringify({
             font_size: cfg.typography.font_size,
             line_height: cfg.typography.line_height,
@@ -88,6 +91,7 @@ export function buildArticleTool(cfg: Config) {
           '--min-words', String(cfg.content.min_words),
           '--forbidden', JSON.stringify(cfg.content.forbidden_words),
           '--brand-name', cfg.wechat.brand_name,
+          '--img-count', String(expectedArticleImageCount(cfg)),
           '--allow-placeholders',
           '--lint',
         ],

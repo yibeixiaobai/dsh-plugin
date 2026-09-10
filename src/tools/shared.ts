@@ -68,6 +68,29 @@ export function writeUploadCache(cfg: Config, cache: Record<string, string>): vo
   writeTextFile(scriptsDir(cfg), CACHE_FILE, JSON.stringify(cache, null, 2) + '\n')
 }
 
+/** Resolve a configured brand image inside brand_assets; absolute paths outside are rejected. */
+export function brandImagePath(cfg: Config, file: string, fallback: string): string {
+  const base = path.resolve(brandDir(cfg))
+  const requested = (file || fallback).trim()
+  if (!requested) throw new Error('品牌图文件名不能为空')
+  const resolved = path.resolve(base, requested)
+  if (resolved !== base && !resolved.startsWith(base + path.sep)) {
+    throw new Error('品牌图必须位于 brand_assets 目录内: ' + requested)
+  }
+  if (!/\.(jpe?g|png)$/i.test(resolved)) {
+    throw new Error('品牌图仅支持 .jpg / .jpeg / .png: ' + requested)
+  }
+  return resolved
+}
+
+export function expectedBrandImageCount(cfg: Config): number {
+  return (cfg.brand_images.header.enabled ? 1 : 0) + (cfg.brand_images.footer.enabled ? 1 : 0)
+}
+
+export function expectedArticleImageCount(cfg: Config): number {
+  return 2 + expectedBrandImageCount(cfg)
+}
+
 export const renderJson = (v: unknown): ToolContentBlock[] => [
   { type: 'text', text: JSON.stringify(v, null, 2) },
 ]

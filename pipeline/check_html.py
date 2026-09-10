@@ -57,7 +57,7 @@ def check_file(path, min_words, forbidden, brand_name, img_count, allow_placehol
         problems.append("缺少品牌引导语: " + brand_name)
     n_img = html.count("<img")
     if n_img != img_count:
-        problems.append("img 数量 %d != %d（品牌图x2 + 正文图x%d）" % (n_img, img_count, img_count - 2))
+        problems.append("img 数量 %d != %d（正文图x2 + 启用的头尾品牌图）" % (n_img, img_count))
     srcs = re.findall(r'(?:data-src|src)="([^"]+)"', html)
     bad = [
         s for s in srcs

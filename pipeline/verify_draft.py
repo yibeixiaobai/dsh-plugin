@@ -26,6 +26,7 @@ def main():
     ap.add_argument("--expected-count", type=int, default=6)
     ap.add_argument("--author", default="文映学术win00.cn")
     ap.add_argument("--brand-name", default="文映千秋学术网")
+    ap.add_argument("--expected-img-count", type=int, default=4)
     ap.add_argument("--min-words", type=int, default=2000)
     ap.add_argument("--forbidden", default="[]")
     args = ap.parse_args()
@@ -59,7 +60,7 @@ def main():
             problems.append("标题超长 %d 字" % len(title))
         if len(digest) > 120:
             problems.append("摘要超长 %d 字" % len(digest))
-        if n_img != 4 or not all_cdn:
+        if n_img != args.expected_img_count or not all_cdn:
             problems.append("图片数 %d / 全CDN %s" % (n_img, all_cdn))
         if len(plain) < args.min_words:
             problems.append("纯文字 %d 字 < %d" % (len(plain), args.min_words))

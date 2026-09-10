@@ -20,8 +20,8 @@ doc spec（gzh_build_article 工具的 doc_json 入参）:
   "sign_off": "结尾引导语（必须含品牌名）"
 }
 
-断言（复刻 gzh_components.build 并参数化）：零换行、不少于 min_words 字、恰好 4 img
-（品牌图x2+正文图x2）、正文含品牌名。HTML 经 ###RESULT### JSON 返回，由 TS 侧落盘；
+断言（复刻 gzh_components.build 并参数化）：零换行、不少于 min_words 字、按品牌图开关
+得到 2~4 img（正文图x2 + 可选的头/尾品牌图）、正文含品牌名。HTML 经 ###RESULT### JSON 返回，由 TS 侧落盘；
 落盘后的 gzh-design 合规校验由 check_html.py --lint 承担。
 
 安全约定：唯一读取的文件是 --doc（normpath + startswith 边界守卫，限制在 --scripts-dir 之内）。
@@ -53,6 +53,70 @@ def apply_typography(html, typo):
     return html
 
 
+BRAND_IMAGE_DEFAULTS = {
+    "header": {
+        "enabled": True, "file": "brand_top.jpg", "width": 100, "height": 0,
+        "fit": "contain", "position": "center", "radius": 0,
+        "margin_top": 0, "margin_bottom": 0, "frame": False,
+    },
+    "footer": {
+        "enabled": True, "file": "brand_bot.jpg", "width": 60, "height": 0,
+        "fit": "contain", "position": "center", "radius": 0,
+        "margin_top": 20, "margin_bottom": 0, "frame": False,
+    },
+}
+
+
+def resolve_brand_spec(raw, kind):
+    spec = dict(BRAND_IMAGE_DEFAULTS[kind])
+    if isinstance(raw, dict):
+        spec.update(raw)
+    spec["enabled"] = bool(spec.get("enabled", True))
+    spec["file"] = str(spec.get("file") or BRAND_IMAGE_DEFAULTS[kind]["file"])
+    for key, lower, upper in (
+        ("width", 10, 100), ("height", 0, 2000), ("radius", 0, 100),
+        ("margin_top", 0, 200), ("margin_bottom", 0, 200),
+    ):
+        try:
+            value = int(spec.get(key, BRAND_IMAGE_DEFAULTS[kind][key]))
+        except (TypeError, ValueError):
+            value = BRAND_IMAGE_DEFAULTS[kind][key]
+        spec[key] = max(lower, min(upper, value))
+    spec["fit"] = spec.get("fit") if spec.get("fit") in ("contain", "cover", "fill") else "contain"
+    spec["position"] = spec.get("position") if spec.get("position") in ("top", "center", "bottom") else "center"
+    spec["frame"] = bool(spec.get("frame", False))
+    return spec
+
+
+def brand_image_html(kind, spec):
+    if not spec["enabled"]:
+        return ""
+    src = "__BRAND_TOP__" if kind == "header" else "__BRAND_BOT__"
+    height = str(spec["height"]) + "px" if spec["height"] > 0 else "auto"
+    margin = str(spec["margin_top"]) + "px auto " + str(spec["margin_bottom"]) + "px"
+    image_style = (
+        "width:100%;max-width:100%;height:" + height + ";object-fit:" + spec["fit"] +
+        ";object-position:" + spec["position"] + ";display:block;margin:0 auto;border-radius:" +
+        str(spec["radius"]) + "px;"
+    )
+    if spec["frame"]:
+        return (
+            '<section style="text-align:center;margin:' + margin + ';padding:0;">'
+            '<section style="display:inline-block;box-sizing:border-box;width:' + str(spec["width"]) +
+            '%;max-width:' + str(spec["width"]) + '%;background:#FFFFFF;border:1px solid #E5E7EB;' +
+            'border-radius:' + str(spec["radius"] + 6) + 'px;padding:6px;box-shadow:0 4px 12px -2px rgba(0,0,0,0.06);">'
+            '<img src="' + src + '" style="' + image_style + '">'
+            '</section></section>'
+        )
+    return (
+        '<p style="text-align:center;margin:' + margin + ';padding:0;">'
+        '<img src="' + src + '" style="width:' + str(spec["width"]) + '%;max-width:' +
+        str(spec["width"]) + '%;height:' + height + ';object-fit:' + spec["fit"] +
+        ';object-position:' + spec["position"] + ';display:block;margin:0 auto;border-radius:' +
+        str(spec["radius"]) + 'px;"></p>'
+    )
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--doc", default="", help="doc spec JSON 文件名（scripts 目录内）")
@@ -62,6 +126,7 @@ def main():
     ap.add_argument("--forbidden", default="[]")
     ap.add_argument("--brand-name", default="文映千秋学术网")
     ap.add_argument("--typography", default="{}", help='{"font_size":"13px",...}')
+    ap.add_argument("--brand-images", default="{}", help='{"header":{...},"footer":{...}}')
     args = ap.parse_args()
 
     base_abs = os.path.abspath(args.scripts_dir)
@@ -77,6 +142,10 @@ def main():
     forbidden = json.loads(args.forbidden)
     typo = {"font_size": "13px", "line_height": "20px", "paragraph_margin": "25px", "text_indent": "2em"}
     typo.update(json.loads(args.typography))
+    brand_raw = json.loads(args.brand_images)
+    header_brand = resolve_brand_spec(brand_raw.get("header"), "header")
+    footer_brand = resolve_brand_spec(brand_raw.get("footer"), "footer")
+    expected_img = 2 + (1 if header_brand["enabled"] else 0) + (1 if footer_brand["enabled"] else 0)
 
     sys.path.insert(0, base_abs)
     import gzh_components as gc
@@ -115,12 +184,16 @@ def main():
                 n_img += 1
             elif b.get("hr"):
                 sections.append(gc.hr(theme))
-    sections.append(gc.sign_off(doc["sign_off"], theme))
+    sign_off_html = gc.sign_off(doc["sign_off"], theme)
+    fixed_footer = gc.brand_bot()
+    if fixed_footer in sign_off_html:
+        sign_off_html = sign_off_html.replace(fixed_footer, "")
+    sections.append(sign_off_html + brand_image_html("footer", footer_brand))
     if n_img != 2:
         raise SystemExit("doc 必须恰好包含 2 个 img 块（IMG_A" + str(idx) + "_1 / _2 占位），当前 " + str(n_img) + " 个")
 
     # 复刻 gzh_components.build 的组装与断言（品牌名/字数参数化），但不写文件
-    html = gc.brand_top() + intro + "".join(sections)
+    html = brand_image_html("header", header_brand) + intro + "".join(sections)
     html = html.encode("utf-8", errors="replace").decode("utf-8")
     assert html.count("\n") == 0, "组件拼接产生了换行符"
     html = apply_typography(html, typo)
@@ -128,7 +201,8 @@ def main():
     txt = re.sub(r"<[^>]+>", "", html)
     plain = re.sub(r"\s", "", txt)
     assert len(plain) >= args.min_words, "纯文字不足：" + str(len(plain)) + " < " + str(args.min_words)
-    assert html.count("<img") == 4, "img 数量不为 4：" + str(html.count("<img"))
+    assert html.count("<img") == expected_img, (
+        "img 数量不为 " + str(expected_img) + "：" + str(html.count("<img")))
     assert args.brand_name in txt, "缺少品牌引导语: " + args.brand_name
 
     problems = []
@@ -138,7 +212,7 @@ def main():
 
     emit({"ok": len(problems) == 0,
           "data": {"index": idx, "theme": theme, "html": html,
-                   "plain_chars": len(plain), "img_count": 4, "problems": problems}})
+                   "plain_chars": len(plain), "img_count": expected_img, "problems": problems}})
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, assertWechatCreds, brandDir,
-  findImage, readUploadCache, renderJson, runPipeline, scriptsDir, writeTextFile,
+  brandImagePath, findImage, readUploadCache, renderJson, runPipeline, scriptsDir, writeTextFile,
   writeUploadCache,
 } from './shared.ts'
 
@@ -92,13 +92,17 @@ export function publishTool(cfg: Config) {
         }
       }
       const bdir = brandDir(cfg)
-      const brandTop = path.resolve(bdir, 'brand_top.jpg')
-      const brandBot = path.resolve(bdir, 'brand_bot.jpg')
+      const brandTop = brandImagePath(cfg, cfg.brand_images.header.file, 'brand_top.jpg')
+      const brandBot = brandImagePath(cfg, cfg.brand_images.footer.file, 'brand_bot.jpg')
 
       if (!cfg.runtime.dry_run) {
         assertWechatCreds(cfg)
-        if (!fs.existsSync(brandTop)) throw new Error('缺少品牌图 brand_top.jpg（brand_assets/）')
-        if (!fs.existsSync(brandBot)) throw new Error('缺少品牌图 brand_bot.jpg（brand_assets/）')
+        if (cfg.brand_images.header.enabled && !fs.existsSync(brandTop)) {
+          throw new Error('缺少头部品牌图: ' + brandTop)
+        }
+        if (cfg.brand_images.footer.enabled && !fs.existsSync(brandBot)) {
+          throw new Error('缺少尾部品牌图: ' + brandBot)
+        }
       }
 
       const job = {
@@ -109,6 +113,8 @@ export function publishTool(cfg: Config) {
         content_files: contentFiles,
         brand_top: brandTop,
         brand_bot: brandBot,
+        brand_top_enabled: cfg.brand_images.header.enabled,
+        brand_bot_enabled: cfg.brand_images.footer.enabled,
         cache: readUploadCache(cfg),
         use_cache: cfg.runtime.use_upload_cache,
         dry_run: cfg.runtime.dry_run,

@@ -1,6 +1,8 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
-import { assertWechatCreds, renderJson, runPipeline, scriptsDir } from './shared.ts'
+import {
+  assertWechatCreds, expectedArticleImageCount, renderJson, runPipeline, scriptsDir,
+} from './shared.ts'
 
 export interface VerifyArticle {
   index: number
@@ -24,7 +26,7 @@ export function verifyTool(cfg: Config) {
   return defineTool<{ media_id: string }, VerifyReport>({
     name: 'gzh_verify_draft',
     description:
-      '草稿核验：draft/get（POST）逐篇核对标题长度/作者/摘要长度/图片数量（应为 4）/CDN 域名/品牌引导语/禁词。' +
+      '草稿核验：draft/get（POST）逐篇核对标题长度/作者/摘要长度/图片数量/CDN 域名/品牌引导语/禁词。' +
       'media_id 来自 gzh_publish_draft 的返回。',
     parameters: {
       media_id: { type: 'string', required: true, description: '草稿 media_id' },
@@ -42,6 +44,7 @@ export function verifyTool(cfg: Config) {
           '--expected-count', String(cfg.content.articles_per_day),
           '--author', cfg.wechat.author_name,
           '--brand-name', cfg.wechat.brand_name,
+          '--expected-img-count', String(expectedArticleImageCount(cfg)),
           '--min-words', String(cfg.content.min_words),
           '--forbidden', JSON.stringify(cfg.content.forbidden_words),
         ],

@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, type Config, type ThemeKey } from '../config.ts'
-import { renderJson } from './shared.ts'
+import { expectedArticleImageCount, renderJson } from './shared.ts'
 
 // 与 gzh_components.py THEMES 一致的色板
 const THEME_PALETTES: Record<ThemeKey, Record<string, string>> = {
@@ -111,7 +111,9 @@ export function styleGuideTool(cfg: Config) {
         ],
         hard_rules: [
           '作者名固定 ' + cfg.wechat.author_name,
-          '每篇正文恰好 4 张 img：首行品牌图 + 2 张正文配图（IMG_A{index}_1/_2 占位）+ 末尾品牌图',
+          '每篇正文 ' + expectedArticleImageCount(cfg) + ' 张 img：2 张正文配图（IMG_A{index}_1/_2 占位）' +
+            (cfg.brand_images.header.enabled ? ' + 头部品牌图' : '') +
+            (cfg.brand_images.footer.enabled ? ' + 尾部品牌图' : ''),
           '纯文字不少于 ' + cfg.content.min_words + ' 字（构建时断言）',
           '结尾自然引导关注「' + cfg.wechat.brand_name + '」（构建时断言）',
           '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio,

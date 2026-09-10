@@ -37,6 +37,27 @@ export interface ImageApiConfig {
   image_lang_zh_only: boolean
 }
 
+export type BrandImageFit = 'contain' | 'cover' | 'fill'
+export type BrandImagePosition = 'top' | 'center' | 'bottom'
+
+export interface BrandImageConfig {
+  enabled: boolean
+  file: string
+  width: number
+  height: number
+  fit: BrandImageFit
+  position: BrandImagePosition
+  radius: number
+  margin_top: number
+  margin_bottom: number
+  frame: boolean
+}
+
+export interface BrandImagesConfig {
+  header: BrandImageConfig
+  footer: BrandImageConfig
+}
+
 export interface RuntimeConfig {
   project_root: string
   python_path: string
@@ -52,6 +73,7 @@ export interface Config {
   content: ContentConfig
   typography: TypographyConfig
   image_api: ImageApiConfig
+  brand_images: BrandImagesConfig
   runtime: RuntimeConfig
 }
 
@@ -74,6 +96,33 @@ export const COVER_SIZES: Record<CoverRatio, [number, number]> = {
   '21:9': [3520, 1500],
   '16:9': [3024, 1701],
   '1:1': [1920, 1920],
+}
+
+export const DEFAULT_BRAND_IMAGES: BrandImagesConfig = {
+  header: {
+    enabled: true,
+    file: 'brand_top.jpg',
+    width: 100,
+    height: 0,
+    fit: 'contain',
+    position: 'center',
+    radius: 0,
+    margin_top: 0,
+    margin_bottom: 0,
+    frame: false,
+  },
+  footer: {
+    enabled: true,
+    file: 'brand_bot.jpg',
+    width: 60,
+    height: 0,
+    fit: 'contain',
+    position: 'center',
+    radius: 0,
+    margin_top: 20,
+    margin_bottom: 0,
+    frame: false,
+  },
 }
 
 export const DEFAULT_TOPICS = [
@@ -116,6 +165,32 @@ export const Config: Schema<Config> = Schema.object({
     content_images_per_article: Schema.number().min(0).max(4).step(1).default(2).description('每篇正文配图数（第1张AI信息图+第2张真实图）'),
     image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
   }).description('④ AI 配图'),
+  brand_images: Schema.object({
+    header: Schema.object({
+      enabled: Schema.boolean().default(true).description('是否在每篇文章顶部插入品牌图'),
+      file: Schema.string().default(DEFAULT_BRAND_IMAGES.header.file).description('brand_assets 目录内的图片文件名或相对路径'),
+      width: Schema.number().min(10).max(100).step(1).default(100).description('显示宽度（文章宽度百分比）'),
+      height: Schema.number().min(0).max(2000).step(10).default(0).description('固定显示高度（px，0=按原图比例）'),
+      fit: Schema.union(['contain', 'cover', 'fill']).default('contain').description('图片适配：contain 完整显示 / cover 裁切铺满 / fill 拉伸'),
+      position: Schema.union(['top', 'center', 'bottom']).default('center').description('裁切或留白时的垂直对齐'),
+      radius: Schema.number().min(0).max(100).step(1).default(0).description('图片圆角（px）'),
+      margin_top: Schema.number().min(0).max(200).step(1).default(0).description('图片上方间距（px）'),
+      margin_bottom: Schema.number().min(0).max(200).step(1).default(0).description('图片下方间距（px）'),
+      frame: Schema.boolean().default(false).description('是否使用白色卡片边框和阴影包裹'),
+    }).description('头部品牌图'),
+    footer: Schema.object({
+      enabled: Schema.boolean().default(true).description('是否在每篇文章末尾插入品牌图'),
+      file: Schema.string().default(DEFAULT_BRAND_IMAGES.footer.file).description('brand_assets 目录内的图片文件名或相对路径'),
+      width: Schema.number().min(10).max(100).step(1).default(60).description('显示宽度（文章宽度百分比）'),
+      height: Schema.number().min(0).max(2000).step(10).default(0).description('固定显示高度（px，0=按原图比例）'),
+      fit: Schema.union(['contain', 'cover', 'fill']).default('contain').description('图片适配：contain 完整显示 / cover 裁切铺满 / fill 拉伸'),
+      position: Schema.union(['top', 'center', 'bottom']).default('center').description('裁切或留白时的垂直对齐'),
+      radius: Schema.number().min(0).max(100).step(1).default(0).description('图片圆角（px）'),
+      margin_top: Schema.number().min(0).max(200).step(1).default(20).description('图片上方间距（px）'),
+      margin_bottom: Schema.number().min(0).max(200).step(1).default(0).description('图片下方间距（px）'),
+      frame: Schema.boolean().default(false).description('是否使用白色卡片边框和阴影包裹'),
+    }).description('尾部品牌图'),
+  }).description('⑤ 品牌头尾图'),
   runtime: Schema.object({
     project_root: Schema.string().default('D:/666/gzh/文映千秋学术网').description('公众号任务包根目录'),
     python_path: Schema.string().default('python').description('Python 解释器（需 3.12 + requests + Pillow）'),
@@ -124,5 +199,5 @@ export const Config: Schema<Config> = Schema.object({
     verify_after_publish: Schema.boolean().default(true).description('发布后自动 draft/get 核验'),
     use_upload_cache: Schema.boolean().default(true).description('素材上传缓存断点续跑（uploaded_urls.json）'),
     need_open_comment: Schema.boolean().default(true).description('草稿开启留言'),
-  }).description('⑤ 运行'),
+  }).description('⑥ 运行'),
 }) as Schema<Config>
