@@ -34,6 +34,28 @@ def emit(payload):
     print(MARKER + json.dumps(payload, ensure_ascii=False))
 
 
+def account_credentials(conf, account_id):
+    """Resolve credentials from the multi-account config, with legacy fallback for default."""
+    selected = account_id or conf.get("default_account") or "default"
+    accounts = conf.get("accounts") or []
+    if isinstance(accounts, dict):
+        entry = accounts.get(selected)
+    else:
+        entry = next((item for item in accounts if str(item.get("id", "")) == selected), None)
+    if entry:
+        appid = str(entry.get("appid", "")).strip()
+        secret = str(entry.get("app_secret", "")).strip()
+        if appid and secret:
+            return selected, appid, secret
+        raise SystemExit("账号 %s 的 AppID 或 AppSecret 未配置" % selected)
+    if selected == (conf.get("default_account") or "default"):
+        appid = str(conf.get("appid", "")).strip()
+        secret = str(conf.get("app_secret", "")).strip()
+        if appid and secret:
+            return selected, appid, secret
+    raise SystemExit("公众号账号不存在: " + selected)
+
+
 def under(base, p):
     """规范化 p 并强制其位于 base 之内；越界（上级目录引用、目录外绝对路径）一律拒绝。"""
     bp = os.path.abspath(base)
@@ -188,7 +210,8 @@ def main():
                                   upload_cover, verify_draft)
 
     conf = json.load(open(os.path.join(scripts_abs, "wx_config.json"), encoding="utf-8"))
-    token = get_access_token(conf["appid"], conf["app_secret"])
+    account_id, appid, app_secret = account_credentials(conf, job.get("account_id"))
+    token = get_access_token(appid, app_secret)
 
     uploads = {}
     if brand_top_enabled:
@@ -262,7 +285,7 @@ def main():
                   "data": {"media_id": media_id, "cache": cache, "verify": verify}})
             sys.exit(1)
 
-    emit({"ok": True, "data": {"dry_run": False, "media_id": media_id, "article_count": n,
+    emit({"ok": True, "data": {"account_id": account_id, "dry_run": False, "media_id": media_id, "article_count": n,
                                "titles": titles, "cache": cache, "verify": verify}})
 
 

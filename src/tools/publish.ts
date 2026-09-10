@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
+import { resolveAccount } from '../config-runtime.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, assertWechatCreds, brandDir,
   brandImagePath, findImage, readUploadCache, renderJson, runPipeline, scriptsDir, writeTextFile,
@@ -19,6 +20,7 @@ interface PublishResult {
 }
 
 export interface PublishOk {
+  account_id: string
   dry_run: boolean
   media_id?: string
   article_count: number
@@ -28,7 +30,12 @@ export interface PublishOk {
 }
 
 export function publishTool(cfg: Config) {
-  return defineTool<{ titles: string[]; digests: string[]; article_files?: string[] }, PublishOk>({
+  return defineTool<{
+    titles: string[]
+    digests: string[]
+    article_files?: string[]
+    account_id?: string
+  }, PublishOk>({
     name: 'gzh_publish_draft',
     description:
       '组合发布：上传品牌图/正文图/封面（缓存断点续跑）→ 替换占位符 → 机器校验 → draft/add 合并为 1 个多图文' +
@@ -52,10 +59,16 @@ export function publishTool(cfg: Config) {
         description: '可选：自定义文章 HTML 文件名（scripts 目录内）；缺省用 article_v2_1..N.html',
         items: { type: 'string' },
       },
+      account_id: {
+        type: 'string',
+        description: '公众号账号 ID；缺省使用默认账号',
+      },
     },
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
-      const n = cfg.content.articles_per_day
+      const account = resolveAccount(cfg, args.account_id)
+      const content = account.profile.content
+      const n = content.articles_per_day
       if (!Array.isArray(args.titles) || args.titles.length !== n) {
         throw new Error('titles 必须是 ' + n + ' 个')
       }
@@ -92,20 +105,21 @@ export function publishTool(cfg: Config) {
         }
       }
       const bdir = brandDir(cfg)
-      const brandTop = brandImagePath(cfg, cfg.brand_images.header.file, 'brand_top.jpg')
-      const brandBot = brandImagePath(cfg, cfg.brand_images.footer.file, 'brand_bot.jpg')
+      const brandTop = brandImagePath(cfg, account.profile.brand_images.header.file, 'brand_top.jpg')
+      const brandBot = brandImagePath(cfg, account.profile.brand_images.footer.file, 'brand_bot.jpg')
 
       if (!cfg.runtime.dry_run) {
-        assertWechatCreds(cfg)
-        if (cfg.brand_images.header.enabled && !fs.existsSync(brandTop)) {
+        assertWechatCreds(cfg, account.id)
+        if (account.profile.brand_images.header.enabled && !fs.existsSync(brandTop)) {
           throw new Error('缺少头部品牌图: ' + brandTop)
         }
-        if (cfg.brand_images.footer.enabled && !fs.existsSync(brandBot)) {
+        if (account.profile.brand_images.footer.enabled && !fs.existsSync(brandBot)) {
           throw new Error('缺少尾部品牌图: ' + brandBot)
         }
       }
 
       const job = {
+        account_id: account.id,
         titles: args.titles,
         digests: args.digests,
         article_files: articlePaths,
@@ -113,17 +127,17 @@ export function publishTool(cfg: Config) {
         content_files: contentFiles,
         brand_top: brandTop,
         brand_bot: brandBot,
-        brand_top_enabled: cfg.brand_images.header.enabled,
-        brand_bot_enabled: cfg.brand_images.footer.enabled,
+        brand_top_enabled: account.profile.brand_images.header.enabled,
+        brand_bot_enabled: account.profile.brand_images.footer.enabled,
         cache: readUploadCache(cfg),
         use_cache: cfg.runtime.use_upload_cache,
         dry_run: cfg.runtime.dry_run,
         need_open_comment: cfg.runtime.need_open_comment ? 1 : 0,
         only_fans_can_comment: 0,
-        author: cfg.wechat.author_name,
-        brand_name: cfg.wechat.brand_name,
-        min_words: cfg.content.min_words,
-        forbidden: cfg.content.forbidden_words,
+        author: account.profile.author_name,
+        brand_name: account.profile.brand_name,
+        min_words: content.min_words,
+        forbidden: content.forbidden_words,
         verify: cfg.runtime.verify_after_publish,
       }
       const result = await runPipeline<PublishResult>(
@@ -136,20 +150,29 @@ export function publishTool(cfg: Config) {
       // 结果落盘：上传缓存续跑 + 发布记录（与项目既有文件兼容）
       writeUploadCache(cfg, result.cache ?? {})
       if (result.dry_run) {
-        return { dry_run: true, article_count: n, titles: args.titles, verify: { checked: false }, result_file: '' }
+        return {
+          account_id: account.id,
+          dry_run: true,
+          article_count: n,
+          titles: args.titles,
+          verify: { checked: false },
+          result_file: '',
+        }
       }
       if (!result.media_id) throw new Error('发布成功但未返回 media_id')
       writeTextFile(sdir, MEDIA_ID_FILE, result.media_id + '\n')
       const stamp = new Date().toISOString().replace('T', ' ').slice(0, 19)
       const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
         status: 'success',
+        account_id: account.id,
         draft_media_id: result.media_id,
         article_count: n,
-        author: cfg.wechat.author_name,
+        author: account.profile.author_name,
         timestamp: stamp,
         articles: args.titles,
       }, null, 2) + '\n')
       return {
+        account_id: account.id,
         dry_run: false,
         media_id: result.media_id,
         article_count: result.article_count ?? n,

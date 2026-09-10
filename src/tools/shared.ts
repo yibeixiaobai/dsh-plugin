@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolContentBlock } from '@deepseek-ai/dsh-tools'
-import type { Config } from '../config.ts'
+import type { AccountProfile, Config } from '../config.ts'
 import { pipelineDir, runPython } from '../py.ts'
 import { assertImageCreds, assertWechatCreds, brandDir, scriptsDir } from '../sync.ts'
 
@@ -77,18 +77,18 @@ export function brandImagePath(cfg: Config, file: string, fallback: string): str
   if (resolved !== base && !resolved.startsWith(base + path.sep)) {
     throw new Error('品牌图必须位于 brand_assets 目录内: ' + requested)
   }
-  if (!/\.(jpe?g|png)$/i.test(resolved)) {
-    throw new Error('品牌图仅支持 .jpg / .jpeg / .png: ' + requested)
+  if (!/\.(jpe?g|png|webp)$/i.test(resolved)) {
+    throw new Error('品牌图仅支持 .jpg / .jpeg / .png / .webp: ' + requested)
   }
   return resolved
 }
 
-export function expectedBrandImageCount(cfg: Config): number {
-  return (cfg.brand_images.header.enabled ? 1 : 0) + (cfg.brand_images.footer.enabled ? 1 : 0)
+export function expectedBrandImageCount(account: AccountProfile): number {
+  return (account.brand_images.header.enabled ? 1 : 0) + (account.brand_images.footer.enabled ? 1 : 0)
 }
 
-export function expectedArticleImageCount(cfg: Config): number {
-  return 2 + expectedBrandImageCount(cfg)
+export function expectedArticleImageCount(account: AccountProfile): number {
+  return 2 + expectedBrandImageCount(account)
 }
 
 export const renderJson = (v: unknown): ToolContentBlock[] => [

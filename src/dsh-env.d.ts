@@ -14,14 +14,23 @@ declare module '@deepseek-ai/cordis' {
     tools: { register(tool: unknown): void }
     logger: Logger
     effect(...args: unknown[]): unknown
-    inject(services: string[], callback: (ctx: Context & {
-      settings: NonNullable<Context['settings']>
-    }) => void): void
+    inject(services: string[], callback: (ctx: Context) => void): void
     settings?: {
       installSection(owner: Context, namespace: string, schema: unknown, entry: unknown, hooks: {
         setSource(next: () => unknown): void
         onChange(): void
       }): void
+      update(namespace: string, patch: object): Promise<void>
+    }
+    webServer?: {
+      register(route: {
+        kind: 'exact' | 'prefix'
+        path: string
+        handler: (
+          req: import('node:http').IncomingMessage,
+          res: import('node:http').ServerResponse,
+        ) => void | Promise<void>
+      }): () => void
     }
   }
 }
@@ -50,6 +59,7 @@ declare module '@deepseek-ai/schemastery' {
     boolean(): Schema<boolean>
     natural(): Schema<number>
     array<T>(item: Schema<T>): Schema<T[]>
+    dict<T>(item: Schema<T>): Schema<Record<string, T>>
     union<T extends Array<string | number>>(values: [...T]): Schema<T[number]>
     any(): Schema<unknown>
   }

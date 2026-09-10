@@ -58,6 +58,26 @@ export interface BrandImagesConfig {
   footer: BrandImageConfig
 }
 
+export interface AccountProfile {
+  name: string
+  enabled: boolean
+  appid: string
+  app_secret: string
+  author_name: string
+  brand_name: string
+  content: ContentConfig
+  brand_images: BrandImagesConfig
+}
+
+export interface ImageProviderConfig {
+  enabled: boolean
+  name: string
+  base_url: string
+  api_key: string
+  model: string
+  priority: number
+}
+
 export interface RuntimeConfig {
   project_root: string
   python_path: string
@@ -69,6 +89,9 @@ export interface RuntimeConfig {
 }
 
 export interface Config {
+  accounts: Record<string, AccountProfile>
+  default_account: string
+  image_providers: Record<string, ImageProviderConfig>
   wechat: WechatConfig
   content: ContentConfig
   typography: TypographyConfig
@@ -125,6 +148,15 @@ export const DEFAULT_BRAND_IMAGES: BrandImagesConfig = {
   },
 }
 
+export const DEFAULT_IMAGE_PROVIDER: ImageProviderConfig = {
+  enabled: true,
+  name: '默认生图接口',
+  base_url: 'https://api.a6api.com',
+  api_key: '',
+  model: 'gpt-image-2',
+  priority: 0,
+}
+
 export const DEFAULT_TOPICS = [
   '期刊发表', '专著出版', '论文发表', '专利申办', '国际刊', 'SCI', 'EI', '职称评审',
 ]
@@ -134,7 +166,62 @@ export const DEFAULT_FORBIDDEN_WORDS = [
   '撤稿', '学术不端', '倒查', '论文工厂', '学术打假',
 ]
 
+export const DEFAULT_CONTENT: ContentConfig = {
+  articles_per_day: 6,
+  min_words: 2000,
+  topics: DEFAULT_TOPICS,
+  forbidden_words: DEFAULT_FORBIDDEN_WORDS,
+  ending_guide_required: true,
+}
+
+const ContentSchema = Schema.object({
+  articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('每日文章数（组合为 1 个多图文草稿）'),
+  min_words: Schema.number().min(500).max(10000).step(100).default(2000).description('每篇纯文字下限（字）'),
+  topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('选题方向'),
+  forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),
+  ending_guide_required: Schema.boolean().default(true).description('结尾必须自然引导关注品牌'),
+})
+
+const BrandImageSchema = Schema.object({
+  enabled: Schema.boolean().default(true).description('是否使用该品牌图'),
+  file: Schema.string().default('').description('brand_assets 目录内的图片文件名或相对路径'),
+  width: Schema.number().min(10).max(100).step(1).default(100).description('显示宽度（文章宽度百分比）'),
+  height: Schema.number().min(0).max(2000).step(10).default(0).description('固定显示高度（px，0=按原图比例）'),
+  fit: Schema.union(['contain', 'cover', 'fill']).default('contain').description('图片适配方式'),
+  position: Schema.union(['top', 'center', 'bottom']).default('center').description('裁切或留白时的垂直对齐'),
+  radius: Schema.number().min(0).max(100).step(1).default(0).description('图片圆角（px）'),
+  margin_top: Schema.number().min(0).max(200).step(1).default(0).description('图片上方间距（px）'),
+  margin_bottom: Schema.number().min(0).max(200).step(1).default(0).description('图片下方间距（px）'),
+  frame: Schema.boolean().default(false).description('是否使用白色卡片边框和阴影包裹'),
+})
+
+const AccountSchema = Schema.object({
+  name: Schema.string().default('默认账号').description('账号显示名称'),
+  enabled: Schema.boolean().default(true).description('是否启用'),
+  appid: Schema.string().default('').description('公众号 AppID'),
+  app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret'),
+  author_name: Schema.string().default('文映学术win00.cn').description('文章作者名'),
+  brand_name: Schema.string().default('文映千秋学术网').description('品牌名（结尾引导语必须包含）'),
+  content: ContentSchema,
+  brand_images: Schema.object({
+    header: BrandImageSchema,
+    footer: BrandImageSchema,
+  }).description('该账号的头尾品牌图'),
+})
+
+const ImageProviderSchema = Schema.object({
+  enabled: Schema.boolean().default(true).description('是否启用该接口'),
+  name: Schema.string().default('生图接口').description('接口显示名称'),
+  base_url: Schema.string().default('https://api.a6api.com').description('OpenAI 兼容 API 地址'),
+  api_key: Schema.string().role('secret').default('').description('生图 API Key'),
+  model: Schema.string().default('gpt-image-2').description('生图模型'),
+  priority: Schema.number().min(0).max(999).step(1).default(0).description('优先级，数值越小越先使用'),
+})
+
 export const Config: Schema<Config> = Schema.object({
+  accounts: Schema.dict(AccountSchema).default({}).description('公众号账号档案'),
+  default_account: Schema.string().default('default').description('默认公众号账号 ID'),
+  image_providers: Schema.dict(ImageProviderSchema).default({}).description('AI 生图接口池'),
   wechat: Schema.object({
     appid: Schema.string().default('').description('公众号 AppID（wx 开头，留空则沿用 scripts/wx_config.json）'),
     app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（留空则沿用现有 wx_config.json）'),
@@ -190,7 +277,7 @@ export const Config: Schema<Config> = Schema.object({
       margin_bottom: Schema.number().min(0).max(200).step(1).default(0).description('图片下方间距（px）'),
       frame: Schema.boolean().default(false).description('是否使用白色卡片边框和阴影包裹'),
     }).description('尾部品牌图'),
-  }).description('⑤ 品牌头尾图'),
+  }).description('兼容旧配置：全局品牌头尾图'),
   runtime: Schema.object({
     project_root: Schema.string().default('D:/666/gzh/文映千秋学术网').description('公众号任务包根目录'),
     python_path: Schema.string().default('python').description('Python 解释器（需 3.12 + requests + Pillow）'),

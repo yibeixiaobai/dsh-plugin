@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, type Config, type ThemeKey } from '../config.ts'
+import { resolveAccount } from '../config-runtime.ts'
 import { expectedArticleImageCount, renderJson } from './shared.ts'
 
 // 与 gzh_components.py THEMES 一致的色板
@@ -45,6 +46,8 @@ const DOC_SPEC_EXAMPLE = {
 }
 
 export interface StyleGuide {
+  account_id: string
+  account_name: string
   theme: ThemeKey
   palette: Record<string, string>
   typography_rules: Record<string, string>
@@ -56,7 +59,7 @@ export interface StyleGuide {
 }
 
 export function styleGuideTool(cfg: Config) {
-  return defineTool<{ theme?: string }, StyleGuide>({
+  return defineTool<{ theme?: string; account_id?: string }, StyleGuide>({
     name: 'gzh_get_style_guide',
     description:
       '获取写作与排版规范：主题色板、gzh_build_article 的 doc_spec 格式、13px 排版铁律、' +
@@ -67,9 +70,15 @@ export function styleGuideTool(cfg: Config) {
         description: '主题键（缺省用设置的头条主题）',
         enum: Object.keys(THEME_NAMES),
       },
+      account_id: {
+        type: 'string',
+        description: '公众号账号 ID；缺省使用默认账号',
+      },
     },
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
+      const account = resolveAccount(cfg, args.account_id)
+      const content = account.profile.content
       const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : cfg.typography.headline_theme) as ThemeKey
       const refsDir = path.join(cfg.runtime.project_root, 'gzh_design', 'references')
       const references: string[] = []
@@ -93,6 +102,8 @@ export function styleGuideTool(cfg: Config) {
       if (fs.existsSync(sample)) references.push(sample)
 
       return {
+        account_id: account.id,
+        account_name: account.profile.name,
         theme,
         palette: THEME_PALETTES[theme],
         typography_rules: {
@@ -110,17 +121,17 @@ export function styleGuideTool(cfg: Config) {
           '["hl", 文字] → 浅底色高亮',
         ],
         hard_rules: [
-          '作者名固定 ' + cfg.wechat.author_name,
-          '每篇正文 ' + expectedArticleImageCount(cfg) + ' 张 img：2 张正文配图（IMG_A{index}_1/_2 占位）' +
-            (cfg.brand_images.header.enabled ? ' + 头部品牌图' : '') +
-            (cfg.brand_images.footer.enabled ? ' + 尾部品牌图' : ''),
-          '纯文字不少于 ' + cfg.content.min_words + ' 字（构建时断言）',
-          '结尾自然引导关注「' + cfg.wechat.brand_name + '」（构建时断言）',
+          '作者名固定 ' + account.profile.author_name,
+          '每篇正文 ' + expectedArticleImageCount(account.profile) + ' 张 img：2 张正文配图（IMG_A{index}_1/_2 占位）' +
+            (account.profile.brand_images.header.enabled ? ' + 头部品牌图' : '') +
+            (account.profile.brand_images.footer.enabled ? ' + 尾部品牌图' : ''),
+          '纯文字不少于 ' + content.min_words + ' 字（构建时断言）',
+          '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）',
           '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio,
           '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
-          cfg.content.ending_guide_required ? '结尾引导语为硬性要求' : '结尾引导语可选',
+          content.ending_guide_required ? '结尾引导语为硬性要求' : '结尾引导语可选',
         ],
-        forbidden_words: cfg.content.forbidden_words,
+        forbidden_words: content.forbidden_words,
         references,
       }
     },

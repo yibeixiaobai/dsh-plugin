@@ -1,6 +1,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config, ThemeKey } from '../config.ts'
 import { THEME_KEYS } from '../config.ts'
+import { resolveAccount } from '../config-runtime.ts'
 import {
   expectedArticleImageCount, renderJson, runPipeline, scriptsDir, writeTextFile,
 } from './shared.ts'
@@ -20,6 +21,7 @@ interface CheckReport {
 }
 
 export interface BuildOk {
+  account_id: string
   file: string
   index: number
   theme: string
@@ -28,7 +30,7 @@ export interface BuildOk {
 }
 
 export function buildArticleTool(cfg: Config) {
-  return defineTool<{ doc_json: string }, BuildOk>({
+  return defineTool<{ doc_json: string; account_id?: string }, BuildOk>({
     name: 'gzh_build_article',
     description:
       '把文章内容按 doc spec 构建为公众号合规的单行 HTML（gzh_components 融合版组件：引言卡/三列目录/' +
@@ -40,9 +42,15 @@ export function buildArticleTool(cfg: Config) {
         required: true,
         description: 'doc spec JSON 字符串（格式见 gzh_get_style_guide 返回的 doc_spec 字段）',
       },
+      account_id: {
+        type: 'string',
+        description: '公众号账号 ID；缺省使用默认账号',
+      },
     },
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
+      const account = resolveAccount(cfg, args.account_id)
+      const content = account.profile.content
       let doc: Record<string, unknown>
       try {
         doc = JSON.parse(args.doc_json) as Record<string, unknown>
@@ -50,8 +58,8 @@ export function buildArticleTool(cfg: Config) {
         throw new Error('doc_json 不是合法 JSON：' + String(args.doc_json).slice(0, 120))
       }
       const idx = Number(doc.index)
-      if (!Number.isInteger(idx) || idx < 1 || idx > cfg.content.articles_per_day) {
-        throw new Error('index 必须是 1~' + cfg.content.articles_per_day)
+      if (!Number.isInteger(idx) || idx < 1 || idx > content.articles_per_day) {
+        throw new Error('index 必须是 1~' + content.articles_per_day)
       }
       const theme = (typeof doc.theme === 'string' && THEME_KEYS.includes(doc.theme as ThemeKey)
         ? doc.theme
@@ -63,10 +71,10 @@ export function buildArticleTool(cfg: Config) {
         [
           '--doc-json', JSON.stringify({ ...doc, index: idx, theme }),
           '--scripts-dir', scriptsDir(cfg),
-          '--min-words', String(cfg.content.min_words),
-          '--forbidden', JSON.stringify(cfg.content.forbidden_words),
-          '--brand-name', cfg.wechat.brand_name,
-          '--brand-images', JSON.stringify(cfg.brand_images),
+          '--min-words', String(content.min_words),
+          '--forbidden', JSON.stringify(content.forbidden_words),
+          '--brand-name', account.profile.brand_name,
+          '--brand-images', JSON.stringify(account.profile.brand_images),
           '--typography', JSON.stringify({
             font_size: cfg.typography.font_size,
             line_height: cfg.typography.line_height,
@@ -88,10 +96,10 @@ export function buildArticleTool(cfg: Config) {
         [
           '--files', JSON.stringify([name]),
           '--scripts-dir', scriptsDir(cfg),
-          '--min-words', String(cfg.content.min_words),
-          '--forbidden', JSON.stringify(cfg.content.forbidden_words),
-          '--brand-name', cfg.wechat.brand_name,
-          '--img-count', String(expectedArticleImageCount(cfg)),
+          '--min-words', String(content.min_words),
+          '--forbidden', JSON.stringify(content.forbidden_words),
+          '--brand-name', account.profile.brand_name,
+          '--img-count', String(expectedArticleImageCount(account.profile)),
           '--allow-placeholders',
           '--lint',
         ],
@@ -109,7 +117,10 @@ export function buildArticleTool(cfg: Config) {
         throw new Error('文章已生成（' + file + '）但校验未通过：\n' + problems.join('\n') +
           (lintTail ? '\n--- lint ---\n' + lintTail : ''))
       }
-      return { file, index: idx, theme, plain_chars: built.plain_chars, img_count: built.img_count }
+      return {
+        account_id: account.id,
+        file, index: idx, theme, plain_chars: built.plain_chars, img_count: built.img_count,
+      }
     },
   })
 }

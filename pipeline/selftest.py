@@ -152,7 +152,62 @@ def main():
     ok = r["exit"] == 0 and r["result"] and r["result"].get("ok")
     results.append(("gen_images 生图演练", ok, r))
 
-    # 6. 发布演练（dry_run 不联网不落盘，复用现成文章）
+    # 6. 生图接口轮换（零联网 mock：可重试错误换接口，成功后保持）
+    sys.path.insert(0, here)
+    import gen_images_pipeline as gp
+    original_raw, original_save = gp.generate_raw, gp.save_resized
+    try:
+        calls = []
+
+        def fake_generate(base_url, api_key, model, prompt, timeout):
+            calls.append(base_url)
+            if base_url == "https://bad-401.example":
+                raise gp.RetryableProviderError("HTTP 401: unauthorized")
+            if base_url == "https://bad-429.example":
+                raise gp.RetryableProviderError("HTTP 429: rate limit")
+            if base_url == "https://bad-503.example":
+                raise gp.RetryableProviderError("HTTP 503: unavailable")
+            if base_url == "https://bad-400.example":
+                raise gp.requests.HTTPError("400 Client Error")
+            return b"image"
+
+        gp.generate_raw = fake_generate
+        gp.save_resized = lambda raw, out, size: (32, 32)
+        providers = [
+            {"id": "p1", "name": "P1", "base_url": "https://bad-401.example", "api_key": "x", "model": "m"},
+            {"id": "p2", "name": "P2", "base_url": "https://bad-429.example", "api_key": "x", "model": "m"},
+            {"id": "p3", "name": "P3", "base_url": "https://bad-503.example", "api_key": "x", "model": "m"},
+            {"id": "p4", "name": "P4", "base_url": "https://ok.example", "api_key": "x", "model": "m"},
+        ]
+        first = gp.generate_item_with_pool(
+            {"index": 1, "kind": "cover", "size": [32, 32]}, providers, 0, set(),
+            "prompt", os.path.join(scripts_abs, "cover_99.png"), 10, "m")
+        second = gp.generate_item_with_pool(
+            {"index": 2, "kind": "cover", "size": [32, 32]}, providers,
+            first["active"], first["disabled"], "prompt",
+            os.path.join(scripts_abs, "cover_99.png"), 10, "m")
+        nonretryable = gp.generate_item_with_pool(
+            {"index": 3, "kind": "cover", "size": [32, 32]},
+            [{"id": "bad", "name": "bad", "base_url": "https://bad-400.example", "api_key": "x", "model": "m"}],
+            0, set(), "prompt", os.path.join(scripts_abs, "cover_99.png"), 10, "m")
+        ok = (
+            first["terminal"] == "success"
+            and first["provider_used"] == "p4"
+            and len(first["attempts"]) == 3
+            and second["provider_used"] == "p4"
+            and calls.count("https://bad-401.example") == 1
+            and calls.count("https://bad-429.example") == 1
+            and calls.count("https://bad-503.example") == 1
+            and nonretryable["terminal"] == "nonretryable"
+        )
+    finally:
+        gp.generate_raw, gp.save_resized = original_raw, original_save
+    results.append(("gen_images 接口轮换", ok, {
+        "result": {"data": {"first": first, "second": second, "nonretryable": nonretryable}},
+        "exit": 0, "output": "", "stderr": "",
+    }))
+
+    # 7. 发布演练（dry_run 不联网不落盘，复用现成文章）
     if existing:
         titles = ["自测标题" + os.path.basename(p)[10] for p in existing]
         digests = ["自测摘要，用于演练模式的发布前校验，不含敏感信息。" + "x" * i for i, p in enumerate(existing)]
@@ -176,6 +231,35 @@ def main():
         r = {"result": {"data": {"note": "无现成文章，跳过"}}}
         ok = True
     results.append(("publish 发布演练", ok, r))
+
+    # 8. 多账号凭据解析（数组/字典新模型 + 默认账号旧字段回退）
+    multi = {
+        "default_account": "main",
+        "accounts": [
+            {"id": "main", "appid": "main-id", "app_secret": "main-secret"},
+            {"id": "backup", "appid": "backup-id", "app_secret": "backup-secret"},
+        ],
+    }
+    dict_model = {
+        "default_account": "main",
+        "accounts": {"main": {"appid": "dict-id", "app_secret": "dict-secret"}},
+    }
+    legacy = {"appid": "legacy-id", "app_secret": "legacy-secret"}
+    resolved_default = pp.account_credentials(multi, "")
+    resolved_backup = pp.account_credentials(multi, "backup")
+    resolved_dict = pp.account_credentials(dict_model, "main")
+    resolved_legacy = pp.account_credentials(legacy, "")
+    ok = (
+        resolved_default[0:2] == ("main", "main-id")
+        and resolved_backup[0:2] == ("backup", "backup-id")
+        and resolved_dict[0:2] == ("main", "dict-id")
+        and resolved_legacy[0:2] == ("default", "legacy-id")
+    )
+    results.append(("accounts 多账号凭据解析", ok, {
+        "result": {"data": {"default": resolved_default[0], "backup": resolved_backup[0],
+                            "dict": resolved_dict[0], "legacy": resolved_legacy[0]}},
+        "exit": 0, "output": "", "stderr": "",
+    }))
 
     print("=" * 60)
     failed = 0

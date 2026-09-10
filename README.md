@@ -54,20 +54,22 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 （Desktop 版重启 DeepSeek Harness Desktop；CLI 版重启 `dsh web`）。
 
 安装后打开 dsh web 工作台 → 设置 → **公众号**，
-即可通过 7 个 Tab 配置公众号凭据、内容规则、排版、AI 配图、头部品牌图、尾部品牌图与运行参数；
+即可通过 7 个 Tab 配置多公众号账号、账号绑定内容规则、全局 AI 生图接口池、头尾品牌图、排版与运行参数；
 修改后热重载自动生效。
 
 ## 快捷设置（Config schema）
 
 | 分组 | 配置项 |
 |---|---|
-| ① 公众号凭据 | `appid`、`app_secret`（secret 脱敏显示）、`author_name`、`brand_name` |
-| ② 内容规则 | `articles_per_day`(6)、`min_words`(2000)、`topics`（选题方向表）、`forbidden_words`（禁词表）、`ending_guide_required` |
+| ① 公众号账号 | 多账号新增、启停、删除、设为默认；每个账号独立保存 `appid`、`app_secret`、`author_name`、`brand_name` |
+| ② 内容规则 | 按账号编辑 `articles_per_day`(6)、`min_words`(2000)、`topics`、`forbidden_words`、`ending_guide_required` |
 | ③ 排版 | `headline_theme`（6 主题下拉）、`secondary_theme`（rotate=轮换）、`font_size`(13px)、`line_height`(20px)、`paragraph_margin`(25px)、`text_indent`(2em) |
-| ④ AI 配图 | `base_url`、`api_key`（secret）、`model`(gpt-image-2)、`headline_cover_ratio`(21:9)、`secondary_cover_ratio`(1:1)、`content_images_per_article`(2)、`image_lang_zh_only` |
-| ⑤ 头部品牌图 | `enabled`、`file`、`width`、`height`、`fit`（contain/cover/fill）、`position`、`radius`、`margin_top`、`margin_bottom`、`frame` |
-| ⑥ 尾部品牌图 | 同头部字段，可独立启用、换图和变换 |
+| ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；网络/超时、401/403/408/429/5xx 自动轮换 |
+| ⑤ 头部品牌图 | 按账号上传或拖放 JPEG/PNG/WebP（≤10 MB），即时预览，并配置尺寸、裁切、位置、圆角与边框 |
+| ⑥ 尾部品牌图 | 同头部字段，可按账号独立上传、预览、启用和变换 |
 | ⑦ 运行 | `project_root`、`python_path`、`request_timeout_ms`、`dry_run`（演练：只校验不联网）、`verify_after_publish`、`use_upload_cache`、`need_open_comment` |
+
+旧版 `wechat`、`content`、`brand_images`、`image_api` 配置会自动归入 `default` 账号和默认接口；首次保存后优先使用新模型，同时保留旧字段兼容现有脚本。
 
 ## 工具（7 个）
 
@@ -80,6 +82,8 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | `gzh_validate_html` | 发布前机器校验：换行/字数/禁词/占位符/图片数/CDN + gzh-design lint |
 | `gzh_publish_draft` | 上传素材（缓存续跑）→ 替换占位符 → draft/add 组合 1 个多图文草稿 |
 | `gzh_verify_draft` | draft/get（POST）逐篇核验草稿 |
+
+除 `gzh_check_topics` 外，其他内容与发布工具都接受可选 `account_id`；未传时使用默认账号，返回结果会标明实际账号 ID。
 
 ### 每日流程示例（Agent 视角）
 
@@ -97,7 +101,7 @@ python pipeline/selftest.py --scripts-dir "D:/666/gzh/文映千秋学术网/scri
 ```
 
 覆盖：选题查重、文章构建（断言字数/图片数/品牌语）、HTML 校验（含 gzh-design lint）、
-生图演练、发布演练（复用现成文章）。
+生图演练、401/429/5xx 接口轮换与 400 立即失败、多账号凭据解析、发布演练（复用现成文章）。
 
 ## 类型检查
 

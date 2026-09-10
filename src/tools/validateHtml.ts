@@ -1,8 +1,10 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
+import { resolveAccount } from '../config-runtime.ts'
 import { expectedArticleImageCount, renderJson, runPipeline, scriptsDir } from './shared.ts'
 
 export interface ValidateReport {
+  account_id: string
   passed: boolean
   results: Array<{
     file: string
@@ -14,7 +16,7 @@ export interface ValidateReport {
 }
 
 export function validateHtmlTool(cfg: Config) {
-  return defineTool<{ files: string[]; allow_placeholders?: boolean }, ValidateReport>({
+  return defineTool<{ files: string[]; allow_placeholders?: boolean; account_id?: string }, ValidateReport>({
     name: 'gzh_validate_html',
     description:
       '发布前机器校验：换行/unicode 转义/占位符/纯文字字数/禁词/品牌引导语/图片数量/CDN 域名，' +
@@ -30,9 +32,15 @@ export function validateHtmlTool(cfg: Config) {
         type: 'boolean',
         description: '是否处于发布前阶段（允许 IMG_*/__BRAND_* 占位符）；发布前传 true，替换占位符后传 false',
       },
+      account_id: {
+        type: 'string',
+        description: '公众号账号 ID；缺省使用默认账号',
+      },
     },
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
+      const account = resolveAccount(cfg, args.account_id)
+      const content = account.profile.content
       const files = args.files ?? []
       if (!Array.isArray(files) || files.length === 0) throw new Error('files 不能为空')
       for (const f of files) {
@@ -43,14 +51,15 @@ export function validateHtmlTool(cfg: Config) {
       const cmd = [
         '--files', JSON.stringify(files),
         '--scripts-dir', scriptsDir(cfg),
-        '--min-words', String(cfg.content.min_words),
-        '--forbidden', JSON.stringify(cfg.content.forbidden_words),
-        '--brand-name', cfg.wechat.brand_name,
-        '--img-count', String(expectedArticleImageCount(cfg)),
+        '--min-words', String(content.min_words),
+        '--forbidden', JSON.stringify(content.forbidden_words),
+        '--brand-name', account.profile.brand_name,
+        '--img-count', String(expectedArticleImageCount(account.profile)),
         '--lint',
       ]
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')
-      return runPipeline<ValidateReport>(cfg, 'check_html.py', cmd, 120000)
+      const report = await runPipeline<Omit<ValidateReport, 'account_id'>>(cfg, 'check_html.py', cmd, 120000)
+      return { account_id: account.id, ...report }
     },
   })
 }

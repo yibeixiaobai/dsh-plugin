@@ -3,7 +3,9 @@
 // apply 在加载与每次配置热重载时执行：同步凭据到 wx_config.json 并注册全部工具。
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigT } from './config.ts'
-import { syncConfig } from './sync.ts'
+import { applyNormalizedConfig } from './config-runtime.ts'
+import { registerBrandImageRoutes } from './brand-images.ts'
+import { hydrateConfigFromWx, syncConfig } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
 import { checkTopicsTool } from './tools/checkTopics.ts'
 import { genImagesTool } from './tools/genImages.ts'
@@ -22,19 +24,36 @@ export const SETTINGS_NAMESPACE = 'gzh-publisher'
 const VERSION = '0.1.0'
 
 export function apply(ctx: Context, config: ConfigT) {
+  const hydrated = hydrateConfigFromWx(config)
+  const migrateAccounts = Object.keys(config.accounts).length === 0
+  const migrateProviders = Object.keys(config.image_providers).length === 0
+  applyNormalizedConfig(config, config)
+  registerBrandImageRoutes(ctx, () => config)
   let source = () => config
 
   ctx.inject(['settings'], (settingsCtx) => {
+    if (!settingsCtx.settings) return
     settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
       setSource(next) {
         source = () => next() as ConfigT
       },
       onChange() {
         const next = source()
-        Object.assign(config, next)
+        applyNormalizedConfig(config, next)
         syncConfig(config)
       },
     })
+    if (hydrated || migrateAccounts || migrateProviders) {
+      const patch: Record<string, unknown> = {}
+      if (hydrated || migrateAccounts) {
+        patch.accounts = config.accounts
+        patch.default_account = config.default_account
+      }
+      if (hydrated || migrateProviders) patch.image_providers = config.image_providers
+      void settingsCtx.settings!.update(SETTINGS_NAMESPACE, patch).catch((error) => {
+        ctx.logger.warn('[gzh] 旧配置自动迁移失败：', error)
+      })
+    }
   })
 
   // 凭据同步：留空的设置项沿用既有 wx_config.json，不覆盖
