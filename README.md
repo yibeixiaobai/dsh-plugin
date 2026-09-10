@@ -53,8 +53,8 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 `profiles/desktop/node_modules/` 建符号链接；**组合包层只在启动时读取，重启 dsh 后本插件才生效**
 （Desktop 版重启 DeepSeek Harness Desktop；CLI 版重启 `dsh web`）。
 
-安装后打开 dsh web 工作台 → 设置 → 插件 `dsh-gzh-publisher`，
-即可看到 5 组快捷设置；修改后热重载自动生效。
+安装后打开 dsh web 工作台 → 设置 → **公众号**，
+即可通过 5 个 Tab 配置公众号凭据、内容规则、排版、AI 配图与运行参数；修改后热重载自动生效。
 
 ## 快捷设置（Config schema）
 
