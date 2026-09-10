@@ -25,7 +25,7 @@
         base_url: https://api.a6api.com
         api_key: ''
         model: gpt-image-2
-        headline_cover_ratio: '21:9'
+        headline_cover_ratio: '2.35:1'
         secondary_cover_ratio: '1:1'
         content_images_per_article: 2
       brand_images:
@@ -52,6 +52,6 @@
           margin_bottom: 0
           frame: false
       runtime:
-        project_root: D:/666/gzh/文映千秋学术网
+        project_root: ''
         python_path: python
         dry_run: false

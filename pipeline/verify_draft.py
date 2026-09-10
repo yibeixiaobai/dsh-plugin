@@ -45,6 +45,7 @@ def main():
     ap.add_argument("--media-id", required=True)
     ap.add_argument("--account-id", default="")
     ap.add_argument("--scripts-dir", required=True)
+    ap.add_argument("--resource-dir", required=True, help="插件内置运行资源目录")
     ap.add_argument("--expected-count", type=int, default=6)
     ap.add_argument("--author", default="文映学术win00.cn")
     ap.add_argument("--brand-name", default="文映千秋学术网")
@@ -57,7 +58,10 @@ def main():
     conf = json.load(open(os.path.join(scripts_abs, "wx_config.json"), encoding="utf-8"))
     forbidden = json.loads(args.forbidden)
 
-    sys.path.insert(0, scripts_abs)
+    resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
+    if not os.path.exists(os.path.join(resource_scripts, "publish_template.py")):
+        raise SystemExit("插件内置资源缺少 publish_template.py: " + resource_scripts)
+    sys.path.insert(0, resource_scripts)
     from publish_template import get_access_token, verify_draft
 
     account_id, appid, app_secret = account_credentials(conf, args.account_id)

@@ -7,7 +7,7 @@ import { applyNormalizedConfig } from './config-runtime.ts'
 import { registerBrandImageRoutes } from './brand-images.ts'
 import { registerImageTestRoute } from './image-test.ts'
 import { registerQuickCommand } from './command.ts'
-import { hydrateConfigFromWx, syncConfig } from './sync.ts'
+import { ensureWorkspace, hydrateConfigFromWx, syncConfig, workspaceDir } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
 import { checkTopicsTool } from './tools/checkTopics.ts'
 import { genImagesTool } from './tools/genImages.ts'
@@ -30,6 +30,7 @@ export function apply(ctx: Context, config: ConfigT) {
   const migrateAccounts = Object.keys(config.accounts).length === 0
   const migrateProviders = Object.keys(config.image_providers).length === 0
   applyNormalizedConfig(config, config)
+  ensureWorkspace(config)
   registerBrandImageRoutes(ctx, () => config)
   registerImageTestRoute(ctx, () => config)
   let source = () => config
@@ -43,6 +44,7 @@ export function apply(ctx: Context, config: ConfigT) {
       onChange() {
         const next = source()
         applyNormalizedConfig(config, next)
+        ensureWorkspace(config)
         syncConfig(config)
       },
     })
@@ -67,6 +69,7 @@ export function apply(ctx: Context, config: ConfigT) {
   } catch (err) {
     ctx.logger.warn('[gzh] wx_config.json 同步失败，请检查设置中的 runtime.project_root：', err)
   }
+  ctx.logger.info('[gzh] 当前任务工作区 →', workspaceDir(config))
 
   ctx.tools.register(checkTopicsTool(config))
   ctx.tools.register(styleGuideTool(config))

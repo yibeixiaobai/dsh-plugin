@@ -3,7 +3,7 @@ import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { expectedArticleImageCount, renderJson } from './shared.ts'
+import { expectedArticleImageCount, renderJson, runtimeResourceDir } from './shared.ts'
 
 // 与 gzh_components.py THEMES 一致的色板
 const THEME_PALETTES: Record<ThemeKey, Record<string, string>> = {
@@ -80,7 +80,7 @@ export function styleGuideTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : cfg.typography.headline_theme) as ThemeKey
-      const refsDir = path.join(cfg.runtime.project_root, 'gzh_design', 'references')
+      const refsDir = path.join(runtimeResourceDir(), 'references')
       const references: string[] = []
       // 主题文件：按 hints 模糊匹配 theme-*.md
       let themeDoc: string | null = null
@@ -98,9 +98,6 @@ export function styleGuideTool(cfg: Config) {
       for (const p of [themeDoc, path.join(refsDir, 'theme-index.md'), path.join(refsDir, 'common-components.md'), path.join(refsDir, 'format-normalize.md')].filter(Boolean) as string[]) {
         if (fs.existsSync(p)) references.push(p)
       }
-      const sample = path.join(cfg.runtime.project_root, 'sample', 'article_v2_1_样例.html')
-      if (fs.existsSync(sample)) references.push(sample)
-
       return {
         account_id: account.id,
         account_name: account.profile.name,

@@ -2,7 +2,7 @@
 """流水线自测（零写盘、零联网）：验证 选题查重 → 文章构建 → HTML 校验 → 生图演练 → 发布演练。
 
 用法:
-    python selftest.py --scripts-dir <项目 scripts 目录> [--brand-dir <brand_assets 目录>]
+    python selftest.py [--scripts-dir <任务工作区 scripts 目录>]
 
 - 全部子脚本以 runpy 进程内执行（无子进程），输出按 ###RESULT### 协议解析
 - 生图/发布均为 dry_run，不联网、不写任何文件
@@ -55,12 +55,15 @@ def fill(n):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--scripts-dir", required=True)
+    ap.add_argument("--scripts-dir", default="")
     ap.add_argument("--brand-dir", default="")
+    ap.add_argument("--resource-dir", default="")
     args = ap.parse_args()
     here = os.path.dirname(os.path.abspath(__file__))
-    scripts_abs = os.path.abspath(args.scripts_dir)
+    plugin_abs = os.path.dirname(here)
+    scripts_abs = os.path.abspath(args.scripts_dir or os.path.join(plugin_abs, "tasks", "default", "scripts"))
     brand_abs = os.path.abspath(args.brand_dir or os.path.join(os.path.dirname(scripts_abs), "brand_assets"))
+    resource_abs = os.path.abspath(args.resource_dir or os.path.join(plugin_abs, "runtime"))
     results = []
 
     # 1. 选题查重
@@ -86,6 +89,7 @@ def main():
     }
     r = run_script(os.path.join(here, "build_article.py"), [
         "--doc-json", json.dumps(doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs,
         "--min-words", "2000", "--forbidden", "[]", "--brand-name", "文映千秋学术网"])
     ok = r["exit"] == 0 and r["result"] and r["result"].get("ok")
     results.append(("build_article 文章构建", ok, r))
@@ -101,6 +105,7 @@ def main():
     }
     r = run_script(os.path.join(here, "build_article.py"), [
         "--doc-json", json.dumps(doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs,
         "--min-words", "2000", "--forbidden", "[]", "--brand-name", "文映千秋学术网",
         "--brand-images", json.dumps(brand_images, ensure_ascii=False)])
     data = (r["result"] or {}).get("data") or {}
@@ -130,6 +135,7 @@ def main():
     if existing:
         r = run_script(os.path.join(here, "check_html.py"), [
             "--files", json.dumps([os.path.basename(existing[0])]), "--scripts-dir", scripts_abs,
+            "--resource-dir", resource_abs,
             "--min-words", "2000", "--forbidden", "[]", "--allow-placeholders", "--lint"])
         ok = r["exit"] == 0 and r["result"] and r["result"].get("ok") and r["result"]["data"].get("passed")
     else:
@@ -141,9 +147,9 @@ def main():
     img_job = {
         "items": [
             {"kind": "cover", "index": 1, "prompt": "自测封面",
-             "out": os.path.join(scripts_abs, "cover_99.png"), "size": [3520, 1500]},
+             "out": "cover_99.png", "size": [3520, 1500]},
             {"kind": "content", "index": 1, "sub": 1, "prompt": "自测信息图",
-             "out": os.path.join(scripts_abs, "content_99_1.png"), "size": [1080, 0]},
+             "out": "content_99_1.png", "size": [1080, 0]},
         ],
         "dry_run": True, "zh_only": True, "model": "gpt-image-2", "timeout_sec": 60,
     }
@@ -225,7 +231,8 @@ def main():
         }
         r = run_script(os.path.join(here, "publish_pipeline.py"), [
             "--job-json", json.dumps(job, ensure_ascii=False),
-            "--scripts-dir", scripts_abs, "--brand-dir", brand_abs])
+            "--scripts-dir", scripts_abs, "--brand-dir", brand_abs,
+            "--resource-dir", resource_abs])
         ok = r["exit"] == 0 and r["result"] and r["result"].get("ok")
     else:
         r = {"result": {"data": {"note": "无现成文章，跳过"}}}

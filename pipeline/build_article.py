@@ -122,6 +122,7 @@ def main():
     ap.add_argument("--doc", default="", help="doc spec JSON 文件名（scripts 目录内）")
     ap.add_argument("--doc-json", default="", help="doc spec JSON 内联字符串（与 --doc 二选一）")
     ap.add_argument("--scripts-dir", required=True)
+    ap.add_argument("--resource-dir", required=True, help="插件内置运行资源目录")
     ap.add_argument("--min-words", type=int, default=2000)
     ap.add_argument("--forbidden", default="[]")
     ap.add_argument("--brand-name", default="文映千秋学术网")
@@ -147,7 +148,10 @@ def main():
     footer_brand = resolve_brand_spec(brand_raw.get("footer"), "footer")
     expected_img = 2 + (1 if header_brand["enabled"] else 0) + (1 if footer_brand["enabled"] else 0)
 
-    sys.path.insert(0, base_abs)
+    resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
+    if not os.path.exists(os.path.join(resource_scripts, "gzh_components.py")):
+        raise SystemExit("插件内置资源缺少 gzh_components.py: " + resource_scripts)
+    sys.path.insert(0, resource_scripts)
     import gzh_components as gc
 
     theme = doc.get("theme", "wenying")

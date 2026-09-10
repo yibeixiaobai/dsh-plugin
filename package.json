@@ -9,6 +9,18 @@
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
+  "files": [
+    "src",
+    "lib",
+    "pipeline/*.py",
+    "runtime/**/*.py",
+    "runtime/**/*.md",
+    "runtime/**/*.jpg",
+    "assets",
+    "cordis.patch.yml",
+    "launch-dsh.ps1",
+    "README.md"
+  ],
   "keywords": ["dsh-plugin", "dsh", "wechat", "gzh", "publisher"],
   "dsh": {
     "bundle": {

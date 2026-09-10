@@ -6,7 +6,7 @@ import { resolveAccount } from '../config-runtime.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, assertWechatCreds, brandDir,
   brandImagePath, findImage, readUploadCache, renderJson, runPipeline, scriptsDir, writeTextFile,
-  writeUploadCache,
+  runtimeResourceDir, writeUploadCache,
 } from './shared.ts'
 
 interface PublishResult {
@@ -143,7 +143,8 @@ export function publishTool(cfg: Config) {
       const result = await runPipeline<PublishResult>(
         cfg,
         'publish_pipeline.py',
-        ['--job-json', JSON.stringify(job), '--scripts-dir', sdir, '--brand-dir', bdir],
+        ['--job-json', JSON.stringify(job), '--scripts-dir', sdir, '--brand-dir', bdir,
+          '--resource-dir', runtimeResourceDir()],
         Math.max(600000, n * 120000),
       )
 

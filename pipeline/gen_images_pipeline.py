@@ -40,7 +40,7 @@ def emit(payload):
 def under(base, p):
     """规范化 p 并强制其位于 base 之内；越界（上级目录引用、目录外绝对路径）一律拒绝。"""
     bp = os.path.abspath(base)
-    cp = os.path.abspath(p)
+    cp = os.path.abspath(p if os.path.isabs(p) else os.path.join(bp, p))
     if cp != bp and not cp.startswith(bp + os.sep):
         raise SystemExit("路径越界（必须在 scripts 目录内）: " + str(p))
     return cp
@@ -251,9 +251,11 @@ def main():
     ap.add_argument("--job", default="", help="job JSON 文件名（scripts 目录内）")
     ap.add_argument("--job-json", default="", help="job JSON 内联字符串（与 --job 二选一）")
     ap.add_argument("--scripts-dir", required=True)
+    ap.add_argument("--output-dir", default="", help="图片输出边界目录；缺省与 scripts-dir 相同")
     args = ap.parse_args()
 
     base_abs = os.path.abspath(args.scripts_dir)
+    output_abs = os.path.abspath(args.output_dir or args.scripts_dir)
     if args.job_json:
         job = json.loads(args.job_json)
     else:
@@ -275,7 +277,7 @@ def main():
         conf = json.load(open(os.path.join(base_abs, "wx_config.json"), encoding="utf-8"))
         providers = provider_pool(conf, job.get("provider_ids", []))
     for k, item in enumerate(items):
-        out_abs = under(base_abs, item["out"])
+        out_abs = under(output_abs, item["out"])
         prompt = str(item["prompt"])
         if job.get("zh_only", True):
             prompt = prompt + " " + ZH_SUFFIX

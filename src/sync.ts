@@ -5,17 +5,56 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { Config } from './config.ts'
 import { providerPool, resolveAccount } from './config-runtime.ts'
+import { pluginDir, runtimeResourceDir } from './py.ts'
+
+const LEGACY_DEFAULT_WORKSPACE = 'd:/666/gzh/文映千秋学术网'
+
+/** 插件自带的默认任务工作区；用户选择其它 project_root 时才使用外部目录。 */
+export function defaultWorkspaceDir(): string {
+  return path.resolve(pluginDir(), '..', 'tasks', 'default')
+}
+
+export function workspaceDir(cfg: Config): string {
+  const configured = String(cfg.runtime.project_root ?? '').trim()
+  if (!configured || configured.toLowerCase() === 'default' || configured.toLowerCase() === 'plugin-default') {
+    return defaultWorkspaceDir()
+  }
+  const normalized = configured.replace(/\\/g, '/').replace(/\/$/, '').toLowerCase()
+  if (normalized === LEGACY_DEFAULT_WORKSPACE) return defaultWorkspaceDir()
+  if (!path.isAbsolute(configured)) throw new Error('任务工作区必须是绝对路径: ' + configured)
+  return path.resolve(configured)
+}
+
+/** 创建任务数据目录；只补插件默认品牌图，不迁移任何旧工作区文件。 */
+export function ensureWorkspace(cfg: Config): string {
+  const workspace = workspaceDir(cfg)
+  const scripts = path.join(workspace, 'scripts')
+  const brands = path.join(workspace, 'brand_assets')
+  const tests = path.join(workspace, 'gzh_test_images')
+  fs.mkdirSync(scripts, { recursive: true })
+  fs.mkdirSync(brands, { recursive: true })
+  fs.mkdirSync(tests, { recursive: true })
+  const defaults = path.join(runtimeResourceDir(), 'default-brand')
+  for (const name of ['brand_top.jpg', 'brand_bot.jpg']) {
+    const source = path.join(defaults, name)
+    const destination = path.join(brands, name)
+    if (!fs.existsSync(source)) throw new Error('插件内置资源缺失: ' + source)
+    if (!fs.existsSync(destination)) fs.copyFileSync(source, destination)
+  }
+  return workspace
+}
 
 export function scriptsDir(cfg: Config): string {
-  return path.join(cfg.runtime.project_root, 'scripts')
+  return path.join(workspaceDir(cfg), 'scripts')
 }
 
 export function brandDir(cfg: Config): string {
-  return path.join(cfg.runtime.project_root, 'brand_assets')
+  return path.join(workspaceDir(cfg), 'brand_assets')
 }
 
 export function gzhDesignScriptsDir(cfg: Config): string {
-  return path.join(cfg.runtime.project_root, 'gzh_design', 'scripts')
+  void cfg
+  return path.join(runtimeResourceDir(), 'gzh_design', 'scripts')
 }
 
 export interface SyncReport {

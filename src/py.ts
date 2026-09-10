@@ -32,6 +32,11 @@ export function pipelineDir(): string {
   return path.resolve(pluginDir(), '..', 'pipeline')
 }
 
+/** 插件随包携带的排版、发布、校验与默认素材。 */
+export function runtimeResourceDir(): string {
+  return path.resolve(pluginDir(), '..', 'runtime')
+}
+
 export async function runPython<T = unknown>(opts: RunOptions): Promise<PyResult<T>> {
   const { pythonPath, script, args = [], cwd, timeoutMs = 120000 } = opts
   return new Promise<PyResult<T>>((resolve) => {
@@ -83,9 +88,12 @@ export async function runPython<T = unknown>(opts: RunOptions): Promise<PyResult
         }
       }
       const errTail = stderr.join('').split(/\r?\n/).filter(Boolean).slice(-30).join('\n')
+      const missing = errTail.match(/ModuleNotFoundError: No module named ['"]([^'"]+)['"]/)?.[1]
       resolve({
         ok: false,
-        error: errTail || `Python 退出码 ${code}（无标准错误输出）`,
+        error: missing
+          ? `缺少 Python 依赖 ${missing}。请为设置中的 python_path 安装 requests 与 Pillow。\n${errTail}`
+          : errTail || `Python 退出码 ${code}（无标准错误输出）`,
         logs,
       })
     })

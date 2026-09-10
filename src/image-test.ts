@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Config } from './config.ts'
 import { providerPool } from './config-runtime.ts'
-import { scriptsDir } from './sync.ts'
+import { scriptsDir, workspaceDir } from './sync.ts'
 import { runPipeline } from './tools/shared.ts'
 
 export const IMAGE_TEST_ROUTE = '/api/gzh-publisher/test-image'
@@ -72,12 +72,14 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
     return
   }
 
-  const base = path.resolve(scriptsDir(config))
+  const workspace = path.resolve(workspaceDir(config))
+  const scripts = path.resolve(scriptsDir(config))
+  const testDir = path.join(workspace, 'gzh_test_images')
   if (req.method === 'GET') {
     try {
       const relative = safeTestFile(url.searchParams.get('file') ?? '')
-      const file = path.resolve(base, relative)
-      if (!file.startsWith(base + path.sep) || !fs.existsSync(file)) {
+      const file = path.resolve(workspace, relative)
+      if (!file.startsWith(testDir + path.sep) || !fs.existsSync(file)) {
         sendJson(res, 404, { error: '测试图片不存在' })
         return
       }
@@ -119,11 +121,9 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
     }
 
     const relative = `gzh_test_images/${providerId}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.png`
-    const output = path.resolve(base, relative)
+    const output = path.resolve(workspace, relative)
     fs.mkdirSync(path.dirname(output), { recursive: true })
     const job = {
-      // gen_images_pipeline.py 的路径守卫要求 job 输出路径可解析到 scripts 目录内。
-      // 这里传绝对路径，避免它相对 dsh 进程工作目录解析而误报越界。
       items: [{ kind: 'cover', index: 1, prompt, out: output, size: [768, 327] }],
       provider_ids: [providerId],
       model: provider.provider.model,
@@ -134,7 +134,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
     const report = await runPipeline<Record<string, unknown>>(
       config,
       'gen_images_pipeline.py',
-      ['--job-json', JSON.stringify(job), '--scripts-dir', base],
+      ['--job-json', JSON.stringify(job), '--scripts-dir', scripts, '--output-dir', testDir],
       Math.max(60000, config.runtime.request_timeout_ms * 2),
     )
     if (Array.isArray(report.failed) && report.failed.length > 0) {

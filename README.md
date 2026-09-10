@@ -13,11 +13,13 @@ dsh Agent ──调用──▶ 7 个工具（TypeScript，本插件）
               pipeline/*.py 参数化入口（纯计算 + 网络，零写盘）
                         │ import / runpy 复用
                         ▼
-   文映千秋学术网/scripts/（gzh_components 排版库、publish_template 发布函数、validate 校验器）
+   插件 runtime/（gzh_components、publish_template、HTML 校验器与默认品牌图）
 ```
 
 - Python 侧只做计算与联网，**文件落盘全部由 TS 侧完成**（文章 HTML、上传缓存、发布结果）
 - job 参数走 argv 内联 JSON（`--doc-json` / `--job-json`），无临时文件
+- 插件运行代码与资源全部位于本插件目录，不依赖其它公众号项目包
+- 任务工作区留空时使用 `D:/666/gzh/dsh-plugin/tasks/default`；也可在设置中填写其它绝对路径
 - 凭据的单一事实来源是 **dsh 设置界面**：每次加载/热重载自动同步到 `scripts/wx_config.json`
   （留空的设置项沿用文件现状，不覆盖）
 
@@ -54,7 +56,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 （Desktop 版重启 DeepSeek Harness Desktop；CLI 版重启 `dsh web`）。
 
 安装后打开 dsh web 工作台 → 设置 → **公众号**，
-即可通过 7 个 Tab 配置多公众号账号、账号绑定内容规则、全局 AI 生图接口池、头尾品牌图、排版与运行参数；
+即可通过 8 个 Tab 配置多公众号账号、账号绑定内容规则、全局 AI 生图接口池、头尾品牌图、排版、封面配图与运行参数；
 修改后热重载自动生效。
 
 ## 快捷设置（Config schema）
@@ -67,7 +69,8 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；网络/超时、401/403/408/429/5xx 自动轮换；每个接口可单独测试并预览结果 |
 | ⑤ 头部品牌图 | 按账号上传或拖放 JPEG/PNG/WebP（≤10 MB），即时预览，并配置尺寸、裁切、位置、圆角与边框 |
 | ⑥ 尾部品牌图 | 同头部字段，可按账号独立上传、预览、启用和变换 |
-| ⑦ 运行 | `project_root`、`python_path`、`request_timeout_ms`、`dry_run`（演练：只校验不联网）、`verify_after_publish`、`use_upload_cache`、`need_open_comment` |
+| ⑦ AI 配图 | `headline_cover_ratio`（头条封面比例，默认 2.35:1=3520×1498）、`secondary_cover_ratio`（次条，默认 1:1=1920×1920）、`content_images_per_article`(2)、`image_lang_zh_only`(true) |
+| ⑧ 运行 | `project_root`（留空使用插件内 `tasks/default`）、`python_path`、`request_timeout_ms`、`dry_run`、`verify_after_publish`、`use_upload_cache`、`need_open_comment` |
 
 旧版 `wechat`、`content`、`brand_images`、`image_api` 配置会自动归入 `default` 账号和默认接口；首次保存后优先使用新模型，同时保留旧字段兼容现有脚本。
 
@@ -111,7 +114,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 ## 自测（零写盘、零联网）
 
 ```bash
-python pipeline/selftest.py --scripts-dir "D:/666/gzh/文映千秋学术网/scripts"
+python pipeline/selftest.py
 ```
 
 覆盖：选题查重、文章构建（断言字数/图片数/品牌语）、HTML 校验（含 gzh-design lint）、
@@ -136,6 +139,8 @@ npm install && npx tsc   # dsh 宿主直载 TS，本地 tsc 仅做签名检查
   `__IMG_{i}_{j}__`（v116 现行）在构建白名单、发布替换、校验中都可识别
 - **路径安全**：Python 侧所有文件读写做 normpath + 目录边界守卫；下载 URL 强制 http(s)
   且 DNS 解析后阻断私网/环回地址（防 SSRF）；无 shell 子进程
+- **工作区隔离**：默认任务文件写入插件内 `tasks/default`。填写外部工作区后，只把任务产物写入该目录，
+  排版、发布与校验代码仍从插件 `runtime` 读取。旧的 `D:/666/gzh/文映千秋学术网` 不会自动迁移或读取
 - **凭据**：按你的选择存于插件设置（Schemastery secret 字段）。请勿把填了密钥的
   `cordis.yml` 提交到公开仓库；`wx_config.json` 由插件同步维护，同样注意保密
 - **演练模式**：设置 `dry_run: true` 后，生图与发布工具只跑校验不联网，适合先演练后正式

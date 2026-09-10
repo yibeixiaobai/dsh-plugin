@@ -24,6 +24,8 @@ def emit(payload):
 
 def extract_history(scripts_dir):
     titles = []
+    if not os.path.isdir(scripts_dir):
+        return titles
     pr = os.path.join(scripts_dir, "publish_result.json")
     if os.path.exists(pr):
         try:

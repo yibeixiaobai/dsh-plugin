@@ -102,6 +102,7 @@ def main():
     ap.add_argument("--allow-placeholders", action="store_true", help="发布前阶段允许 IMG_*/__BRAND_* 占位符")
     ap.add_argument("--lint", action="store_true", help="同时运行 validate_gzh_html.py 校验")
     ap.add_argument("--gzh-design-scripts", default="")
+    ap.add_argument("--resource-dir", default="", help="插件内置运行资源目录")
     args = ap.parse_args()
 
     files = json.loads(args.files)
@@ -114,8 +115,10 @@ def main():
             continue
         r = check_file(fp, args.min_words, forbidden, args.brand_name, args.img_count, args.allow_placeholders)
         if args.lint:
-            gds = args.gzh_design_scripts or os.path.join(
-                os.path.dirname(os.path.abspath(args.scripts_dir)), "gzh_design", "scripts")
+            gds = args.gzh_design_scripts or (
+                os.path.join(os.path.abspath(args.resource_dir), "gzh_design", "scripts")
+                if args.resource_dir else os.path.join(
+                    os.path.dirname(os.path.abspath(args.scripts_dir)), "gzh_design", "scripts"))
             r["lint"] = lint_file(fp, gds)
             if r["lint"] and r["lint"]["exit"] != 0:
                 r["problems"].append("validate_gzh_html 存在 ERROR（详见 lint.output）")

@@ -3,17 +3,18 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolContentBlock } from '@deepseek-ai/dsh-tools'
 import type { AccountProfile, Config } from '../config.ts'
-import { pipelineDir, runPython } from '../py.ts'
-import { assertImageCreds, assertWechatCreds, brandDir, scriptsDir } from '../sync.ts'
+import { pipelineDir, runPython, runtimeResourceDir } from '../py.ts'
+import { assertImageCreds, assertWechatCreds, brandDir, scriptsDir, workspaceDir } from '../sync.ts'
 
-export { assertImageCreds, assertWechatCreds, brandDir, scriptsDir }
+export { assertImageCreds, assertWechatCreds, brandDir, scriptsDir, workspaceDir }
+export { runtimeResourceDir }
 
 export const CACHE_FILE = 'uploaded_urls.json'
 export const RESULT_FILE = 'publish_result.json'
 export const MEDIA_ID_FILE = 'draft_media_id.txt'
 
 export function pyBase(cfg: Config) {
-  return { pythonPath: cfg.runtime.python_path || 'python', cwd: cfg.runtime.project_root }
+  return { pythonPath: cfg.runtime.python_path || 'python', cwd: workspaceDir(cfg) }
 }
 
 /** 运行 pipeline/ 下的参数化入口；失败时把 Python 错误与最近日志合并进异常消息 */

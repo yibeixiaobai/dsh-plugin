@@ -133,6 +133,7 @@ def main():
     ap.add_argument("--job-json", default="", help="job JSON 内联字符串（与 --job 二选一）")
     ap.add_argument("--scripts-dir", required=True)
     ap.add_argument("--brand-dir", required=True)
+    ap.add_argument("--resource-dir", required=True, help="插件内置运行资源目录")
     args = ap.parse_args()
 
     scripts_abs = os.path.abspath(args.scripts_dir)
@@ -205,7 +206,10 @@ def main():
         return
 
     # [2] 上传素材（缓存断点续跑）
-    sys.path.insert(0, scripts_abs)
+    resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
+    if not os.path.exists(os.path.join(resource_scripts, "publish_template.py")):
+        raise SystemExit("插件内置资源缺少 publish_template.py: " + resource_scripts)
+    sys.path.insert(0, resource_scripts)
     from publish_template import (create_draft, get_access_token, upload_content_image,
                                   upload_cover, verify_draft)
 

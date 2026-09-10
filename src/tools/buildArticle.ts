@@ -3,7 +3,7 @@ import type { Config, ThemeKey } from '../config.ts'
 import { THEME_KEYS } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  expectedArticleImageCount, renderJson, runPipeline, scriptsDir, writeTextFile,
+  expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir, scriptsDir, writeTextFile,
 } from './shared.ts'
 
 interface BuiltArticle {
@@ -71,6 +71,7 @@ export function buildArticleTool(cfg: Config) {
         [
           '--doc-json', JSON.stringify({ ...doc, index: idx, theme }),
           '--scripts-dir', scriptsDir(cfg),
+          '--resource-dir', runtimeResourceDir(),
           '--min-words', String(content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--brand-name', account.profile.brand_name,
@@ -96,6 +97,7 @@ export function buildArticleTool(cfg: Config) {
         [
           '--files', JSON.stringify([name]),
           '--scripts-dir', scriptsDir(cfg),
+          '--resource-dir', runtimeResourceDir(),
           '--min-words', String(content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--brand-name', account.profile.brand_name,

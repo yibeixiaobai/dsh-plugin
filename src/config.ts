@@ -280,7 +280,7 @@ export const Config: Schema<Config> = Schema.object({
     }).description('尾部品牌图'),
   }).description('兼容旧配置：全局品牌头尾图'),
   runtime: Schema.object({
-    project_root: Schema.string().default('D:/666/gzh/文映千秋学术网').description('公众号任务包根目录'),
+    project_root: Schema.string().default('').description('任务工作区；留空使用插件内置 tasks/default，也可填写其它工作区路径'),
     python_path: Schema.string().default('python').description('Python 解释器（需 3.12 + requests + Pillow）'),
     request_timeout_ms: Schema.number().min(5000).max(600000).step(1000).default(30000).description('单次请求超时（毫秒）'),
     dry_run: Schema.boolean().default(false).description('演练模式：全部机器校验照跑，但不联网生图、不发布'),
