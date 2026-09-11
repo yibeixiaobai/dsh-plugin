@@ -34,6 +34,9 @@ export function ensureWorkspace(cfg: Config): string {
   fs.mkdirSync(scripts, { recursive: true })
   fs.mkdirSync(brands, { recursive: true })
   fs.mkdirSync(tests, { recursive: true })
+  for (const id of Object.keys(cfg.accounts)) {
+    fs.mkdirSync(accountScriptsDir(cfg, id), { recursive: true })
+  }
   const defaults = path.join(runtimeResourceDir(), 'default-brand')
   for (const name of ['brand_top.jpg', 'brand_bot.jpg']) {
     const source = path.join(defaults, name)
@@ -46,6 +49,17 @@ export function ensureWorkspace(cfg: Config): string {
 
 export function scriptsDir(cfg: Config): string {
   return path.join(workspaceDir(cfg), 'scripts')
+}
+
+/** 账号 ID 同时用作目录名，必须是安全字符 */
+export function assertAccountId(accountId: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(accountId)) throw new Error('非法账号 ID: ' + accountId)
+  return accountId
+}
+
+/** 按账号隔离的任务产物目录：文章、封面、配图、上传缓存、发布记录都在账号自己的 scripts 下，互不覆盖 */
+export function accountScriptsDir(cfg: Config, accountId: string): string {
+  return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'scripts')
 }
 
 export function brandDir(cfg: Config): string {
@@ -160,7 +174,14 @@ export function syncConfig(cfg: Config): SyncReport {
     image_api_key: firstProvider?.api_key ?? existing.image_api_key ?? '',
   }
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(wxPath, JSON.stringify(merged, null, 2) + '\n', 'utf-8')
+  const serialized = JSON.stringify(merged, null, 2) + '\n'
+  fs.writeFileSync(wxPath, serialized, 'utf-8')
+  // 每个账号目录下发同一份 wx_config.json：Python 侧从该账号自己的 --scripts-dir 读取凭据
+  for (const id of Object.keys(cfg.accounts)) {
+    const accountDir = accountScriptsDir(cfg, id)
+    fs.mkdirSync(accountDir, { recursive: true })
+    fs.writeFileSync(path.join(accountDir, 'wx_config.json'), serialized, 'utf-8')
+  }
   return {
     wx_config_path: wxPath,
     updated: true,

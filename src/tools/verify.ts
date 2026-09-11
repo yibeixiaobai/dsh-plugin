@@ -2,7 +2,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  assertWechatCreds, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir, scriptsDir,
+  accountScriptsDir, assertWechatCreds, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir,
 } from './shared.ts'
 
 export interface VerifyArticle {
@@ -49,12 +49,12 @@ export function verifyTool(cfg: Config) {
         [
           '--media-id', args.media_id,
           '--account-id', account.id,
-          '--scripts-dir', scriptsDir(cfg),
+          '--scripts-dir', accountScriptsDir(cfg, account.id),
           '--resource-dir', runtimeResourceDir(),
           '--expected-count', String(content.articles_per_day),
           '--author', account.profile.author_name,
           '--brand-name', account.profile.brand_name,
-          '--expected-img-count', String(expectedArticleImageCount(account.profile)),
+          '--expected-img-count', String(expectedArticleImageCount(cfg, account.profile)),
           '--min-words', String(content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
         ],

@@ -238,7 +238,7 @@ export const Config: Schema<Config> = Schema.object({
   }).description('② 内容规则'),
   typography: Schema.object({
     headline_theme: Schema.union([...THEME_KEYS]).default('wenying').description('头条主题（wenying=文映学术品牌专属）'),
-    secondary_theme: Schema.union([...THEME_KEYS, 'rotate']).default('rotate').description('次条主题：rotate=按题材轮换'),
+    secondary_theme: Schema.union([...THEME_KEYS, 'rotate']).default('rotate').description('次条主题：rotate=按篇顺序轮换各主题'),
     font_size: Schema.string().default('13px').description('正文字号铁律'),
     line_height: Schema.string().default('20px').description('正文行高铁律'),
     paragraph_margin: Schema.string().default('25px').description('段落间距'),

@@ -10,9 +10,10 @@ job（TS 侧生成的 JSON 文件，scripts 目录内）:
   "titles": [...], "digests": [...],
   "article_files": [...], "cover_files": [...],          // 绝对路径
   "content_files": {"IMG_A1_1": "...", "IMG_A1_2": "...", ...},
+  "content_img_count": 2,                                // 每篇正文配图数（0-4）
   "brand_top": "...", "brand_bot": "...",                // brand_assets 内绝对路径
   "brand_top_enabled": true, "brand_bot_enabled": true,  // 是否要求/上传头尾品牌图
-  "cache": {"__BRAND_TOP__": "https://...", "COVER_1": "media_id", ...},
+  "cache": {"<sha256前12位>:__BRAND_TOP__": "https://...", "<hash>:COVER_1": "media_id", ...},
   "use_cache": true, "dry_run": false,
   "need_open_comment": 1, "only_fans_can_comment": 0,
   "author": "...", "brand_name": "...", "min_words": 2000,
@@ -21,6 +22,7 @@ job（TS 侧生成的 JSON 文件，scripts 目录内）:
 输出协议：{ok, data:{dry_run, media_id?, verify?, cache, checks?}}
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -32,6 +34,15 @@ MARKER = "###RESULT### "
 
 def emit(payload):
     print(MARKER + json.dumps(payload, ensure_ascii=False))
+
+
+def file_hash(path):
+    """文件内容 sha256 前 12 位：上传缓存键的一部分，文件一变缓存自然失效。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()[:12]
 
 
 def account_credentials(conf, account_id):
@@ -66,7 +77,7 @@ def under(base, p):
 
 
 def precheck(html, idx, min_words, forbidden, brand_name, expected_img,
-             brand_top_enabled, brand_bot_enabled):
+             brand_top_enabled, brand_bot_enabled, content_img_count):
     """发布前校验（占位符阶段）：换行/转义/字数/禁词/品牌/图片数/占位符齐全。"""
     problems = []
     if "\n" in html or "\r" in html:
@@ -93,7 +104,7 @@ def precheck(html, idx, min_words, forbidden, brand_name, expected_img,
         if ph not in html:
             problems.append("文章%d 缺少占位符 %s" % (idx, ph))
     # 正文图占位符兼容两代格式：IMG_A{idx}_{j} 与 __IMG_{idx}_{j}__
-    for j in (1, 2):
+    for j in range(1, content_img_count + 1):
         if ("IMG_A" + str(idx) + "_" + str(j)) not in html and ("__IMG_" + str(idx) + "_" + str(j) + "__") not in html:
             problems.append("文章%d 缺少正文图占位符（第 %d 张）" % (idx, j))
     return problems, len(plain)
@@ -160,7 +171,8 @@ def main():
     cache = dict(job.get("cache", {}))
     brand_top_enabled = bool(job.get("brand_top_enabled", True))
     brand_bot_enabled = bool(job.get("brand_bot_enabled", True))
-    expected_img = 2 + (1 if brand_top_enabled else 0) + (1 if brand_bot_enabled else 0)
+    content_img_count = max(0, min(4, int(job.get("content_img_count", 2))))
+    expected_img = content_img_count + (1 if brand_top_enabled else 0) + (1 if brand_bot_enabled else 0)
 
     # 路径边界校验：文章/封面/正文图必须位于 scripts 目录，品牌图必须位于 brand_assets
     article_paths = [under(scripts_abs, p) for p in job["article_files"]]
@@ -193,7 +205,7 @@ def main():
     for i, html in enumerate(htmls, 1):
         problems, chars = precheck(
             html, i, min_words, forbidden, brand_name, expected_img,
-            brand_top_enabled, brand_bot_enabled)
+            brand_top_enabled, brand_bot_enabled, content_img_count)
         all_checks.extend(problems)
         if not problems:
             print("文章%d 校验通过（纯文字 %d 字）" % (i, chars))
@@ -205,7 +217,7 @@ def main():
         emit({"ok": True, "data": {"dry_run": True, "checks": ["全部 %d 篇通过发布前校验" % n], "cache": cache}})
         return
 
-    # [2] 上传素材（缓存断点续跑）
+    # [2] 上传素材（缓存断点续跑；键 = "内容hash:占位符"，文件一变即重新上传，跨账号/陈旧缓存不会误命中）
     resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
     if not os.path.exists(os.path.join(resource_scripts, "publish_template.py")):
         raise SystemExit("插件内置资源缺少 publish_template.py: " + resource_scripts)
@@ -223,20 +235,30 @@ def main():
     if brand_bot_enabled:
         uploads["__BRAND_BOT__"] = brand_bot
     uploads.update(content_paths)
+    resolved = {}  # 本次运行的占位符 → 刚上传/命中的 URL（替换只认它，保证与当前文件内容一致）
+    path_urls = {}  # 同一文件多占位符拼写（IMG_A 与 __IMG_）只上传一次
     for key in sorted(uploads):
-        if job.get("use_cache") and key in cache:
-            print("%s （缓存）" % key)
+        p = uploads[key]
+        if not os.path.exists(p):
+            raise SystemExit("缺少素材: " + p)
+        if p in path_urls:
+            resolved[key] = path_urls[p]
             continue
-        if not os.path.exists(uploads[key]):
-            raise SystemExit("缺少素材: " + uploads[key])
-        cache[key] = upload_content_image(token, uploads[key])
-        print(key + " -> " + cache[key][:60])
-        time.sleep(0.3)
+        cache_key = file_hash(p) + ":" + key
+        if job.get("use_cache") and cache_key in cache:
+            resolved[key] = cache[cache_key]
+            print(key + " （缓存）")
+        else:
+            resolved[key] = upload_content_image(token, p)
+            cache[cache_key] = resolved[key]
+            print(key + " -> " + resolved[key][:60])
+            time.sleep(0.3)
+        path_urls[p] = resolved[key]
 
     # [3] 替换占位符 + 最终校验
     final_htmls = []
     for i, html in enumerate(htmls, 1):
-        for key, url in cache.items():
+        for key, url in resolved.items():
             if key.startswith("IMG_A") or key.startswith("__IMG_") or key.startswith("__BRAND"):
                 html = html.replace(key, url)
         problems, n_img, chars = postcheck(
@@ -248,19 +270,20 @@ def main():
         final_htmls.append(html)
         print("文章%d 最终校验通过（%d 张图，纯文字 %d 字）" % (i, n_img, chars))
 
-    # [4] 上传封面（material/add_material → media_id）
+    # [4] 上传封面（material/add_material → media_id；键同样带内容 hash）
     cover_ids = []
     for i, p in enumerate(cover_paths, 1):
         key = "COVER_" + str(i)
-        if job.get("use_cache") and key in cache:
-            cover_ids.append(cache[key])
-            print(key + " （缓存）")
-            continue
         if not os.path.exists(p):
             raise SystemExit("缺少封面: " + p)
-        cache[key] = upload_cover(token, p)
-        cover_ids.append(cache[key])
-        print(key + " -> " + cache[key][:40])
+        cache_key = file_hash(p) + ":" + key
+        if job.get("use_cache") and cache_key in cache:
+            cover_ids.append(cache[cache_key])
+            print(key + " （缓存）")
+            continue
+        cache[cache_key] = upload_cover(token, p)
+        cover_ids.append(cache[cache_key])
+        print(key + " -> " + cache[cache_key][:40])
         time.sleep(0.5)
 
     # [5] draft/add 组合多图文草稿

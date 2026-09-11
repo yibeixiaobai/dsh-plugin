@@ -2,11 +2,14 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolContentBlock } from '@deepseek-ai/dsh-tools'
-import type { AccountProfile, Config } from '../config.ts'
+import type { AccountProfile, Config, ThemeKey } from '../config.ts'
+import { THEME_KEYS } from '../config.ts'
 import { pipelineDir, runPython, runtimeResourceDir } from '../py.ts'
-import { assertImageCreds, assertWechatCreds, brandDir, scriptsDir, workspaceDir } from '../sync.ts'
+import {
+  accountScriptsDir, assertImageCreds, assertWechatCreds, brandDir, configuredAccountIds, scriptsDir, workspaceDir,
+} from '../sync.ts'
 
-export { assertImageCreds, assertWechatCreds, brandDir, scriptsDir, workspaceDir }
+export { accountScriptsDir, assertImageCreds, assertWechatCreds, brandDir, configuredAccountIds, scriptsDir, workspaceDir }
 export { runtimeResourceDir }
 
 export const CACHE_FILE = 'uploaded_urls.json'
@@ -57,16 +60,16 @@ export function findImage(dir: string, base: string): string {
   throw new Error('缺少图片文件（请先运行 gzh_generate_images）: ' + base + '.jpg|.png')
 }
 
-export function readUploadCache(cfg: Config): Record<string, string> {
+export function readUploadCache(cfg: Config, accountId: string): Record<string, string> {
   try {
-    return JSON.parse(fs.readFileSync(path.resolve(scriptsDir(cfg), CACHE_FILE), 'utf-8')) as Record<string, string>
+    return JSON.parse(fs.readFileSync(path.resolve(accountScriptsDir(cfg, accountId), CACHE_FILE), 'utf-8')) as Record<string, string>
   } catch {
     return {}
   }
 }
 
-export function writeUploadCache(cfg: Config, cache: Record<string, string>): void {
-  writeTextFile(scriptsDir(cfg), CACHE_FILE, JSON.stringify(cache, null, 2) + '\n')
+export function writeUploadCache(cfg: Config, accountId: string, cache: Record<string, string>): void {
+  writeTextFile(accountScriptsDir(cfg, accountId), CACHE_FILE, JSON.stringify(cache, null, 2) + '\n')
 }
 
 /** Resolve a configured brand image inside brand_assets; absolute paths outside are rejected. */
@@ -88,8 +91,26 @@ export function expectedBrandImageCount(account: AccountProfile): number {
   return (account.brand_images.header.enabled ? 1 : 0) + (account.brand_images.footer.enabled ? 1 : 0)
 }
 
-export function expectedArticleImageCount(account: AccountProfile): number {
-  return 2 + expectedBrandImageCount(account)
+/** 每篇正文配图数：以设置为准（0-4），不再硬编码 2 */
+export function contentImagesPerArticle(cfg: Config): number {
+  const raw = Number(cfg.image_api.content_images_per_article)
+  return Number.isFinite(raw) ? Math.max(0, Math.min(4, Math.floor(raw))) : 2
+}
+
+export function expectedArticleImageCount(cfg: Config, account: AccountProfile): number {
+  return contentImagesPerArticle(cfg) + expectedBrandImageCount(account)
+}
+
+/** 按篇解析主题：第 1 篇用头条主题，次条用设置的次条主题，rotate 时按篇轮换全部主题 */
+export function resolveTheme(cfg: Config, index: number): ThemeKey {
+  const headline = cfg.typography.headline_theme
+  if (index <= 1) {
+    return THEME_KEYS.includes(headline as ThemeKey) ? (headline as ThemeKey) : 'wenying'
+  }
+  const secondary = cfg.typography.secondary_theme
+  if (secondary !== 'rotate') return secondary
+  const pool = THEME_KEYS
+  return pool[(((index - 2) % pool.length) + pool.length) % pool.length]
 }
 
 export const renderJson = (v: unknown): ToolContentBlock[] => [

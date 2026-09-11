@@ -3,7 +3,7 @@ import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { expectedArticleImageCount, renderJson, runtimeResourceDir } from './shared.ts'
+import { contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveTheme, runtimeResourceDir } from './shared.ts'
 
 // 与 gzh_components.py THEMES 一致的色板
 const THEME_PALETTES: Record<ThemeKey, Record<string, string>> = {
@@ -55,6 +55,10 @@ export interface StyleGuide {
   parts_format: string[]
   hard_rules: string[]
   forbidden_words: string[]
+  articles_per_day: number
+  topics: string[]
+  content_images_per_article: number
+  theme_plan: Record<string, ThemeKey>
   references: string[]
 }
 
@@ -79,7 +83,11 @@ export function styleGuideTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : cfg.typography.headline_theme) as ThemeKey
+      const n = content.articles_per_day
+      const contentImgs = contentImagesPerArticle(cfg)
+      const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : resolveTheme(cfg, 1)) as ThemeKey
+      const themePlan: Record<string, ThemeKey> = {}
+      for (let i = 1; i <= n; i++) themePlan[String(i)] = resolveTheme(cfg, i)
       const refsDir = path.join(runtimeResourceDir(), 'references')
       const references: string[] = []
       // 主题文件：按 hints 模糊匹配 theme-*.md
@@ -119,7 +127,8 @@ export function styleGuideTool(cfg: Config) {
         ],
         hard_rules: [
           '作者名固定 ' + account.profile.author_name,
-          '每篇正文 ' + expectedArticleImageCount(account.profile) + ' 张 img：2 张正文配图（IMG_A{index}_1/_2 占位）' +
+          '本次共 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇文章主题按 theme_plan 分配',
+          '每篇正文 ' + expectedArticleImageCount(cfg, account.profile) + ' 张 img：' + contentImgs + ' 张正文配图（IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + ' 占位）' +
             (account.profile.brand_images.header.enabled ? ' + 头部品牌图' : '') +
             (account.profile.brand_images.footer.enabled ? ' + 尾部品牌图' : ''),
           '纯文字不少于 ' + content.min_words + ' 字（构建时断言）',
@@ -129,6 +138,10 @@ export function styleGuideTool(cfg: Config) {
           content.ending_guide_required ? '结尾引导语为硬性要求' : '结尾引导语可选',
         ],
         forbidden_words: content.forbidden_words,
+        articles_per_day: n,
+        topics: [...content.topics],
+        content_images_per_article: contentImgs,
+        theme_plan: themePlan,
         references,
       }
     },

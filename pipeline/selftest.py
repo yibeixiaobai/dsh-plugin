@@ -113,7 +113,10 @@ def main():
     sys.path.insert(0, here)
     import publish_pipeline as pp
     precheck_problems, _ = pp.precheck(
-        html, 99, 2000, [], "文映千秋学术网", 3, False, True)
+        html, 99, 2000, [], "文映千秋学术网", 3, False, True, 2)
+    # 正文配图数参数生效：声明 3 张时应报缺少第 3 张占位符
+    strict_problems, _ = pp.precheck(
+        html, 99, 2000, [], "文映千秋学术网", 4, False, True, 3)
     ok = (
         r["exit"] == 0 and r["result"] and r["result"].get("ok")
         and data.get("img_count") == 3
@@ -123,6 +126,7 @@ def main():
         and "object-position:bottom" in html
         and "border-radius:18px" in html
         and not precheck_problems
+        and any("第 3 张" in p for p in strict_problems)
     )
     results.append(("brand_images 头尾图变换", ok, r))
 
@@ -224,6 +228,7 @@ def main():
             "content_files": {"IMG_A1_1": os.path.join(scripts_abs, "content_99_1.png")},
             "brand_top": os.path.join(brand_abs, "brand_top.jpg"),
             "brand_bot": os.path.join(brand_abs, "brand_bot.jpg"),
+            "content_img_count": 2,
             "cache": {}, "use_cache": True, "dry_run": True,
             "need_open_comment": 1, "only_fans_can_comment": 0,
             "author": "文映学术win00.cn", "brand_name": "文映千秋学术网",
@@ -265,6 +270,19 @@ def main():
     results.append(("accounts 多账号凭据解析", ok, {
         "result": {"data": {"default": resolved_default[0], "backup": resolved_backup[0],
                             "dict": resolved_dict[0], "legacy": resolved_legacy[0]}},
+        "exit": 0, "output": "", "stderr": "",
+    }))
+
+    # 9. 上传缓存键：内容 hash 前缀稳定且随内容变化
+    brand_file = os.path.join(brand_abs, "brand_top.jpg")
+    if os.path.exists(brand_file):
+        h1 = pp.file_hash(brand_file)
+        h2 = pp.file_hash(brand_file)
+        ok = len(h1) == 12 and h1 == h2 and (h1 + ":__BRAND_TOP__").endswith(":__BRAND_TOP__")
+    else:
+        ok = False
+    results.append(("cache 内容hash缓存键", ok, {
+        "result": {"data": {"hash": h1 if os.path.exists(brand_file) else None}},
         "exit": 0, "output": "", "stderr": "",
     }))
 

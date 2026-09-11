@@ -20,8 +20,11 @@ dsh Agent ──调用──▶ 7 个工具（TypeScript，本插件）
 - job 参数走 argv 内联 JSON（`--doc-json` / `--job-json`），无临时文件
 - 插件运行代码与资源全部位于本插件目录，不依赖其它公众号项目包
 - 任务工作区留空时使用 `D:/666/gzh/dsh-plugin/tasks/default`；也可在设置中填写其它绝对路径
-- 凭据的单一事实来源是 **dsh 设置界面**：每次加载/热重载自动同步到 `scripts/wx_config.json`
-  （留空的设置项沿用文件现状，不覆盖）
+- **任务产物按账号隔离**：每个账号的写作、配图、缓存与发布记录都写入
+  `<工作区>/accounts/<账号ID>/scripts/`，多账号互不覆盖；品牌图 `brand_assets/` 与测试图
+  `gzh_test_images/` 仍为工作区共享
+- 凭据的单一事实来源是 **dsh 设置界面**：每次加载/热重载自动同步到共享 `scripts/wx_config.json`
+  并逐账号下发一份到各账号目录（Python 从账号自己的目录读取）；留空的设置项沿用文件现状，不覆盖
 
 ## 前置条件
 
@@ -65,7 +68,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 |---|---|
 | ① 公众号账号 | 多账号新增、一键复制（含凭据克隆配置快速新建）、启停、删除、设为默认；每个账号独立保存 `appid`、`app_secret`、`author_name`、`brand_name` |
 | ② 内容规则 | 按账号编辑 `articles_per_day`(6)、`min_words`(2000)、`topics`、`forbidden_words`、`ending_guide_required` |
-| ③ 排版 | `headline_theme`（6 主题下拉）、`secondary_theme`（rotate=轮换）、`font_size`(13px)、`line_height`(20px)、`paragraph_margin`(25px)、`text_indent`(2em) |
+| ③ 排版 | `headline_theme`（6 主题下拉）、`secondary_theme`（rotate=按篇顺序轮换各主题）、`font_size`(13px)、`line_height`(20px)、`paragraph_margin`(25px)、`text_indent`(2em) |
 | ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；网络/超时、401/403/408/429/5xx 自动轮换；每个接口可单独测试并预览结果 |
 | ⑤ 头部品牌图 | 按账号上传或拖放 JPEG/PNG/WebP（≤10 MB），即时预览，并配置尺寸、裁切、位置、圆角与边框 |
 | ⑥ 尾部品牌图 | 同头部字段，可按账号独立上传、预览、启用和变换 |
@@ -84,29 +87,31 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 /gzh
 /gzh account-id
 /gzh account-id 本次重点关注职称评审政策
+/gzh account-a,account-b 两个账号本周错开选题
 ```
 
-- `/gzh`：使用默认账号，自动选题并执行查重、写作、排版、生图、校验、草稿发布和核验。
-- 指定 `account-id`：使用对应账号的凭据、内容规则和品牌图。
-- 账号 ID 后的文字作为本次任务补充要求；省略账号 ID 时，整段文字作为默认账号的补充要求。
+- `/gzh`：**遍历全部启用账号**逐个执行完整流程（默认账号排最前），自动选题并执行查重、写作、排版、生图、校验、草稿发布和核验；每个账号的文章数、字数、选题方向、封面比例、配图数等配置直接注入任务提示词。
+- 指定账号：首词支持逗号分隔多个 `account-id`，只跑这些账号。
+- 账号 ID 后的文字作为本次任务补充要求；首词不是账号 ID 时，整段文字作为补充要求。
+- **多账号互斥**：任务要求候选选题不得与任一账号的历史、以及同批次其它账号已确定的选题重复；`gzh_check_topics` 查重时自动聚合其它账号目录与旧共享目录的历史标题（来源标注账号 ID）。
 
 | 工具 | 作用 |
 |---|---|
-| `gzh_check_topics` | 选题查重：候选选题 vs 110+ 次历史标题，返回 high/medium/low 风险 |
-| `gzh_get_style_guide` | 写作规范：主题色板、doc_spec 格式、13px 铁律、禁词、硬性规则 |
+| `gzh_check_topics` | 选题查重：候选选题 vs 本账号 + 其它账号历史标题，返回 high/medium/low 风险与来源 |
+| `gzh_get_style_guide` | 写作规范：主题色板、doc_spec 格式、13px 铁律、禁词、硬性规则；返回每日文章数、选题方向、配图数与逐篇主题计划 theme_plan |
 | `gzh_build_article` | 按 doc spec 构建单行 HTML（引言卡/目录/徽章/下划线/卡片图），断言 + lint，落盘 `article_v2_{i}.html` |
 | `gzh_generate_images` | AI 生图：封面（头条默认 `2.35:1`）+ 正文信息图，自动缩放 |
 | `gzh_validate_html` | 发布前机器校验：换行/字数/禁词/占位符/图片数/CDN + gzh-design lint |
 | `gzh_publish_draft` | 上传素材（缓存续跑）→ 替换占位符 → draft/add 组合 1 个多图文草稿 |
 | `gzh_verify_draft` | draft/get（POST）逐篇核验草稿 |
 
-除 `gzh_check_topics` 外，其他内容与发布工具都接受可选 `account_id`；未传时使用默认账号，返回结果会标明实际账号 ID。
+除 `gzh_generate_images` 的账号用于读取每日文章数外，全部内容与发布工具都接受可选 `account_id`；未传时使用默认账号，返回结果会标明实际账号 ID。
 
 ### 每日流程示例（Agent 视角）
 
-1. `gzh_check_topics` 查重选题（高风险则换）
-2. `gzh_get_style_guide` 取规范 → 撰写 6 篇内容 → 逐篇 `gzh_build_article`
-3. `gzh_generate_images` 生成 6 张封面 + 12 张正文图
+1. `gzh_check_topics` 查重选题（高风险则换；多账号时跨账号互斥）
+2. `gzh_get_style_guide` 取规范（文章数/配图数/theme_plan 以返回值为准）→ 逐篇 `gzh_build_article`
+3. `gzh_generate_images` 生成封面 + 正文图
 4. `gzh_validate_html` 全量校验
 5. `gzh_publish_draft`（titles/digests）→ 草稿箱
 6. `gzh_verify_draft` 核验 → 人工确认后群发
@@ -117,8 +122,8 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 python pipeline/selftest.py
 ```
 
-覆盖：选题查重、文章构建（断言字数/图片数/品牌语）、HTML 校验（含 gzh-design lint）、
-生图演练、401/429/5xx 接口轮换与 400 立即失败、多账号凭据解析、发布演练（复用现成文章）。
+覆盖：选题查重（含跨账号历史聚合）、文章构建（断言字数/图片数/品牌语）、HTML 校验（含 gzh-design lint）、
+生图演练、401/429/5xx 接口轮换与 400 立即失败、多账号凭据解析、内容 hash 上传缓存键、发布演练（复用现成文章）。
 
 ## 类型检查
 
@@ -139,8 +144,10 @@ npm install && npx tsc   # dsh 宿主直载 TS，本地 tsc 仅做签名检查
   `__IMG_{i}_{j}__`（v116 现行）在构建白名单、发布替换、校验中都可识别
 - **路径安全**：Python 侧所有文件读写做 normpath + 目录边界守卫；下载 URL 强制 http(s)
   且 DNS 解析后阻断私网/环回地址（防 SSRF）；无 shell 子进程
-- **工作区隔离**：默认任务文件写入插件内 `tasks/default`。填写外部工作区后，只把任务产物写入该目录，
-  排版、发布与校验代码仍从插件 `runtime` 读取。旧的 `D:/666/gzh/文映千秋学术网` 不会自动迁移或读取
+- **工作区隔离**：默认任务文件写入插件内 `tasks/default`（按账号再分到 `accounts/<id>/scripts/`）。
+  填写外部工作区后，只把任务产物写入该目录，
+  排版、发布与校验代码仍从插件 `runtime` 读取。旧的 `D:/666/gzh/文映千秋学术网` 不会自动迁移或读取；
+  升级前写在共享 `scripts/` 的历史文章不会被移动，但 `gzh_check_topics` 仍会读取其标题用于查重
 - **凭据**：按你的选择存于插件设置（Schemastery secret 字段）。请勿把填了密钥的
   `cordis.yml` 提交到公开仓库；`wx_config.json` 由插件同步维护，同样注意保密
 - **演练模式**：设置 `dry_run: true` 后，生图与发布工具只跑校验不联网，适合先演练后正式

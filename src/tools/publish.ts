@@ -4,8 +4,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  MEDIA_ID_FILE, RESULT_FILE, assertWechatCreds, brandDir,
-  brandImagePath, findImage, readUploadCache, renderJson, runPipeline, scriptsDir, writeTextFile,
+  MEDIA_ID_FILE, RESULT_FILE, accountScriptsDir, assertWechatCreds, brandDir,
+  brandImagePath, contentImagesPerArticle, findImage, readUploadCache, renderJson, runPipeline, writeTextFile,
   runtimeResourceDir, writeUploadCache,
 } from './shared.ts'
 
@@ -81,7 +81,7 @@ export function publishTool(cfg: Config) {
       for (const d of args.digests) {
         if (typeof d !== 'string' || d.length > 120) throw new Error('摘要超 120 字: ' + String(d).slice(0, 40))
       }
-      const sdir = scriptsDir(cfg)
+      const sdir = accountScriptsDir(cfg, account.id)
 
       const articleFiles = args.article_files?.length
         ? args.article_files
@@ -89,6 +89,7 @@ export function publishTool(cfg: Config) {
       const articlePaths = articleFiles.map((f) => path.resolve(sdir, f))
 
       // 封面/正文图：演练模式不要求存在，正式发布缺失即报错
+      const contentImgs = contentImagesPerArticle(cfg)
       const coverPaths: string[] = []
       const contentFiles: Record<string, string> = {}
       for (let i = 1; i <= n; i++) {
@@ -97,7 +98,7 @@ export function publishTool(cfg: Config) {
         } else {
           coverPaths.push(findImage(sdir, 'cover_' + i))
         }
-        for (let j = 1; j <= cfg.image_api.content_images_per_article; j++) {
+        for (let j = 1; j <= contentImgs; j++) {
           const key = 'IMG_A' + i + '_' + j
           contentFiles[key] = cfg.runtime.dry_run
             ? path.resolve(sdir, 'content_' + i + '_' + j + '.png')
@@ -129,13 +130,14 @@ export function publishTool(cfg: Config) {
         brand_bot: brandBot,
         brand_top_enabled: account.profile.brand_images.header.enabled,
         brand_bot_enabled: account.profile.brand_images.footer.enabled,
-        cache: readUploadCache(cfg),
+        cache: readUploadCache(cfg, account.id),
         use_cache: cfg.runtime.use_upload_cache,
         dry_run: cfg.runtime.dry_run,
         need_open_comment: cfg.runtime.need_open_comment ? 1 : 0,
         only_fans_can_comment: 0,
         author: account.profile.author_name,
         brand_name: account.profile.brand_name,
+        content_img_count: contentImgs,
         min_words: content.min_words,
         forbidden: content.forbidden_words,
         verify: cfg.runtime.verify_after_publish,
@@ -149,7 +151,7 @@ export function publishTool(cfg: Config) {
       )
 
       // 结果落盘：上传缓存续跑 + 发布记录（与项目既有文件兼容）
-      writeUploadCache(cfg, result.cache ?? {})
+      writeUploadCache(cfg, account.id, result.cache ?? {})
       if (result.dry_run) {
         return {
           account_id: account.id,

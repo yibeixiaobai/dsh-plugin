@@ -3,7 +3,7 @@ import type { Config, ThemeKey } from '../config.ts'
 import { THEME_KEYS } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir, scriptsDir, writeTextFile,
+  accountScriptsDir, expectedArticleImageCount, renderJson, resolveTheme, runPipeline, runtimeResourceDir, writeTextFile,
 } from './shared.ts'
 
 interface BuiltArticle {
@@ -61,16 +61,17 @@ export function buildArticleTool(cfg: Config) {
       if (!Number.isInteger(idx) || idx < 1 || idx > content.articles_per_day) {
         throw new Error('index 必须是 1~' + content.articles_per_day)
       }
+      const sdir = accountScriptsDir(cfg, account.id)
       const theme = (typeof doc.theme === 'string' && THEME_KEYS.includes(doc.theme as ThemeKey)
         ? doc.theme
-        : cfg.typography.headline_theme) as ThemeKey
+        : resolveTheme(cfg, idx)) as ThemeKey
 
       const built = await runPipeline<BuiltArticle>(
         cfg,
         'build_article.py',
         [
           '--doc-json', JSON.stringify({ ...doc, index: idx, theme }),
-          '--scripts-dir', scriptsDir(cfg),
+          '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
           '--min-words', String(content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
@@ -88,7 +89,7 @@ export function buildArticleTool(cfg: Config) {
 
       // Python 纯构建返回 HTML，TS 侧落盘（文件名白名单 + 目录守卫）
       const name = 'article_v2_' + idx + '.html'
-      const file = writeTextFile(scriptsDir(cfg), name, built.html)
+      const file = writeTextFile(sdir, name, built.html)
 
       // 完整发布级校验 + gzh-design lint（占位符阶段）
       const check = await runPipeline<CheckReport>(
@@ -96,12 +97,12 @@ export function buildArticleTool(cfg: Config) {
         'check_html.py',
         [
           '--files', JSON.stringify([name]),
-          '--scripts-dir', scriptsDir(cfg),
+          '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
           '--min-words', String(content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--brand-name', account.profile.brand_name,
-          '--img-count', String(expectedArticleImageCount(account.profile)),
+          '--img-count', String(expectedArticleImageCount(cfg, account.profile)),
           '--allow-placeholders',
           '--lint',
         ],

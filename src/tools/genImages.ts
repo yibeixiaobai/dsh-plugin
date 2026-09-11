@@ -1,7 +1,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { COVER_SIZES, type Config } from '../config.ts'
 import { providerPool, resolveAccount } from '../config-runtime.ts'
-import { assertImageCreds, renderJson, runPipeline, scriptsDir } from './shared.ts'
+import { accountScriptsDir, assertImageCreds, renderJson, runPipeline } from './shared.ts'
 
 interface GenItem {
   kind: 'cover' | 'content'
@@ -101,7 +101,7 @@ export function genImagesTool(cfg: Config) {
       const report = await runPipeline<Omit<GenReport, 'account_id'>>(
         cfg,
         'gen_images_pipeline.py',
-        ['--job-json', JSON.stringify(job), '--scripts-dir', scriptsDir(cfg)],
+        ['--job-json', JSON.stringify(job), '--scripts-dir', accountScriptsDir(cfg, account.id)],
         Math.max(60000, items.length * 180000),
       )
       return { account_id: account.id, ...report }

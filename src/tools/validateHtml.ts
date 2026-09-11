@@ -1,7 +1,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir, scriptsDir } from './shared.ts'
+import { accountScriptsDir, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir } from './shared.ts'
 
 export interface ValidateReport {
   account_id: string
@@ -50,12 +50,12 @@ export function validateHtmlTool(cfg: Config) {
       }
       const cmd = [
         '--files', JSON.stringify(files),
-        '--scripts-dir', scriptsDir(cfg),
+        '--scripts-dir', accountScriptsDir(cfg, account.id),
         '--resource-dir', runtimeResourceDir(),
         '--min-words', String(content.min_words),
         '--forbidden', JSON.stringify(content.forbidden_words),
         '--brand-name', account.profile.brand_name,
-        '--img-count', String(expectedArticleImageCount(account.profile)),
+        '--img-count', String(expectedArticleImageCount(cfg, account.profile)),
         '--lint',
       ]
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')
