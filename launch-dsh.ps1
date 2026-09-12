@@ -35,8 +35,11 @@ function Test-IsDshProcess {
 function Get-DshWebTargets {
   # 正在运行的这套实例包含：占用 $port 的 dsh 服务端、其它 dsh web 的 node
   # 进程，以及拉起它们的 npx / cmd 包装链。非 dsh 的端口占用者一律不动。
+  # 全表枚举 Win32_Process 在进程多的机器上要好几秒；dsh 目标只可能挂在
+  # node / cmd / conhost 下，按名字过滤后 WMI 查询快一个数量级。
   $table = @{}
-  foreach ($proc in Get-CimInstance Win32_Process -ErrorAction SilentlyContinue) {
+  $procQuery = "SELECT ProcessId, ParentProcessId, Name, CommandLine FROM Win32_Process WHERE Name='node.exe' OR Name='cmd.exe' OR Name='conhost.exe'"
+  foreach ($proc in Get-CimInstance -Query $procQuery -ErrorAction SilentlyContinue) {
     $table[[int]$proc.ProcessId] = $proc
   }
 
@@ -110,7 +113,9 @@ function Stop-DshWeb {
 }
 
 # ---------------------------------------------------------------- 关闭旧实例
+$sw = [System.Diagnostics.Stopwatch]::StartNew()
 $restarted = Stop-DshWeb
+Write-Host ("关闭旧实例耗时 {0:N1}s" -f $sw.Elapsed.TotalSeconds)
 
 if (Test-DshPort) {
   Write-Host "端口 $port 仍被占用，无法启动新实例。"
@@ -133,14 +138,22 @@ $process = Start-Process -FilePath 'cmd.exe' `
   -PassThru
 
 $url = $null
+$candidate = $null
 for ($i = 0; $i -lt 90 -and -not $url; $i++) {
   Start-Sleep -Milliseconds 500
   if (Test-Path -LiteralPath $log) {
     $content = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
     if ($content) {
-      $match = [regex]::Match($content, 'http://127\.0\.0\.1:\d+/\?token=[^\s]+')
+      # 日志行可能写了一半就被读到，截断的 token 会让浏览器拿到 401。
+      # token 限 base64url 且至少 32 位，并要求两次轮询结果一致才采信。
+      $match = [regex]::Match($content, 'http://127\.0\.0\.1:\d+/\?token=[A-Za-z0-9_-]{32,}')
       if ($match.Success) {
-        $url = $match.Value.TrimEnd('.', ',', ')')
+        $found = $match.Value.TrimEnd('.', ',', ')')
+        if ($found -eq $candidate) {
+          $url = $found
+        } else {
+          $candidate = $found
+        }
       }
     }
   }
@@ -150,6 +163,8 @@ for ($i = 0; $i -lt 90 -and -not $url; $i++) {
 }
 
 if ($url) {
+  $sw.Stop()
+  Write-Host ("启动新实例耗时 {0:N1}s" -f $sw.Elapsed.TotalSeconds)
   Set-Content -LiteralPath $stateFile -Value $url -Encoding ascii
   if ($restarted) { Write-Host '已重启，正在打开浏览器…' } else { Write-Host '正在打开浏览器…' }
   Start-Process $url

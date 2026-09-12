@@ -101,7 +101,7 @@ export function expectedArticleImageCount(cfg: Config, account: AccountProfile):
   return contentImagesPerArticle(cfg) + expectedBrandImageCount(account)
 }
 
-/** 按篇解析主题：第 1 篇用头条主题，次条用设置的次条主题，rotate 时按篇轮换全部主题 */
+/** 按篇解析主题：第 1 篇用头条主题，次条用设置的次条主题，rotate 时从头条主题的下一个起按篇轮换（避免与第 1 篇相邻重复） */
 export function resolveTheme(cfg: Config, index: number): ThemeKey {
   const headline = cfg.typography.headline_theme
   if (index <= 1) {
@@ -110,7 +110,7 @@ export function resolveTheme(cfg: Config, index: number): ThemeKey {
   const secondary = cfg.typography.secondary_theme
   if (secondary !== 'rotate') return secondary
   const pool = THEME_KEYS
-  return pool[(((index - 2) % pool.length) + pool.length) % pool.length]
+  return pool[(((index - 1) % pool.length) + pool.length) % pool.length]
 }
 
 export const renderJson = (v: unknown): ToolContentBlock[] => [

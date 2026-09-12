@@ -178,7 +178,7 @@ def main():
             if base_url == "https://bad-503.example":
                 raise gp.RetryableProviderError("HTTP 503: unavailable")
             if base_url == "https://bad-400.example":
-                raise gp.requests.HTTPError("400 Client Error")
+                raise gp.NonRetryableProviderError("HTTP 400: model not found")
             return b"image"
 
         gp.generate_raw = fake_generate
@@ -196,9 +196,16 @@ def main():
             {"index": 2, "kind": "cover", "size": [32, 32]}, providers,
             first["active"], first["disabled"], "prompt",
             os.path.join(scripts_abs, "cover_99.png"), 10, "m")
-        nonretryable = gp.generate_item_with_pool(
+        # 400（模型不存在等）也必须轮换到备用接口，而不是终止批次
+        rotated = gp.generate_item_with_pool(
             {"index": 3, "kind": "cover", "size": [32, 32]},
-            [{"id": "bad", "name": "bad", "base_url": "https://bad-400.example", "api_key": "x", "model": "m"}],
+            [{"id": "bad400", "name": "B", "base_url": "https://bad-400.example", "api_key": "x", "model": "m"},
+             {"id": "ok2", "name": "O", "base_url": "https://ok2.example", "api_key": "x", "model": "m"}],
+            0, set(), "prompt", os.path.join(scripts_abs, "cover_99.png"), 10, "m")
+        # 单接口 400：轮换后池子耗尽 → exhausted（附失败原因），不再有 nonretryable 提前终止
+        exhausted = gp.generate_item_with_pool(
+            {"index": 4, "kind": "cover", "size": [32, 32]},
+            [{"id": "bad400", "name": "B", "base_url": "https://bad-400.example", "api_key": "x", "model": "m"}],
             0, set(), "prompt", os.path.join(scripts_abs, "cover_99.png"), 10, "m")
         ok = (
             first["terminal"] == "success"
@@ -208,12 +215,16 @@ def main():
             and calls.count("https://bad-401.example") == 1
             and calls.count("https://bad-429.example") == 1
             and calls.count("https://bad-503.example") == 1
-            and nonretryable["terminal"] == "nonretryable"
+            and rotated["terminal"] == "success"
+            and rotated["provider_used"] == "ok2"
+            and len(rotated["attempts"]) == 1
+            and exhausted["terminal"] == "exhausted"
+            and len(exhausted["attempts"]) == 1
         )
     finally:
         gp.generate_raw, gp.save_resized = original_raw, original_save
     results.append(("gen_images 接口轮换", ok, {
-        "result": {"data": {"first": first, "second": second, "nonretryable": nonretryable}},
+        "result": {"data": {"first": first, "second": second, "rotated": rotated, "exhausted": exhausted}},
         "exit": 0, "output": "", "stderr": "",
     }))
 

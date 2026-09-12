@@ -1,6 +1,5 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { Config, ThemeKey } from '../config.ts'
-import { THEME_KEYS } from '../config.ts'
+import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
   accountScriptsDir, expectedArticleImageCount, renderJson, resolveTheme, runPipeline, runtimeResourceDir, writeTextFile,
@@ -35,7 +34,8 @@ export function buildArticleTool(cfg: Config) {
     description:
       '把文章内容按 doc spec 构建为公众号合规的单行 HTML（gzh_components 融合版组件：引言卡/三列目录/' +
       '章节徽章/关键词下划线/卡片图/签名区），自动断言字数/图片数/品牌引导语/禁词，落盘 article_v2_{index}.html ' +
-      '并跑 gzh-design 合规 lint。doc spec 格式先调 gzh_get_style_guide 获取。',
+      '并跑 gzh-design 合规 lint。doc spec 格式先调 gzh_get_style_guide 获取；' +
+      '主题按设置的头条/次条/rotate 规则按篇强制解析，doc 内 theme 字段被忽略。',
     parameters: {
       doc_json: {
         type: 'string',
@@ -62,9 +62,8 @@ export function buildArticleTool(cfg: Config) {
         throw new Error('index 必须是 1~' + content.articles_per_day)
       }
       const sdir = accountScriptsDir(cfg, account.id)
-      const theme = (typeof doc.theme === 'string' && THEME_KEYS.includes(doc.theme as ThemeKey)
-        ? doc.theme
-        : resolveTheme(cfg, idx)) as ThemeKey
+      // 主题严格按设置解析（头条/次条/rotate 按篇轮换），doc 内自带 theme 一律忽略，防止自由发挥
+      const theme = resolveTheme(cfg, idx)
 
       const built = await runPipeline<BuiltArticle>(
         cfg,

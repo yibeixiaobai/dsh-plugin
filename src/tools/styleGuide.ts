@@ -67,7 +67,8 @@ export function styleGuideTool(cfg: Config) {
     name: 'gzh_get_style_guide',
     description:
       '获取写作与排版规范：主题色板、gzh_build_article 的 doc_spec 格式、13px 排版铁律、' +
-      '禁词表、硬性规则（4图/2000字/品牌引导语/纯单行HTML）、参考文档与样例路径。每日写文前必读。',
+      '禁词表、硬性规则（文章数/配图数/主题计划 theme_plan/品牌引导语/纯单行HTML）、参考文档与样例路径。' +
+      '每日写文前必读；文章数、选题方向、配图数与主题分配必须严格按返回值执行，不得自行调整。',
     parameters: {
       theme: {
         type: 'string',
@@ -127,10 +128,12 @@ export function styleGuideTool(cfg: Config) {
         ],
         hard_rules: [
           '作者名固定 ' + account.profile.author_name,
-          '本次共 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇文章主题按 theme_plan 分配',
-          '每篇正文 ' + expectedArticleImageCount(cfg, account.profile) + ' 张 img：' + contentImgs + ' 张正文配图（IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + ' 占位）' +
-            (account.profile.brand_images.header.enabled ? ' + 头部品牌图' : '') +
-            (account.profile.brand_images.footer.enabled ? ' + 尾部品牌图' : ''),
+          '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇正好 1 张封面；每篇正好 ' + contentImgs + ' 张正文配图，禁止增减' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 正文图占位）' : '（占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '）'),
+          '选题铁律：选题只能取自下方 topics 列表；禁止自拟、扩展或混搭，除非用户在本次补充要求中明确给出',
+          '主题铁律：每篇文章主题严格按 theme_plan 对应主题撰写；gzh_build_article 会按设置强制覆盖 doc 内的 theme 字段',
+          '每篇正文共 ' + expectedArticleImageCount(cfg, account.profile) + ' 张 img' +
+            (account.profile.brand_images.header.enabled ? '，含头部品牌图' : '') +
+            (account.profile.brand_images.footer.enabled ? '，含尾部品牌图' : ''),
           '纯文字不少于 ' + content.min_words + ' 字（构建时断言）',
           '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）',
           '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio,

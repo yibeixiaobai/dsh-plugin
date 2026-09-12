@@ -1,7 +1,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { COVER_SIZES, type Config } from '../config.ts'
 import { providerPool, resolveAccount } from '../config-runtime.ts'
-import { accountScriptsDir, assertImageCreds, renderJson, runPipeline } from './shared.ts'
+import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, renderJson, runPipeline } from './shared.ts'
 
 interface GenItem {
   kind: 'cover' | 'content'
@@ -33,8 +33,8 @@ export function genImagesTool(cfg: Config) {
     name: 'gzh_generate_images',
     description:
       'AI 生图：封面（头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' + cfg.image_api.secondary_cover_ratio +
-      '）与正文信息图。按生图接口优先级执行，可重试错误自动切换并保持成功接口。' +
-      '演练模式（设置中 dry_run）只校验不联网。',
+      '）与正文信息图。按生图接口优先级执行：任何接口级失败（网络/超时/任意 HTTP 错误/返回格式异常）自动切换下一个接口，' +
+      '成功后保持该接口；全部接口失败才报错并附各接口失败原因。演练模式（设置中 dry_run）只校验不联网。',
     parameters: {
       items_json: {
         type: 'string',
@@ -75,8 +75,13 @@ export function genImagesTool(cfg: Config) {
           }
         }
         if (it.kind === 'content') {
+          // 严格按设置的每篇正文配图数执行，超出即为请求错误而非自行放行
           const sub = Number(it.sub ?? 1)
-          if (!Number.isInteger(sub) || sub < 1 || sub > 4) throw new Error('content 图 sub 必须是 1~4')
+          const limit = contentImagesPerArticle(cfg)
+          if (limit === 0) throw new Error('设置的每篇正文配图数为 0，不生成正文配图（IMG_A*）')
+          if (!Number.isInteger(sub) || sub < 1 || sub > limit) {
+            throw new Error('content 图 sub 必须是 1~' + limit + '（按设置的每篇正文配图数）')
+          }
           return {
             kind: 'content', index, sub, prompt: it.prompt,
             out: 'content_' + index + '_' + sub + '.png', size: [1080, 0],

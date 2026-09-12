@@ -101,7 +101,13 @@ def generate_raw(base_url, api_key, model, prompt, timeout):
     if resp.status_code in RETRYABLE_STATUS or resp.status_code >= 500:
         raise RetryableProviderError(
             "HTTP " + str(resp.status_code) + ": " + resp.text[:240])
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        # 4xx（400 模型不存在 / 402 欠费 / 404 路径不符等）是接口级失败，
+        # 同样切换下一个接口，而不是终止整个批次
+        raise RetryableProviderError(
+            "HTTP " + str(resp.status_code) + ": " + resp.text[:240])
+    if resp.status_code >= 300:
+        raise NonRetryableProviderError("意外的重定向响应 HTTP " + str(resp.status_code))
     try:
         data = resp.json()
     except ValueError as e:
@@ -131,6 +137,9 @@ def generate_raw(base_url, api_key, model, prompt, timeout):
         return fetch_bytes(str(img_url), timeout)
     except requests.RequestException as e:
         raise RetryableProviderError("图片下载失败 " + type(e).__name__ + ": " + str(e)[:240])
+    except SystemExit as e:
+        # 安全校验（受限地址/重定向超限）按接口级失败处理，交给轮换而非炸掉整个进程
+        raise RetryableProviderError("图片下载被阻断: " + str(e)[:240])
 
 
 def provider_pool(conf, selected_ids):
@@ -151,6 +160,13 @@ def provider_pool(conf, selected_ids):
         if isinstance(item, dict) and item.get("enabled", True)
         and item.get("base_url") and item.get("api_key")
     ]
+    skipped = [
+        str(item.get("id", "?")) for item in raw
+        if isinstance(item, dict) and item.get("enabled", True)
+        and (not item.get("base_url") or not item.get("api_key"))
+    ]
+    for provider_id in skipped:
+        print("警告：生图接口 " + provider_id + " 缺少 base_url 或 api_key，已跳过（不参与轮换）")
     if selected:
         rank = {provider_id: index for index, provider_id in enumerate(selected)}
         providers = [item for item in providers if str(item.get("id")) in rank]
@@ -173,7 +189,9 @@ def save_resized(raw_bytes, out_path, size):
 
 def generate_item_with_pool(item, providers, active, disabled, prompt, out_abs,
                             timeout, fallback_model):
-    """Generate one item; retryable provider failures advance without probing failed providers again."""
+    """Generate one item; any provider-scoped failure (network, any HTTP status,
+    malformed response, decode error) advances to the next provider without re-probing
+    failed ones. The item only fails when the whole pool is exhausted."""
     attempts = []
     disabled = set(disabled)
     while True:
@@ -196,18 +214,7 @@ def generate_item_with_pool(item, providers, active, disabled, prompt, out_abs,
             raw = generate_raw(
                 str(provider["base_url"]), str(provider["api_key"]),
                 str(provider.get("model") or fallback_model), prompt, timeout)
-            w, h = save_resized(raw, out_abs, item.get("size", [1080, 0]))
-            print("已生成 " + out_abs + "（" + str(w) + "x" + str(h) + "，接口 "
-                  + str(provider.get("name", provider_id)) + "）")
-            return {
-                "generated": [{
-                    "out": out_abs, "w": w, "h": h, "kind": item.get("kind"),
-                    "index": item.get("index"), "provider_id": provider_id,
-                }],
-                "failed": [], "provider_used": provider_id, "active": active,
-                "disabled": disabled, "attempts": attempts, "terminal": "success",
-            }
-        except RetryableProviderError as e:
+        except (RetryableProviderError, NonRetryableProviderError) as e:
             attempts.append({"provider_id": provider_id, "error": str(e)})
             disabled.add(active)
             remaining = [index for index in range(len(providers)) if index not in disabled]
@@ -224,26 +231,75 @@ def generate_item_with_pool(item, providers, active, disabled, prompt, out_abs,
                     "provider_used": None, "active": active, "disabled": disabled,
                     "attempts": attempts, "terminal": "exhausted",
                 }
-        except NonRetryableProviderError as e:
-            error = type(e).__name__ + ": " + str(e)[:300]
-            print("生图终止（不可重试）：" + error)
+            continue
+        except SystemExit as e:
+            # 不让单接口的安全拦截/退出把整个进程带走
+            attempts.append({"provider_id": provider_id, "error": "SystemExit: " + str(e)[:240]})
+            disabled.add(active)
+            remaining = [index for index in range(len(providers)) if index not in disabled]
+            if remaining:
+                active = remaining[0]
+                print("生图接口失败，切换备用：" + provider_id + " -> "
+                      + str(providers[active].get("id")))
+                continue
             return {
                 "generated": [], "failed": [{
-                    "index": item.get("index"), "sub": item.get("sub"), "error": error,
+                    "index": item.get("index"), "sub": item.get("sub"),
+                    "error": "全部生图接口失败；最近错误: " + str(e),
                 }],
                 "provider_used": None, "active": active, "disabled": disabled,
-                "attempts": attempts, "terminal": "nonretryable",
+                "attempts": attempts, "terminal": "exhausted",
             }
         except Exception as e:
+            # 生图返回内容解析（PIL 等）等意外异常视为该接口失败，同样轮换
             error = type(e).__name__ + ": " + str(e)[:300]
-            print("生图终止（不可重试）：" + error)
+            attempts.append({"provider_id": provider_id, "error": error})
+            disabled.add(active)
+            remaining = [index for index in range(len(providers)) if index not in disabled]
+            if remaining:
+                active = remaining[0]
+                print("生图接口失败，切换备用：" + provider_id + " -> "
+                      + str(providers[active].get("id")))
+                continue
             return {
                 "generated": [], "failed": [{
-                    "index": item.get("index"), "sub": item.get("sub"), "error": error,
+                    "index": item.get("index"), "sub": item.get("sub"),
+                    "error": "全部生图接口失败；最近错误: " + error,
                 }],
                 "provider_used": None, "active": active, "disabled": disabled,
-                "attempts": attempts, "terminal": "nonretryable",
+                "attempts": attempts, "terminal": "exhausted",
             }
+        try:
+            w, h = save_resized(raw, out_abs, item.get("size", [1080, 0]))
+        except Exception as e:
+            # 接口返回的图片内容无法解析属于该接口的问题，轮换下一个接口
+            error = type(e).__name__ + ": " + str(e)[:300]
+            attempts.append({"provider_id": provider_id, "error": error})
+            disabled.add(active)
+            remaining = [index for index in range(len(providers)) if index not in disabled]
+            if remaining:
+                active = remaining[0]
+                print("生图接口失败，切换备用：" + provider_id + " -> "
+                      + str(providers[active].get("id")))
+                continue
+            return {
+                "generated": [], "failed": [{
+                    "index": item.get("index"), "sub": item.get("sub"),
+                    "error": "全部生图接口失败；最近错误: " + error,
+                }],
+                "provider_used": None, "active": active, "disabled": disabled,
+                "attempts": attempts, "terminal": "exhausted",
+            }
+        print("已生成 " + out_abs + "（" + str(w) + "x" + str(h) + "，接口 "
+              + str(provider.get("name", provider_id)) + "）")
+        return {
+            "generated": [{
+                "out": out_abs, "w": w, "h": h, "kind": item.get("kind"),
+                "index": item.get("index"), "provider_id": provider_id,
+            }],
+            "failed": [], "provider_used": provider_id, "active": active,
+            "disabled": disabled, "attempts": attempts, "terminal": "success",
+        }
 
 
 def main():
@@ -294,8 +350,8 @@ def main():
         disabled = outcome["disabled"]
         if outcome["provider_used"]:
             provider_used = outcome["provider_used"]
-        if outcome["terminal"] in ("nonretryable", "exhausted"):
-            break
+        if outcome["terminal"] == "exhausted":
+            break  # 全部接口已失败，剩余条目必然同样失败
         if k < len(items) - 1:
             time.sleep(2)
 

@@ -69,7 +69,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | ① 公众号账号 | 多账号新增、一键复制（含凭据克隆配置快速新建）、启停、删除、设为默认；每个账号独立保存 `appid`、`app_secret`、`author_name`、`brand_name` |
 | ② 内容规则 | 按账号编辑 `articles_per_day`(6)、`min_words`(2000)、`topics`、`forbidden_words`、`ending_guide_required` |
 | ③ 排版 | `headline_theme`（6 主题下拉）、`secondary_theme`（rotate=按篇顺序轮换各主题）、`font_size`(13px)、`line_height`(20px)、`paragraph_margin`(25px)、`text_indent`(2em) |
-| ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；网络/超时、401/403/408/429/5xx 自动轮换；每个接口可单独测试并预览结果 |
+| ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；任何接口级失败（网络/超时/任意 HTTP 错误/返回格式异常）自动切换下一个接口，成功后保持；每个接口可单独测试并预览结果 |
 | ⑤ 头部品牌图 | 按账号上传或拖放 JPEG/PNG/WebP（≤10 MB），即时预览，并配置尺寸、裁切、位置、圆角与边框 |
 | ⑥ 尾部品牌图 | 同头部字段，可按账号独立上传、预览、启用和变换 |
 | ⑦ AI 配图 | `headline_cover_ratio`（头条封面比例，默认 2.35:1=3520×1498）、`secondary_cover_ratio`（次条，默认 1:1=1920×1920）、`content_images_per_article`(2)、`image_lang_zh_only`(true) |
@@ -94,6 +94,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 - 指定账号：首词支持逗号分隔多个 `account-id`，只跑这些账号。
 - 账号 ID 后的文字作为本次任务补充要求；首词不是账号 ID 时，整段文字作为补充要求。
 - **多账号互斥**：任务要求候选选题不得与任一账号的历史、以及同批次其它账号已确定的选题重复；`gzh_check_topics` 查重时自动聚合其它账号目录与旧共享目录的历史标题（来源标注账号 ID）。
+- **严格按设置执行**：文章数、每篇配图数、主题（theme_plan）、封面比例由后端强制校验——`gzh_build_article` 按设置解析主题（doc 内 theme 字段被忽略），`gzh_generate_images` 拒绝超出设置的正文配图请求；任务提示词明确选题只能取自配置的「选题方向」（补充要求显式指定除外），禁止自由发挥。
 
 | 工具 | 作用 |
 |---|---|
@@ -123,7 +124,7 @@ python pipeline/selftest.py
 ```
 
 覆盖：选题查重（含跨账号历史聚合）、文章构建（断言字数/图片数/品牌语）、HTML 校验（含 gzh-design lint）、
-生图演练、401/429/5xx 接口轮换与 400 立即失败、多账号凭据解析、内容 hash 上传缓存键、发布演练（复用现成文章）。
+生图演练、401/429/5xx 与 400 等任意接口失败均自动轮换（全部失败才报错）、多账号凭据解析、内容 hash 上传缓存键、发布演练（复用现成文章）。
 
 ## 类型检查
 
