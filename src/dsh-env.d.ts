@@ -32,6 +32,7 @@ declare module '@deepseek-ai/cordis' {
         setSource(next: () => unknown): void
         onChange(): void
       }): void
+      get(namespace: string): unknown
       update(namespace: string, patch: object): Promise<void>
     }
     webServer?: {
