@@ -7,6 +7,9 @@
       --min-words 2000 --forbidden '["查重",...]' --brand-name 文映千秋学术网 \
       --img-count 4 --allow-placeholders --lint
 
+知乎分支（--platform zhihu，校验 article_v2_*.md）：字数/禁词/图片占位符数量，
+--require-brand 时要求含品牌名；不做单行约束、mmbiz CDN、gzh-design lint。
+
 安全约定：
 - 所有文件路径规范化后必须位于 --scripts-dir（公众号任务包 scripts 目录）之内，
   拒绝任何形式的上级目录引用或指向目录之外的路径；
@@ -37,6 +40,43 @@ def resolve_under(base, p):
     if cand != base_abs and not cand.startswith(base_abs + os.sep):
         raise SystemExit("路径越界（必须在 scripts 目录内）: %s" % p)
     return cand
+
+
+def check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders):
+    """知乎 Markdown 校验核心（内存版，selftest 直接复用）：字数/禁词/图片占位符。"""
+    problems = []
+    if "\\u" in md:
+        problems.append("存在 unicode 转义残留")
+    txt = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", md)
+    txt = re.sub(r"^#{1,6}\s+", "", txt, flags=re.M)
+    txt = re.sub(r"^>\s?", "", txt, flags=re.M)
+    txt = re.sub(r"^\s*[-*]\s+", "", txt, flags=re.M)
+    txt = re.sub(r"^\s*-{3,}\s*$", "", txt, flags=re.M)
+    txt = txt.replace("**", "")
+    plain = re.sub(r"\s", "", txt)
+    if len(plain) < min_words:
+        problems.append("纯文字 %d 字，低于下限 %d" % (len(plain), min_words))
+    for w in forbidden:
+        if w in plain:
+            problems.append("含禁词: " + w)
+    if require_brand and brand_name and brand_name not in plain:
+        problems.append("缺少品牌引导语: " + brand_name)
+    imgs = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", md)
+    bad_src = [s for s in imgs if not re.fullmatch(r"IMG_A\d+_\d+", s)]
+    if bad_src:
+        problems.append("图片占位符格式非法（应为 IMG_A{index}_{j}）: %s" % bad_src[:3])
+    if len(imgs) != img_count:
+        problems.append("图片占位符数量 %d != %d（按设置的每篇配图数）" % (len(imgs), img_count))
+    if not allow_placeholders and ("IMG_" in md or "__BRAND" in md):
+        problems.append("仍有占位符残留（IMG_*、__BRAND_*）")
+    return {"plain_chars": len(plain), "img_count": len(imgs), "problems": problems}
+
+
+def check_file_md(path, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders):
+    """知乎 Markdown 文章校验：读文件后走 check_md_text，与 zhihu_components.plain_text 同口径。"""
+    md = open(path, encoding="utf-8").read()
+    r = check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders)
+    return {"file": path, **r}
 
 
 def check_file(path, min_words, forbidden, brand_name, img_count, allow_placeholders):
@@ -101,6 +141,8 @@ def main():
     ap.add_argument("--img-count", type=int, default=4)
     ap.add_argument("--allow-placeholders", action="store_true", help="发布前阶段允许 IMG_*/__BRAND_* 占位符")
     ap.add_argument("--lint", action="store_true", help="同时运行 validate_gzh_html.py 校验")
+    ap.add_argument("--platform", choices=["gzh", "zhihu"], default="gzh", help="发布平台分支")
+    ap.add_argument("--require-brand", action="store_true", help="知乎分支：结尾必须包含品牌名")
     ap.add_argument("--gzh-design-scripts", default="")
     ap.add_argument("--resource-dir", default="", help="插件内置运行资源目录")
     args = ap.parse_args()
@@ -112,6 +154,10 @@ def main():
         fp = resolve_under(args.scripts_dir, f)
         if not os.path.exists(fp):
             results.append({"file": fp, "problems": ["文件不存在"]})
+            continue
+        if args.platform == "zhihu":
+            results.append(check_file_md(fp, args.min_words, forbidden, args.brand_name,
+                                         args.img_count, args.require_brand, args.allow_placeholders))
             continue
         r = check_file(fp, args.min_words, forbidden, args.brand_name, args.img_count, args.allow_placeholders)
         if args.lint:

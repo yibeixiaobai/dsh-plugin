@@ -147,6 +147,53 @@ def main():
         ok = True
     results.append(("check_html HTML校验", ok, r))
 
+    # 4b. 知乎 Markdown 构建（多行、无品牌图、无主题）+ 校验核心（零写盘走 check_md_text）
+    zhihu_doc = {
+        "index": 98,
+        "intro": {"pre": "开篇", "hl": "重点", "post": "收束"},
+        "toc": ["看点一", "看点二"],
+        "sections": [
+            {"h2": "01", "text": "章节一", "blocks": [
+                {"p": [fill(160), ["kw", "期刊发表"], ["b", "职称评审"]]} for _ in range(4)
+            ]},
+            {"h2": "02", "text": "章节二", "blocks": [
+                {"card": "提示"},
+                {"card_ul": {"title": "清单", "items": ["甲", "乙"]}},
+                {"img": {"src": "IMG_A98_1", "caption": "图一"}},
+                {"img": {"src": "IMG_A98_2", "caption": "图二"}},
+                {"hr": True},
+            ]},
+        ],
+        "sign_off": "关注文映千秋学术网，第一时间获取学术出版资讯与评审攻略。",
+    }
+    r = run_script(os.path.join(here, "build_article.py"), [
+        "--doc-json", json.dumps(zhihu_doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs, "--min-words", "500", "--forbidden", "[]",
+        "--platform", "zhihu", "--content-img-count", "2", "--require-brand",
+        "--brand-name", "文映千秋学术网"])
+    data = (r["result"] or {}).get("data") or {}
+    md = data.get("markdown", "")
+    built_ok = (
+        r["exit"] == 0 and r["result"] and r["result"].get("ok")
+        and data.get("img_count") == 2
+        and md.startswith("开篇**重点**收束")
+        and "## 01 章节一" in md and "> 提示：提示" in md
+        and "![图一](IMG_A98_1)" in md
+        and "__BRAND" not in md and "<img" not in md
+    )
+    import check_html as ch
+    checked = ch.check_md_text(md, 500, [], "文映千秋学术网", 2, True, True)
+    strict = ch.check_md_text(md.replace("![图二](IMG_A98_2)", ""), 500, [], "", 2, False, True)
+    residue = ch.check_md_text(md, 500, [], "", 2, False, False)
+    ok = (
+        built_ok
+        and data.get("plain_chars", 0) == checked["plain_chars"]
+        and checked["problems"] == []
+        and any("数量 1 != 2" in p for p in strict["problems"])
+        and any("占位符残留" in p for p in residue["problems"])
+    )
+    results.append(("zhihu Markdown构建+校验", ok, r))
+
     # 5. 生图演练（dry_run 不联网不写图）
     img_job = {
         "items": [

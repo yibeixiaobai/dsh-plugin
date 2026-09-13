@@ -26,12 +26,14 @@ function normalizeBrandImage(value: Partial<BrandImageConfig> | undefined, fallb
 
 function legacyAccount(config: Config): AccountProfile {
   return {
+    platform: 'gzh',
     name: '默认账号',
     enabled: true,
     appid: config.wechat.appid,
     app_secret: config.wechat.app_secret,
     author_name: config.wechat.author_name,
     brand_name: config.wechat.brand_name,
+    publish_immediately: false,
     content: clone(config.content ?? DEFAULT_CONTENT),
     brand_images: {
       header: normalizeBrandImage(config.brand_images?.header, DEFAULT_BRAND_IMAGES.header),
@@ -63,10 +65,13 @@ export function normalizeConfig(config: Config): Config {
   for (const profile of Object.values(accounts)) {
     profile.name = profile.name || '未命名账号'
     profile.enabled = profile.enabled !== false
+    // 老配置无 platform 字段：一律视为公众号，知乎需在设置中显式切换
+    profile.platform = profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
     profile.appid = profile.appid || ''
     profile.app_secret = profile.app_secret || ''
     profile.author_name = profile.author_name || config.wechat.author_name
     profile.brand_name = profile.brand_name || config.wechat.brand_name
+    profile.publish_immediately = profile.publish_immediately === true
     profile.content = { ...clone(DEFAULT_CONTENT), ...(profile.content ?? {}) }
     profile.brand_images = {
       header: normalizeBrandImage(profile.brand_images?.header, DEFAULT_BRAND_IMAGES.header),

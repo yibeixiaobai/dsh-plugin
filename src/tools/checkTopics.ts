@@ -29,7 +29,7 @@ export function checkTopicsTool(cfg: Config) {
     description:
       '选题查重：把候选选题与该公众号历史发布标题（publish_result.json 与历史 gen_*/publish_* 脚本），' +
       '以及其它账号的历史标题做相似度比对，返回 high/medium/low 风险与最接近的历史标题。' +
-      '每日写文选题前必调，high 风险选题应更换。',
+      '每日写文选题前必调，high 风险选题应更换。每账号一次提交全部候选选题（topics 数组批量），不要一项一调。',
     parameters: {
       topics: {
         type: 'array',

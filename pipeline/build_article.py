@@ -24,6 +24,9 @@ doc spec（gzh_build_article 工具的 doc_json 入参）:
 得到 2~4 img（正文图x2 + 可选的头/尾品牌图）、正文含品牌名。HTML 经 ###RESULT### JSON 返回，由 TS 侧落盘；
 落盘后的 gzh-design 合规校验由 check_html.py --lint 承担。
 
+知乎分支（--platform zhihu）：同一 doc spec 骨架交由 runtime/scripts/zhihu_components.py 构建
+标准 Markdown（多行、无主题/品牌图），返回 data.markdown，由 TS 侧落盘为 article_v2_{index}.md。
+
 安全约定：唯一读取的文件是 --doc（normpath + startswith 边界守卫，限制在 --scripts-dir 之内）。
 """
 import argparse
@@ -117,6 +120,28 @@ def brand_image_html(kind, spec):
     )
 
 
+def main_zhihu(args, doc, forbidden):
+    """知乎专栏分支：同一 doc spec 骨架 → 标准 Markdown（无主题/品牌图/单行约束）。"""
+    idx = int(doc["index"])
+    if not (1 <= idx <= 99):
+        raise SystemExit("index 必须在 1~99")
+    resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
+    if not os.path.exists(os.path.join(resource_scripts, "zhihu_components.py")):
+        raise SystemExit("插件内置资源缺少 zhihu_components.py: " + resource_scripts)
+    sys.path.insert(0, resource_scripts)
+    import zhihu_components as zc
+
+    md, plain_chars, img_count, problems = zc.build_markdown(
+        doc, idx, max(0, args.content_img_count),
+        min_words=args.min_words,
+        brand_name=args.brand_name,
+        require_brand=args.require_brand,
+        forbidden=forbidden)
+    emit({"ok": len(problems) == 0,
+          "data": {"index": idx, "platform": "zhihu", "markdown": md,
+                   "plain_chars": plain_chars, "img_count": img_count, "problems": problems}})
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--doc", default="", help="doc spec JSON 文件名（scripts 目录内）")
@@ -128,6 +153,9 @@ def main():
     ap.add_argument("--brand-name", default="文映千秋学术网")
     ap.add_argument("--typography", default="{}", help='{"font_size":"13px",...}')
     ap.add_argument("--brand-images", default="{}", help='{"header":{...},"footer":{...}}')
+    ap.add_argument("--platform", choices=["gzh", "zhihu"], default="gzh", help="发布平台分支")
+    ap.add_argument("--content-img-count", type=int, default=2, help="知乎分支：每篇正文配图占位符数（0-4）")
+    ap.add_argument("--require-brand", action="store_true", help="知乎分支：结尾必须包含品牌名")
     args = ap.parse_args()
 
     base_abs = os.path.abspath(args.scripts_dir)
@@ -141,6 +169,11 @@ def main():
             raise SystemExit("doc 路径越界: " + doc_path)
         doc = json.load(open(doc_path, encoding="utf-8"))
     forbidden = json.loads(args.forbidden)
+
+    if args.platform == "zhihu":
+        main_zhihu(args, doc, forbidden)
+        return
+
     typo = {"font_size": "13px", "line_height": "20px", "paragraph_margin": "25px", "text_indent": "2em"}
     typo.update(json.loads(args.typography))
     brand_raw = json.loads(args.brand_images)

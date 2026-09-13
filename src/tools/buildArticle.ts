@@ -2,13 +2,16 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  accountScriptsDir, expectedArticleImageCount, renderJson, resolveTheme, runPipeline, runtimeResourceDir, writeTextFile,
+  accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveTheme, runPipeline,
+  runtimeResourceDir, writeTextFile,
 } from './shared.ts'
 
 interface BuiltArticle {
   index: number
   theme: string
-  html: string
+  html?: string
+  markdown?: string
+  platform?: string
   plain_chars: number
   img_count: number
   problems?: string[]
@@ -32,10 +35,10 @@ export function buildArticleTool(cfg: Config) {
   return defineTool<{ doc_json: string; account_id?: string }, BuildOk>({
     name: 'gzh_build_article',
     description:
-      '把文章内容按 doc spec 构建为公众号合规的单行 HTML（gzh_components 融合版组件：引言卡/三列目录/' +
-      '章节徽章/关键词下划线/卡片图/签名区），自动断言字数/图片数/品牌引导语/禁词，落盘 article_v2_{index}.html ' +
-      '并跑 gzh-design 合规 lint。doc spec 格式先调 gzh_get_style_guide 获取；' +
-      '主题按设置的头条/次条/rotate 规则按篇强制解析，doc 内 theme 字段被忽略。',
+      '把文章内容按 doc spec 构建为平台合规产物并落盘：公众号账号产出单行 HTML（gzh_components 融合版组件），' +
+      '知乎账号产出标准 Markdown（article_v2_{index}.md）。自动断言字数/图片数/品牌引导语/禁词，' +
+      '随后跑平台对应的机器校验。doc spec 格式先调 gzh_get_style_guide 获取（按账号平台返回）；' +
+      '公众号主题按设置的头条/次条/rotate 规则按篇强制解析，doc 内 theme 字段被忽略。',
     parameters: {
       doc_json: {
         type: 'string',
@@ -44,13 +47,14 @@ export function buildArticleTool(cfg: Config) {
       },
       account_id: {
         type: 'string',
-        description: '公众号账号 ID；缺省使用默认账号',
+        description: '账号 ID；缺省使用默认账号',
       },
     },
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
       let doc: Record<string, unknown>
       try {
         doc = JSON.parse(args.doc_json) as Record<string, unknown>
@@ -63,34 +67,47 @@ export function buildArticleTool(cfg: Config) {
       }
       const sdir = accountScriptsDir(cfg, account.id)
       // 主题严格按设置解析（头条/次条/rotate 按篇轮换），doc 内自带 theme 一律忽略，防止自由发挥
-      const theme = resolveTheme(cfg, idx)
+      const theme = platform === 'zhihu' ? 'markdown' : resolveTheme(cfg, idx)
 
       const built = await runPipeline<BuiltArticle>(
         cfg,
         'build_article.py',
         [
-          '--doc-json', JSON.stringify({ ...doc, index: idx, theme }),
+          '--doc-json', JSON.stringify({ ...doc, index: idx, theme: platform === 'zhihu' ? 'wenying' : theme }),
           '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
           '--min-words', String(content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
-          '--brand-name', account.profile.brand_name,
-          '--brand-images', JSON.stringify(account.profile.brand_images),
-          '--typography', JSON.stringify({
-            font_size: cfg.typography.font_size,
-            line_height: cfg.typography.line_height,
-            paragraph_margin: cfg.typography.paragraph_margin,
-            text_indent: cfg.typography.text_indent,
-          }),
+          '--platform', platform,
+          ...(platform === 'zhihu'
+            ? [
+              '--content-img-count', String(contentImagesPerArticle(cfg)),
+              ...(content.ending_guide_required ? ['--require-brand'] : []),
+              '--brand-name', account.profile.brand_name,
+            ]
+            : [
+              '--brand-name', account.profile.brand_name,
+              '--brand-images', JSON.stringify(account.profile.brand_images),
+              '--typography', JSON.stringify({
+                font_size: cfg.typography.font_size,
+                line_height: cfg.typography.line_height,
+                paragraph_margin: cfg.typography.paragraph_margin,
+                text_indent: cfg.typography.text_indent,
+              }),
+            ]),
         ],
         120000,
       )
 
-      // Python 纯构建返回 HTML，TS 侧落盘（文件名白名单 + 目录守卫）
-      const name = 'article_v2_' + idx + '.html'
-      const file = writeTextFile(sdir, name, built.html)
+      // Python 纯构建返回产物，TS 侧落盘（文件名白名单 + 目录守卫）
+      const ext = platform === 'zhihu' ? '.md' : '.html'
+      const name = 'article_v2_' + idx + ext
+      const payload = platform === 'zhihu' ? built.markdown : built.html
+      if (payload === undefined) throw new Error('构建结果缺少' + (platform === 'zhihu' ? 'markdown' : 'html') + '字段')
+      const file = writeTextFile(sdir, name, payload)
 
-      // 完整发布级校验 + gzh-design lint（占位符阶段）
+      // 完整发布级校验（占位符阶段）；gzh-design lint 仅对公众号 HTML 有意义
+      const expectedImgs = platform === 'zhihu' ? contentImagesPerArticle(cfg) : expectedArticleImageCount(cfg, account.profile)
       const check = await runPipeline<CheckReport>(
         cfg,
         'check_html.py',
@@ -101,9 +118,11 @@ export function buildArticleTool(cfg: Config) {
           '--min-words', String(content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--brand-name', account.profile.brand_name,
-          '--img-count', String(expectedArticleImageCount(cfg, account.profile)),
+          '--img-count', String(expectedImgs),
           '--allow-placeholders',
-          '--lint',
+          '--platform', platform,
+          ...(platform === 'zhihu' && content.ending_guide_required ? ['--require-brand'] : []),
+          ...(platform === 'gzh' ? ['--lint'] : []),
         ],
         120000,
       )

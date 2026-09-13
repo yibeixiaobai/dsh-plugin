@@ -21,7 +21,13 @@
     "launch-dsh.ps1",
     "README.md"
   ],
-  "keywords": ["dsh-plugin", "dsh", "wechat", "gzh", "publisher"],
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "wechat",
+    "gzh",
+    "publisher"
+  ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -43,5 +49,8 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "puppeteer-core": "^25.10.0"
   }
 }

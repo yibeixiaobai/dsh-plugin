@@ -36,6 +36,9 @@ export function ensureWorkspace(cfg: Config): string {
   fs.mkdirSync(tests, { recursive: true })
   for (const id of Object.keys(cfg.accounts)) {
     fs.mkdirSync(accountScriptsDir(cfg, id), { recursive: true })
+    if (cfg.accounts[id].platform === 'zhihu') {
+      fs.mkdirSync(zhihuProfileDir(cfg, id), { recursive: true })
+    }
   }
   const defaults = path.join(runtimeResourceDir(), 'default-brand')
   for (const name of ['brand_top.jpg', 'brand_bot.jpg']) {
@@ -60,6 +63,11 @@ export function assertAccountId(accountId: string): string {
 /** 按账号隔离的任务产物目录：文章、封面、配图、上传缓存、发布记录都在账号自己的 scripts 下，互不覆盖 */
 export function accountScriptsDir(cfg: Config, accountId: string): string {
   return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'scripts')
+}
+
+/** 知乎账号的浏览器用户数据目录（登录态持久化；扫码一次后长期有效） */
+export function zhihuProfileDir(cfg: Config, accountId: string): string {
+  return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'zhihu_profile')
 }
 
 export function brandDir(cfg: Config): string {
@@ -134,6 +142,8 @@ export function syncConfig(cfg: Config): SyncReport {
       id,
       name: account.name,
       enabled: account.enabled,
+      platform: account.platform === 'zhihu' ? 'zhihu' : 'gzh',
+      publish_immediately: account.publish_immediately === true,
       appid: account.appid.trim()
         || (id === defaultAccount.id ? String(existing.appid ?? '') : ''),
       app_secret: account.app_secret.trim()
@@ -190,9 +200,10 @@ export function syncConfig(cfg: Config): SyncReport {
   }
 }
 
-/** 需要联网（微信 API / 生图 API）的工具执行前校验凭据是否可用 */
+/** 需要联网（微信 API / 生图 API）的工具执行前校验凭据是否可用；知乎账号不走微信凭据 */
 export function assertWechatCreds(cfg: Config, accountId?: string): void {
   const account = resolveAccount(cfg, accountId)
+  if (account.profile.platform !== 'gzh') return
   if (account.profile.appid.trim() && account.profile.app_secret.trim()) return
   const wxPath = path.join(scriptsDir(cfg), 'wx_config.json')
   let ok = false

@@ -58,13 +58,22 @@ export interface BrandImagesConfig {
   footer: BrandImageConfig
 }
 
+// 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化）
+export type Platform = 'gzh' | 'zhihu'
+export const PLATFORMS: Platform[] = ['gzh', 'zhihu']
+
+/** 知乎文章封面比例（编辑器按内容图自动取封面，生成尺寸用 16:9） */
+export const ZHIHU_COVER_RATIO: CoverRatio = '16:9'
+
 export interface AccountProfile {
+  platform: Platform
   name: string
   enabled: boolean
   appid: string
   app_secret: string
   author_name: string
   brand_name: string
+  publish_immediately: boolean
   content: ContentConfig
   brand_images: BrandImagesConfig
 }
@@ -86,6 +95,8 @@ export interface RuntimeConfig {
   verify_after_publish: boolean
   use_upload_cache: boolean
   need_open_comment: boolean
+  chrome_path: string
+  zhihu_headless: boolean
 }
 
 export interface Config {
@@ -197,12 +208,14 @@ const BrandImageSchema = Schema.object({
 })
 
 const AccountSchema = Schema.object({
+  platform: Schema.union(['gzh', 'zhihu']).default('gzh').description('平台：gzh=公众号（appid 登录），zhihu=知乎专栏（扫码登录）'),
   name: Schema.string().default('默认账号').description('账号显示名称'),
   enabled: Schema.boolean().default(true).description('是否启用'),
-  appid: Schema.string().default('').description('公众号 AppID'),
-  app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret'),
+  appid: Schema.string().default('').description('公众号 AppID（知乎账号留空）'),
+  app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（知乎账号留空）'),
   author_name: Schema.string().default('文映学术win00.cn').description('文章作者名'),
   brand_name: Schema.string().default('文映千秋学术网').description('品牌名（结尾引导语必须包含）'),
+  publish_immediately: Schema.boolean().default(false).description('知乎：保存后直接发布（默认只存草稿箱，公众号不受影响）'),
   content: ContentSchema,
   brand_images: Schema.object({
     header: BrandImageSchema,
@@ -287,5 +300,7 @@ export const Config: Schema<Config> = Schema.object({
     verify_after_publish: Schema.boolean().default(true).description('发布后自动 draft/get 核验'),
     use_upload_cache: Schema.boolean().default(true).description('素材上传缓存断点续跑（uploaded_urls.json）'),
     need_open_comment: Schema.boolean().default(true).description('草稿开启留言'),
+    chrome_path: Schema.string().default('').description('Chrome 可执行文件路径（知乎浏览器自动化用；留空自动探测本机 Chrome/Edge）'),
+    zhihu_headless: Schema.boolean().default(true).description('知乎发布用无头浏览器（排障时可关闭以观察自动化过程）'),
   }).description('⑥ 运行'),
 }) as Schema<Config>

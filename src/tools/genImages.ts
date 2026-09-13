@@ -1,5 +1,5 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { COVER_SIZES, type Config } from '../config.ts'
+import { COVER_SIZES, type Config, ZHIHU_COVER_RATIO } from '../config.ts'
 import { providerPool, resolveAccount } from '../config-runtime.ts'
 import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, renderJson, runPipeline } from './shared.ts'
 
@@ -32,8 +32,9 @@ export function genImagesTool(cfg: Config) {
   return defineTool<{ items_json: string; account_id?: string }, GenReport>({
     name: 'gzh_generate_images',
     description:
-      'AI 生图：封面（头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' + cfg.image_api.secondary_cover_ratio +
-      '）与正文信息图。按生图接口优先级执行：任何接口级失败（网络/超时/任意 HTTP 错误/返回格式异常）自动切换下一个接口，' +
+      'AI 生图：封面与正文信息图。公众号账号封面比例头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' +
+      cfg.image_api.secondary_cover_ratio + '；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
+      '按生图接口优先级执行：任何接口级失败（网络/超时/任意 HTTP 错误/返回格式异常）自动切换下一个接口，' +
       '成功后保持该接口；全部接口失败才报错并附各接口失败原因。演练模式（设置中 dry_run）只校验不联网。',
     parameters: {
       items_json: {
@@ -68,7 +69,10 @@ export function genImagesTool(cfg: Config) {
         }
         if (!it.prompt || typeof it.prompt !== 'string') throw new Error('prompt 不能为空')
         if (it.kind === 'cover') {
-          const ratio = index === 1 ? cfg.image_api.headline_cover_ratio : cfg.image_api.secondary_cover_ratio
+          // 知乎封面统一 16:9（机器强制）；公众号按设置的头条/次条比例
+          const ratio = account.profile.platform === 'zhihu'
+            ? ZHIHU_COVER_RATIO
+            : (index === 1 ? cfg.image_api.headline_cover_ratio : cfg.image_api.secondary_cover_ratio)
           return {
             kind: 'cover', index, prompt: it.prompt,
             out: 'cover_' + index + '.png', size: [...COVER_SIZES[ratio]] as [number, number],

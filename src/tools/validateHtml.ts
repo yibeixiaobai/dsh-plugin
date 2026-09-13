@@ -1,7 +1,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { accountScriptsDir, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir } from './shared.ts'
+import { accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir } from './shared.ts'
 
 export interface ValidateReport {
   account_id: string
@@ -19,13 +19,14 @@ export function validateHtmlTool(cfg: Config) {
   return defineTool<{ files: string[]; allow_placeholders?: boolean; account_id?: string }, ValidateReport>({
     name: 'gzh_validate_html',
     description:
-      '发布前机器校验：换行/unicode 转义/占位符/纯文字字数/禁词/品牌引导语/图片数量/CDN 域名，' +
-      '可选叠加 gzh-design 合规 lint（ERROR 清零才能交付）。发布前对全部文章跑一遍。',
+      '发布前机器校验：公众号校验换行/unicode 转义/占位符/纯文字字数/禁词/品牌引导语/图片数量/CDN 域名，' +
+      '可选叠加 gzh-design 合规 lint（ERROR 清零才能交付）；知乎账号校验 Markdown 文章的字数/禁词/图片占位符。' +
+      '发布前对全部文章跑一遍。',
     parameters: {
       files: {
         type: 'array',
         required: true,
-        description: '文章 HTML 文件名列表（scripts 目录内，如 article_v2_1.html）',
+        description: '文章文件名列表（scripts 目录内；公众号为 .html，知乎为 .md，如 article_v2_1）',
         items: { type: 'string' },
       },
       allow_placeholders: {
@@ -34,20 +35,23 @@ export function validateHtmlTool(cfg: Config) {
       },
       account_id: {
         type: 'string',
-        description: '公众号账号 ID；缺省使用默认账号',
+        description: '账号 ID；缺省使用默认账号',
       },
     },
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
       const files = args.files ?? []
       if (!Array.isArray(files) || files.length === 0) throw new Error('files 不能为空')
+      const requiredExt = platform === 'zhihu' ? '.md' : '.html'
       for (const f of files) {
-        if (typeof f !== 'string' || /[\\/]/.test(f) || !f.endsWith('.html')) {
-          throw new Error('files 必须是 scripts 目录内的 HTML 文件名（不带路径）: ' + String(f))
+        if (typeof f !== 'string' || /[\\/]/.test(f) || !f.endsWith(requiredExt)) {
+          throw new Error('files 必须是 scripts 目录内的 ' + requiredExt.toUpperCase() + ' 文件名（不带路径）: ' + String(f))
         }
       }
+      const expectedImgs = platform === 'zhihu' ? contentImagesPerArticle(cfg) : expectedArticleImageCount(cfg, account.profile)
       const cmd = [
         '--files', JSON.stringify(files),
         '--scripts-dir', accountScriptsDir(cfg, account.id),
@@ -55,9 +59,11 @@ export function validateHtmlTool(cfg: Config) {
         '--min-words', String(content.min_words),
         '--forbidden', JSON.stringify(content.forbidden_words),
         '--brand-name', account.profile.brand_name,
-        '--img-count', String(expectedArticleImageCount(cfg, account.profile)),
-        '--lint',
+        '--img-count', String(expectedImgs),
+        '--platform', platform,
       ]
+      if (platform === 'zhihu' && content.ending_guide_required) cmd.push('--require-brand')
+      if (platform === 'gzh') cmd.push('--lint')
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')
       const report = await runPipeline<Omit<ValidateReport, 'account_id'>>(cfg, 'check_html.py', cmd, 120000)
       return { account_id: account.id, ...report }
