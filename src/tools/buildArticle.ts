@@ -86,6 +86,7 @@ export function buildArticleTool(cfg: Config) {
               '--brand-name', account.profile.brand_name,
             ]
             : [
+              '--content-img-count', String(contentImagesPerArticle(cfg)),
               '--brand-name', account.profile.brand_name,
               '--brand-images', JSON.stringify(account.profile.brand_images),
               '--typography', JSON.stringify({

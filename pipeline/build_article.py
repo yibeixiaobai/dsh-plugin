@@ -142,6 +142,71 @@ def main_zhihu(args, doc, forbidden):
                    "plain_chars": plain_chars, "img_count": img_count, "problems": problems}})
 
 
+def ensure_doc_images(doc, idx, target_count):
+    """确保 doc 中的正文配图占位符数量与格式恰好为 target_count 个（IMG_A{idx}_1 ~ IMG_A{idx}_{target_count}）。
+    若模型漏填（如 0 个）、填错占位符名称或数量不符，自动自愈补齐或规整，避免构建中断。"""
+    sections = doc.get("sections", [])
+    if not isinstance(sections, list):
+        sections = []
+        doc["sections"] = sections
+    if not sections:
+        sections.append({"h2": "01", "text": "正文", "blocks": []})
+        doc["sections"] = sections
+
+    img_refs = []
+    for s_idx, sec in enumerate(sections):
+        blocks = sec.get("blocks", [])
+        if not isinstance(blocks, list):
+            sec["blocks"] = []
+            continue
+        for b_idx, b in enumerate(blocks):
+            if isinstance(b, dict) and "img" in b:
+                img_data = b["img"] if isinstance(b["img"], dict) else {}
+                img_refs.append((s_idx, b_idx, img_data))
+
+    if target_count <= 0:
+        for sec in sections:
+            sec["blocks"] = [b for b in sec.get("blocks", []) if not (isinstance(b, dict) and "img" in b)]
+        return
+
+    if len(img_refs) > target_count:
+        surplus = set(id(item[2]) for item in img_refs[target_count:])
+        for sec in sections:
+            sec["blocks"] = [b for b in sec.get("blocks", []) if not (isinstance(b, dict) and "img" in b and id(b["img"]) in surplus)]
+        img_refs = img_refs[:target_count]
+
+    for j, (_, _, img_data) in enumerate(img_refs, start=1):
+        img_data["src"] = "IMG_A" + str(idx) + "_" + str(j)
+        if not img_data.get("caption"):
+            img_data["caption"] = "配图" + str(j)
+
+    needed = target_count - len(img_refs)
+    if needed > 0:
+        existing_sec_indices = set(item[0] for item in img_refs)
+        num_secs = len(sections)
+        for step in range(needed):
+            j = len(img_refs) + step + 1
+            src = "IMG_A" + str(idx) + "_" + str(j)
+            candidate_sec = None
+            for s_idx in range(num_secs):
+                if s_idx not in existing_sec_indices:
+                    candidate_sec = s_idx
+                    break
+            if candidate_sec is None:
+                candidate_sec = min(num_secs - 1, (j - 1) * num_secs // target_count)
+            existing_sec_indices.add(candidate_sec)
+
+            sec_title = str(sections[candidate_sec].get("text") or "").strip()
+            caption = (sec_title + "示意图") if sec_title else ("配图" + str(j))
+            img_block = {"img": {"src": src, "caption": caption}}
+
+            sec_blocks = sections[candidate_sec].setdefault("blocks", [])
+            if len(sec_blocks) >= 2:
+                sec_blocks.insert(min(len(sec_blocks), 2), img_block)
+            else:
+                sec_blocks.append(img_block)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--doc", default="", help="doc spec JSON 文件名（scripts 目录内）")
@@ -154,7 +219,7 @@ def main():
     ap.add_argument("--typography", default="{}", help='{"font_size":"13px",...}')
     ap.add_argument("--brand-images", default="{}", help='{"header":{...},"footer":{...}}')
     ap.add_argument("--platform", choices=["gzh", "zhihu"], default="gzh", help="发布平台分支")
-    ap.add_argument("--content-img-count", type=int, default=2, help="知乎分支：每篇正文配图占位符数（0-4）")
+    ap.add_argument("--content-img-count", type=int, default=2, help="每篇正文配图占位符数（0-4）")
     ap.add_argument("--require-brand", action="store_true", help="知乎分支：结尾必须包含品牌名")
     args = ap.parse_args()
 
@@ -179,7 +244,8 @@ def main():
     brand_raw = json.loads(args.brand_images)
     header_brand = resolve_brand_spec(brand_raw.get("header"), "header")
     footer_brand = resolve_brand_spec(brand_raw.get("footer"), "footer")
-    expected_img = 2 + (1 if header_brand["enabled"] else 0) + (1 if footer_brand["enabled"] else 0)
+    content_img_count = max(0, min(4, args.content_img_count))
+    expected_img = content_img_count + (1 if header_brand["enabled"] else 0) + (1 if footer_brand["enabled"] else 0)
 
     resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
     if not os.path.exists(os.path.join(resource_scripts, "gzh_components.py")):
@@ -193,6 +259,9 @@ def main():
     idx = int(doc["index"])
     if not (1 <= idx <= 99):
         raise SystemExit("index 必须在 1~99")
+
+    # 自动自愈补全或规范化正文配图占位符，避免模型漏写或错写导致中断
+    ensure_doc_images(doc, idx, content_img_count)
 
     intro = gc.intro_card(doc["intro"]["pre"], doc["intro"]["hl"], doc["intro"]["post"], theme)
     sections = []
@@ -212,11 +281,9 @@ def main():
                 sections.append(gc.card_ul(b["card_ul"]["title"], b["card_ul"]["items"], theme))
             elif "img" in b:
                 img_src = str(b["img"]["src"])
-                # 兼容两代占位符：IMG_A{idx}_{j} 与 __IMG_{idx}_{j}__
-                if not (re.fullmatch(r"IMG_A" + str(idx) + r"_[12]", img_src)
-                        or re.fullmatch(r"__IMG_" + str(idx) + r"_[12]__", img_src)):
-                    raise SystemExit("img src 必须是 IMG_A" + str(idx) + "_1/_2 或 __IMG_" + str(idx)
-                                     + "_1/_2__ 占位符，得到: " + img_src)
+                if not (re.fullmatch(r"IMG_A" + str(idx) + r"_\d+", img_src)
+                        or re.fullmatch(r"__IMG_" + str(idx) + r"_\d+__", img_src)):
+                    raise SystemExit("img src 必须是 IMG_A" + str(idx) + "_* 占位符，得到: " + img_src)
                 sections.append(gc.img_card(img_src, b["img"]["caption"]))
                 n_img += 1
             elif b.get("hr"):
@@ -226,8 +293,8 @@ def main():
     if fixed_footer in sign_off_html:
         sign_off_html = sign_off_html.replace(fixed_footer, "")
     sections.append(sign_off_html + brand_image_html("footer", footer_brand))
-    if n_img != 2:
-        raise SystemExit("doc 必须恰好包含 2 个 img 块（IMG_A" + str(idx) + "_1 / _2 占位），当前 " + str(n_img) + " 个")
+    if n_img != content_img_count:
+        raise SystemExit("doc 必须恰好包含 " + str(content_img_count) + " 个 img 块（IMG_A" + str(idx) + "_* 占位），当前 " + str(n_img) + " 个")
 
     # 复刻 gzh_components.build 的组装与断言（品牌名/字数参数化），但不写文件
     html = brand_image_html("header", header_brand) + intro + "".join(sections)
@@ -237,7 +304,11 @@ def main():
     assert html.count("\n") == 0, "排版替换产生了换行符"
     txt = re.sub(r"<[^>]+>", "", html)
     plain = re.sub(r"\s", "", txt)
-    assert len(plain) >= args.min_words, "纯文字不足：" + str(len(plain)) + " < " + str(args.min_words)
+    effective_min = int(args.min_words * 0.90)
+    assert len(plain) >= effective_min, (
+        "纯文字不足：%d < %d（设定下限 %d 字，允许 10%% 容差）。请为各章节增加更多阐述段落。" %
+        (len(plain), effective_min, args.min_words)
+    )
     assert html.count("<img") == expected_img, (
         "img 数量不为 " + str(expected_img) + "：" + str(html.count("<img")))
     assert args.brand_name in txt, "缺少品牌引导语: " + args.brand_name

@@ -27,18 +27,35 @@ const THEME_FILE_HINTS: Record<ThemeKey, string[]> = {
 const DOC_SPEC_EXAMPLE = {
   index: 1,
   theme: 'wenying',
-  intro: { pre: '金句前半句', hl: '高亮词', post: '金句后半句' },
-  toc: ['本文看点一', '本文看点二', '本文看点三'],
+  intro: { pre: '金句前半句', hl: '核心词', post: '金句后半句' },
+  toc: ['核心趋势与政策背景', '核心审核要点与流程', '关键避坑建议与攻略'],
   sections: [
     {
       h2: '01',
-      text: '章节标题',
+      text: '核心趋势与政策背景深度解读',
       blocks: [
-        { p: ['普通文字', ['kw', '关键词下划线'], ['b', '主题色加粗'], ['hl', '浅底高亮']] },
-        { card: '单条提示卡内容' },
-        { card_ul: { title: '清单标题', items: ['要点一', '要点二'] } },
-        { img: { src: 'IMG_A1_1', caption: '图注文字' } },
+        { p: ['普通文字段落...', ['kw', '关键词下划线'], ['b', '主题色加粗'], ['hl', '浅底高亮']] },
+        { p: ['深入展开论述第二段，每段建议 120-200 字，充分论证背景与核心意义...'] },
+        { card: '单条重点提示卡内容' },
+        { img: { src: 'IMG_A1_1', caption: '核心趋势概览示意图' } },
+      ],
+    },
+    {
+      h2: '02',
+      text: '关键实操细节与流程规范',
+      blocks: [
+        { p: ['第二章节详细论述，拆解具体申报与评审实操细节...'] },
+        { card_ul: { title: '核心注意清单', items: ['材料准备要点', '审核周期与节点注意', '关键指标核对'] } },
+        { img: { src: 'IMG_A1_2', caption: '申报审批流程示意图' } },
         { hr: true },
+      ],
+    },
+    {
+      h2: '03',
+      text: '高频避坑指南与专家建议',
+      blocks: [
+        { p: ['针对高频失误进行深度拆解并给出规避方案，确保正文文字充实深入...'] },
+        { p: ['结合评审实际案例提供可落地指引，提升文章学术指导价值与专业度...'] },
       ],
     },
   ],
@@ -67,17 +84,33 @@ export interface StyleGuide {
 const ZHIHU_DOC_SPEC_EXAMPLE = {
   index: 1,
   intro: { pre: '开篇观点', hl: '核心词', post: '收束' },
-  toc: ['本文看点一', '本文看点二', '本文看点三'],
+  toc: ['核心趋势与政策背景', '核心审核要点与流程', '关键避坑建议与攻略'],
   sections: [
     {
       h2: '01',
-      text: '章节标题',
+      text: '核心趋势与政策背景深度解读',
       blocks: [
-        { p: ['普通文字', ['kw', '关键词'], ['b', '加粗'], ['hl', '强调']] },
-        { card: '单条提示' },
-        { card_ul: { title: '清单标题', items: ['要点一', '要点二'] } },
-        { img: { src: 'IMG_A1_1', caption: '图注文字' } },
+        { p: ['普通文字段落...', ['kw', '关键词'], ['b', '加粗'], ['hl', '强调']] },
+        { p: ['深入展开论述第二段，每段 120-200 字，充分论证背景与核心意义...'] },
+        { card: '单条重点提示' },
+        { img: { src: 'IMG_A1_1', caption: '核心趋势概览示意图' } },
+      ],
+    },
+    {
+      h2: '02',
+      text: '关键实操细节与流程规范',
+      blocks: [
+        { p: ['第二章节详细论述，拆解具体申报与评审实操细节...'] },
+        { card_ul: { title: '核心注意清单', items: ['要点一', '要点二', '要点三'] } },
+        { img: { src: 'IMG_A1_2', caption: '申报审批流程示意图' } },
         { hr: true },
+      ],
+    },
+    {
+      h2: '03',
+      text: '高频避坑指南与专家建议',
+      blocks: [
+        { p: ['针对高频失误进行深度拆解并给出规避方案，确保正文文字充实深入...'] },
       ],
     },
   ],
@@ -111,9 +144,9 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
     hard_rules: [
       '平台：知乎专栏；产出为标准 Markdown，无主题色板/引言卡/三列目录/品牌头尾图等公众号组件',
       '作者名固定 ' + account.profile.author_name,
-      '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '）；知乎每篇是独立文章草稿（不是多图文组合）；每篇正好 ' + contentImgs + ' 张正文配图' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 占位）' : '（占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '）'),
+      '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '）；知乎每篇是独立文章草稿（不是多图文组合）；每篇正好 ' + contentImgs + ' 张正文配图' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动自愈补齐）'),
       '选题铁律：选题只能取自下方 topics 列表；禁止自拟、扩展或混搭，除非用户在本次补充要求中明确给出',
-      '每篇正文纯文字不少于 ' + content.min_words + ' 字（构建时断言）',
+      '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（构建时严格去除标记与空白统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 300, Math.ceil(content.min_words * 1.15)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/清单深度展开，确保纯汉字充实达标（构建工具设有 10% 容差底线）',
       '标题不超过 100 字，禁词表全文生效（构建与校验时断言）',
       content.ending_guide_required
         ? '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）'
@@ -201,13 +234,13 @@ export function styleGuideTool(cfg: Config) {
         ],
         hard_rules: [
           '作者名固定 ' + account.profile.author_name,
-          '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇正好 1 张封面；每篇正好 ' + contentImgs + ' 张正文配图，禁止增减' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 正文图占位）' : '（占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '）'),
+          '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇正好 1 张封面；每篇正好 ' + contentImgs + ' 张正文配图，禁止增减' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 正文图占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动校验并自愈补位）'),
           '选题铁律：选题只能取自下方 topics 列表；禁止自拟、扩展或混搭，除非用户在本次补充要求中明确给出',
           '主题铁律：每篇文章主题严格按 theme_plan 对应主题撰写；gzh_build_article 会按设置强制覆盖 doc 内的 theme 字段',
           '每篇正文共 ' + expectedArticleImageCount(cfg, account.profile) + ' 张 img' +
             (account.profile.brand_images.header.enabled ? '，含头部品牌图' : '') +
             (account.profile.brand_images.footer.enabled ? '，含尾部品牌图' : ''),
-          '纯文字不少于 ' + content.min_words + ' 字（构建时断言）',
+          '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（纯单行 HTML 去标签及空格后统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 300, Math.ceil(content.min_words * 1.15)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/card_ul，确保纯汉字充实达标（构建工具设有 10% 容差底线）',
           '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）',
           '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio,
           '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',

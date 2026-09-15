@@ -344,6 +344,68 @@ def main():
         "exit": 0, "output": "", "stderr": "",
     }))
 
+    # 10. 配图占位符缺失自愈（0 个图自动智能补齐为指定数量）
+    heal_sections = []
+    for i, st in enumerate(["章节一", "章节二", "章节三"], 1):
+        heal_sections.append({
+            "h2": "0" + str(i), "text": st,
+            "blocks": [{"p": [fill(160), ["kw", "自测"]]} for _ in range(3)],
+        })
+    # 故意不放任何 img 块（模拟当前 0 个的报错场景）
+    zero_img_doc = {
+        "index": 97, "theme": "wenying",
+        "intro": {"pre": "前", "hl": "高亮", "post": "后"},
+        "sections": heal_sections,
+        "sign_off": "关注文映千秋学术网。",
+    }
+    r_heal = run_script(os.path.join(here, "build_article.py"), [
+        "--doc-json", json.dumps(zero_img_doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs, "--min-words", "1000", "--forbidden", "[]",
+        "--brand-name", "文映千秋学术网", "--content-img-count", "2"])
+    heal_html = ((r_heal["result"] or {}).get("data") or {}).get("html", "")
+    heal_ok = (
+        r_heal["exit"] == 0 and r_heal["result"] and r_heal["result"].get("ok")
+        and "IMG_A97_1" in heal_html and "IMG_A97_2" in heal_html
+        and heal_html.count("<img") == 4
+    )
+    results.append(("image_auto_heal 配图占位符缺失自愈", heal_ok, r_heal))
+
+    # 11. 纯文字字数 10% 容差机制（2323 字达标 2500 字下限判定）
+    target_len = 2323
+    prefix_text = "测试前置"
+    fill_len = target_len - len(prefix_text) - len("关注文映千秋学术网。") - 27
+    tol_sections = [
+        {"h2": "01", "text": "容差测试", "blocks": [
+            {"p": [prefix_text + fill(fill_len)]},
+            {"img": {"src": "IMG_A96_1", "caption": "图一"}},
+            {"img": {"src": "IMG_A96_2", "caption": "图二"}},
+        ]}
+    ]
+    tol_doc = {
+        "index": 96, "theme": "wenying",
+        "intro": {"pre": "", "hl": "", "post": ""},
+        "sections": tol_sections,
+        "sign_off": "关注文映千秋学术网。",
+    }
+    r_tol = run_script(os.path.join(here, "build_article.py"), [
+        "--doc-json", json.dumps(tol_doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs, "--min-words", "2500", "--forbidden", "[]",
+        "--brand-name", "文映千秋学术网", "--content-img-count", "2"])
+    tol_data = (r_tol["result"] or {}).get("data") or {}
+    tol_chars = tol_data.get("plain_chars", 0)
+    # 2323 字面对 2700 下限时（容差底线 2430），应当拦截报错
+    r_fail = run_script(os.path.join(here, "build_article.py"), [
+        "--doc-json", json.dumps(tol_doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs, "--min-words", "2700", "--forbidden", "[]",
+        "--brand-name", "文映千秋学术网", "--content-img-count", "2"])
+    tol_ok = (
+        r_tol["exit"] == 0 and r_tol["result"] and r_tol["result"].get("ok")
+        and tol_chars == 2323
+        and r_fail["exit"] != 0
+        and "纯文字不足" in str(r_fail["result"] or r_fail["output"])
+    )
+    results.append(("word_count_tolerance 纯文字10%容差机制", tol_ok, r_tol))
+
     print("=" * 60)
     failed = 0
     for name, ok, r in results:

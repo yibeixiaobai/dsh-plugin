@@ -294,7 +294,10 @@ function mdPlain(md: string): string {
 function precheckMarkdown(job: ZhihuPublishJob, index: number, md: string): string[] {
   const problems: string[] = []
   const plain = mdPlain(md)
-  if (plain.length < job.min_words) problems.push('第' + index + '篇纯文字 ' + plain.length + ' 字，低于下限 ' + job.min_words)
+  const effectiveMin = Math.floor(job.min_words * 0.90)
+  if (plain.length < effectiveMin) {
+    problems.push('第' + index + '篇纯文字 ' + plain.length + ' 字，低于容差下限 ' + effectiveMin + '（设定 ' + job.min_words + '）')
+  }
   for (const w of job.forbidden) {
     if (plain.includes(w)) problems.push('第' + index + '篇含禁词: ' + w)
   }

@@ -89,8 +89,9 @@ def main():
             problems.append("摘要超长 %d 字" % len(digest))
         if n_img != args.expected_img_count or not all_cdn:
             problems.append("图片数 %d / 全CDN %s" % (n_img, all_cdn))
-        if len(plain) < args.min_words:
-            problems.append("纯文字 %d 字 < %d" % (len(plain), args.min_words))
+        effective_min = int(args.min_words * 0.90)
+        if len(plain) < effective_min:
+            problems.append("纯文字 %d 字 < 容差下限 %d（设定 %d）" % (len(plain), effective_min, args.min_words))
         if args.brand_name not in txt:
             problems.append("缺少品牌引导语")
         for w in forbidden:

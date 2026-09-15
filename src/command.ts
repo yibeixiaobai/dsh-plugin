@@ -105,7 +105,9 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
     const platform = profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
     lines.push('【账号 ' + (index + 1) + '/' + accountIds.length + '】account_id：' + id + '（' + profile.name + '）')
     lines.push('- 选题方向（候选选题的唯一来源）：' + (content.topics.length > 0 ? content.topics.join('、') : '（为空时按查重通过的自拟选题，其余铁律不变）'))
-    lines.push('- 每日文章数：' + content.articles_per_day + ' 篇；每篇纯文字 ≥ ' + content.min_words + ' 字；每篇正文配图 ' +
+    const targetWords = Math.max(content.min_words + 300, Math.ceil(content.min_words * 1.15))
+    lines.push('- 每日文章数：' + content.articles_per_day + ' 篇；每篇纯文字下限 ≥ ' + content.min_words +
+      ' 字（撰写目标务必按 ' + targetWords + ' 字以上充分展开，确保去格式后字数充实达标）；每篇正文配图 ' +
       config.image_api.content_images_per_article + ' 张')
     if (platform === 'zhihu') {
       lines.push('- 平台：知乎专栏（标准 Markdown 形态；浏览器自动化发布，默认只存知乎草稿箱' +
@@ -125,7 +127,7 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
     '每个账号按以下顺序自主推进，不要只给计划：',
     '1. 使用 gzh_check_topics 完成选题查重：候选选题不得与该账号历史、其它账号历史、以及本批次其它账号已确定的选题/标题重复；高风险选题必须替换，替换后仍须取自选题方向列表。',
     '2. 使用 gzh_get_style_guide 获取该账号规范（按账号平台返回公众号 HTML 或知乎 Markdown 规范）；文章数、配图数、主题分配（theme_plan）、禁词全部以返回值为准。',
-    '3. 按该账号的每日文章数撰写并用 gzh_build_article 逐篇构建文章。',
+    '3. 撰写并构建：撰写 doc_json 时每篇必须按目标字数充实展开各章节，并在 sections 的 blocks 内分布正好等于配图数的 img 占位块（如 IMG_A{index}_1、IMG_A{index}_2，系统具备自动补全与 10% 容差底线），用 gzh_build_article 逐篇构建。',
     '4. 使用 gzh_generate_images 生成封面和正文配图；数量必须与配置一致，不要多生成。',
     '5. 使用 gzh_validate_html 校验全部文章，发现问题先修复再复检；修复只允许改正错误，不得改动数量、主题与品牌要素。',
     '6. 使用 gzh_publish_draft 创建草稿（公众号合并为 1 个多图文草稿，知乎为逐篇独立草稿）；若当前是演练模式，则完成演练校验即可。',
