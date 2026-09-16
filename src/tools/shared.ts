@@ -115,7 +115,7 @@ export function resolveTheme(cfg: Config, index: number): ThemeKey {
 }
 
 // 宿主调用约定是 render(args, value)：第一参数是入参、第二参数才是工具结果。
-// 只取 value 渲染——此前只声明了一个参数，把入参当结果回显给模型，模型从未见过真实返回。
+// 使用紧凑 JSON 渲染，去除冗余缩进空格与换行符，显著节省上下文 Token。
 export const renderJson = (_args: unknown, value: unknown): ToolContentBlock[] => [
-  { type: 'text', text: JSON.stringify(value ?? null, null, 2) },
+  { type: 'text', text: JSON.stringify(value ?? null) },
 ]

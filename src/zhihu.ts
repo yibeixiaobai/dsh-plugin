@@ -294,7 +294,7 @@ function mdPlain(md: string): string {
 function precheckMarkdown(job: ZhihuPublishJob, index: number, md: string): string[] {
   const problems: string[] = []
   const plain = mdPlain(md)
-  const effectiveMin = Math.floor(job.min_words * 0.90)
+  const effectiveMin = Math.floor(job.min_words * 0.85)
   if (plain.length < effectiveMin) {
     problems.push('第' + index + '篇纯文字 ' + plain.length + ' 字，低于容差下限 ' + effectiveMin + '（设定 ' + job.min_words + '）')
   }

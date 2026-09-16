@@ -93,7 +93,7 @@ export async function runPython<T = unknown>(opts: RunOptions): Promise<PyResult
         ok: false,
         error: missing
           ? `缺少 Python 依赖 ${missing}。请为设置中的 python_path 安装 requests 与 Pillow。\n${errTail}`
-          : errTail || `Python 退出码 ${code}（无标准错误输出）`,
+          : errTail || (allOut.trim() ? `Python 未知输出：${allOut.trim().slice(-500)}` : `Python 退出码 ${code}（无标准输出与错误输出）`),
         logs,
       })
     })

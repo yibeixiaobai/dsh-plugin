@@ -78,7 +78,7 @@ export function buildArticleTool(cfg: Config) {
           '--doc-json', JSON.stringify({ ...doc, index: idx, theme: platform === 'zhihu' ? 'wenying' : theme }),
           '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
-          '--min-words', String(isNewspic ? Math.min(content.min_words, 100) : content.min_words),
+          '--min-words', String(isNewspic ? (content.newspic_min_words ?? 100) : content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--platform', platform,
           '--article-type', isNewspic ? 'newspic' : 'news',
@@ -105,7 +105,7 @@ export function buildArticleTool(cfg: Config) {
                 }),
               ]),
         ],
-        120000,
+        180000,
       )
 
       // Python 纯构建返回产物，TS 侧落盘（文件名白名单 + 目录守卫）
@@ -132,7 +132,7 @@ export function buildArticleTool(cfg: Config) {
           '--files', JSON.stringify([name]),
           '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
-          '--min-words', String(isNewspic ? Math.min(content.min_words, 100) : content.min_words),
+          '--min-words', String(isNewspic ? (content.newspic_min_words ?? 100) : content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--brand-name', account.profile.brand_name,
           '--img-count', String(expectedImgs),
@@ -142,7 +142,7 @@ export function buildArticleTool(cfg: Config) {
           ...((platform === 'zhihu' || isNewspic) && content.ending_guide_required ? ['--require-brand'] : []),
           ...(platform === 'gzh' && !isNewspic ? ['--lint'] : []),
         ],
-        120000,
+        180000,
       )
 
       const problems = [...(built.problems ?? [])]

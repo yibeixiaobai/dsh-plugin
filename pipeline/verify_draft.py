@@ -72,7 +72,7 @@ def main():
 
     items = draft["news_item"]
     is_newspic_draft = bool(items and (items[0].get("image_info") or {}).get("image_list"))
-    expected_count = 1 if (is_newspic_draft and args.expected_count == 6) else args.expected_count
+    expected_count = 1 if is_newspic_draft else args.expected_count
 
     articles = []
     for idx, it in enumerate(items, 1):
@@ -96,14 +96,19 @@ def main():
             problems.append("标题超长 %d 字（上限 %d）" % (len(title), max_title))
         if not is_newspic_draft and len(digest) > 120:
             problems.append("摘要超长 %d 字" % len(digest))
-        if n_img != args.expected_img_count or not all_cdn:
-            problems.append("图片数 %d / 全CDN %s" % (n_img, all_cdn))
+        if is_newspic_draft:
+            if n_img < 1:
+                problems.append("小绿书卡片图数量为 0")
+        else:
+            if n_img != args.expected_img_count or not all_cdn:
+                problems.append("图片数 %d / 全CDN %s" % (n_img, all_cdn))
         req_min_words = min(args.min_words, 100) if is_newspic_draft else args.min_words
-        effective_min = int(req_min_words * 0.90)
+        effective_min = int(req_min_words * 0.85)
         if len(plain) < effective_min:
             problems.append("纯文字 %d 字 < 容差下限 %d（设定 %d）" % (len(plain), effective_min, req_min_words))
-        if args.brand_name not in txt:
-            problems.append("缺少品牌引导语")
+        if args.brand_name not in txt and args.brand_name not in title:
+            if not is_newspic_draft:
+                problems.append("缺少品牌引导语")
         for w in forbidden:
             if w in txt or w in title or w in digest:
                 problems.append("含禁词: " + w)

@@ -148,7 +148,7 @@ def main():
             "topic": topic,
             "risk": risk,
             "top_score": round(top, 3),
-            "matches": matches[:8],
+            "matches": matches[:2],
         }
         warnings = []
         if batch_duplicates:

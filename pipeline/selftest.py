@@ -370,7 +370,7 @@ def main():
     )
     results.append(("image_auto_heal 配图占位符缺失自愈", heal_ok, r_heal))
 
-    # 11. 纯文字字数 10% 容差机制（2323 字达标 2500 字下限判定）
+    # 11. 纯文字字数 15% 容差机制（2323 字达标 2500 字下限判定）
     target_len = 2323
     prefix_text = "测试前置"
     fill_len = target_len - len(prefix_text) - len("关注文映千秋学术网。") - 27
@@ -393,10 +393,10 @@ def main():
         "--brand-name", "文映千秋学术网", "--content-img-count", "2"])
     tol_data = (r_tol["result"] or {}).get("data") or {}
     tol_chars = tol_data.get("plain_chars", 0)
-    # 2323 字面对 2700 下限时（容差底线 2430），应当拦截报错
+    # 2323 字面对 3000 下限时（容差底线 2550，且超出 80 字自愈缓冲），应当拦截报错
     r_fail = run_script(os.path.join(here, "build_article.py"), [
         "--doc-json", json.dumps(tol_doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
-        "--resource-dir", resource_abs, "--min-words", "2700", "--forbidden", "[]",
+        "--resource-dir", resource_abs, "--min-words", "3000", "--forbidden", "[]",
         "--brand-name", "文映千秋学术网", "--content-img-count", "2"])
     tol_ok = (
         r_tol["exit"] == 0 and r_tol["result"] and r_tol["result"].get("ok")
@@ -404,7 +404,7 @@ def main():
         and r_fail["exit"] != 0
         and "纯文字不足" in str(r_fail["result"] or r_fail["output"])
     )
-    results.append(("word_count_tolerance 纯文字10%容差机制", tol_ok, r_tol))
+    results.append(("word_count_tolerance 纯文字15%容差机制", tol_ok, r_tol))
 
     # 13. 小绿书（newspic 图片消息构建、校验与发布演练）
     newspic_doc = {

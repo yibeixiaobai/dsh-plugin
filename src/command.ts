@@ -78,25 +78,35 @@ function scopeLabel(config: Config, accountIds: string[], platform: Platform | '
 
 /** 把每个账号生效的插件配置直接注入任务提示词，执行 agent 无需猜默认值 */
 function taskPrompt(config: Config, accountIds: string[], request: string): string {
+  const isMultiAccount = accountIds.length > 1
   const scope = scopeLabel(config, accountIds, '') + '日常生产任务'
   const lines: string[] = [
     '立即执行' + scope +
-      (accountIds.length > 1 ? '（多账号批量：按顺序逐账号完成全部流程后再进入下一个账号）' : '') + '。',
+      (isMultiAccount ? '（多账号任务：支持多 Agent 并行或隔离独立推进）' : '') + '。',
     '调用所有支持 account_id 的工具时必须显式传入当前账号的 account_id。',
     '',
-    '硬性约束（任何时候不得偏离，与你的其它判断冲突时一律以本约束为准）：',
-    '- 数量铁律：每个账号文章数正好等于其「每日文章数」，不多不少；每篇正好 1 张封面；每篇正文配图正好等于设置的配图数（为 0 则不生成）。',
-    '- 选题铁律（全账号统一严格生效）：候选选题必须围绕该账号「核心业务关键词」深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（严禁出现「关键词：...」、「【关键词】...」等任何冒号或括号前缀形式，如严禁“北大核心：...”、“SCI：...”）；所有账号（无论账号1还是账号2、账号3等后续所有账号）标题必须是自然吸睛、语意完整的陈述句或疑问句；仅当补充要求中明确给出特定主题时才可替代，拟定后必须全量提交 gzh_check_topics 查重通过。',
-    '- 主题铁律：每篇文章主题严格按 gzh_get_style_guide 返回的 theme_plan 执行，构建时会按设置强制覆盖，不要自选或更换主题。',
-    '- 不变量：作者名、品牌名、排版字号、主题色板、封面比例、禁词表均以设置为准，任务中禁止修改、另创或「优化」。',
-    '- 禁止自由发挥：不要添加配置之外的栏目、系列名、活动、二维码或任何多余元素。',
+    '多 Agent 并行与上下文隔离调度纪律（建议二 · 大幅提速并杜绝上下文滚雪球）：',
+    ...(isMultiAccount ? [
+      '- 【多账号并行调度·最高优先铁律】：检测到当前任务包含多个账号（' + accountIds.join('、') + '），系统已提供 subagent 工具。主 Agent 必须优先调用 subagent 工具，分别为每个账号独立派生 1 个子 Agent 并行执行该账号的完整流水线（查重 → 写文构建 → 生图 → 校验 → 发布）：',
+      '  * 派生方式：调用 subagent(description="账号执行: " + id, prompt="针对账号 " + id + " 独立执行全部流程...", run_in_background=true)。',
+      '  * 核心优势：各账号拥有完全干净隔离的独立上下文，彻底避免上一账号数万 Token 的写文历史滚雪球累加到下一账号，且并行执行大幅缩短总耗时！',
+      '  * 主 Agent 职责：仅负责派生各账号 subagent 并等待完成，最后汇总输出表格；严禁主 Agent 在单线程中串行包揽所有账号的写文与发布！',
+      '- 【环境兜底】：仅当当前会话确实未提供 subagent 工具时，才由主 Agent 按顺序推进各账号，并在切账号时保持状态隔离。',
+    ] : []),
+    '- 【单账号禁止细拆】：在单个账号内部严格单线程顺序推进，严禁把单篇拆分为多个子任务，避免各分身重复读取全局规范造成 Token 成倍浪费。',
     '',
-    '执行纪律（同等效力，违反会成倍增加 token 消耗）：',
-    '- 单线程顺序执行：禁止派生 subagent、后台任务或 job 并行写作——每个分身都要重读全部规范与文件，token 成倍增加。',
-    '- 规范自包含：gzh_get_style_guide 返回值已含写文所需全部信息（doc_spec 示例、parts_format、硬性规则、theme_plan、禁词表），不要读源码、参考文档或历史文章；references 路径仅在工具报错且提示需要时才查阅。',
-    '- 只走工具，不走 shell：禁止用 pwsh/python 直接执行 pipeline 脚本或手工校验、修补产物文件；构建、校验、发布、核验一律调用 gzh_* 工具。',
-    '- 不复述产物：不要在回复里粘贴文章全文或 HTML，也不要 read 已构建的文章文件复查——构建工具返回的 plain_chars/img_count 就是校验结论。',
-    '- 批量调用：gzh_check_topics 每账号一次提交全部候选选题；gzh_generate_images 一次提交该账号全部图片项；不要一项一调。',
+    '纯工具流与零复述铁律（建议三 · 严格压制无效 Output Token）：',
+    '- 绝不回显产物草稿：严禁在对话回复中打印文章正文草稿、Markdown 文本、单行 HTML、小绿书 JSON、或生图提示词全文！所有内容只需作为参数直接传入 gzh_build_article / gzh_generate_images。回复中仅输出单行进度提示（如：“已完成第 1 篇构建（2150字）”）或最终的极简 Markdown 汇总表格。',
+    '- 绝不二次读取已建文件：构建工具（gzh_build_article）与生图工具（gzh_generate_images）的返回值已经直接给出了 plain_chars、img_count 与 status，这就是最终校验结果，严禁调用文件读取工具再次通读文章或复查图片！',
+    '- 批量合并提交：gzh_check_topics 必须一次性提交当前账号全部候选选题；gzh_generate_images 必须一次性提交该账号全部图片项；严禁拆分为单项多次往返调用。',
+    '- 规范自包含：gzh_get_style_guide 返回值已含写文所需全部信息（doc_spec 骨架、parts_format、硬性规则、theme_plan、禁词表），不要读取源码、参考文档或历史文章；references 路径仅在工具报错且提示需要时才查阅。',
+    '- 只走工具，不走 shell：构建、校验、发布、核验一律调用 gzh_* 工具，禁止在终端手敲脚本。',
+    '',
+    '防返工写文铁律（建议四 · 前期杜绝断言失败重写浪费数万 Token）：',
+    '- 字数一次达标：规划 4~6 个长章节、每章 3~5 个长段落并搭配 card/清单展开，撰写目标务必按设定下限 × 1.15~1.2 标准展开（如 2000 字目标按 2300 字以上撰写），确保一次构建即稳定高于 85% 容差底线（系统已内置 15% 容差与 80 字自动自愈兜底），杜绝返工！',
+    '- 选题严禁前缀：选题必须围绕核心业务关键词深度检索关联拓展，严禁出现任何「关键词：...」、「【关键词】...」等冒号或括号前缀（工具内置前缀拦截，违规直接判为 high 风险），确保选题一次查重通过。',
+    '- 品牌引导语自然融入：必须在正文结尾引导语（sign_off）自然包含账号品牌名，确保构建断言一次通过。',
+    '- 小绿书规格安全：卡片比例统一 3:4 竖版（默认 4 张，第1张为封面），标题严格 ≤ 32 字，文案 ≥ 设定字数，单篇独立发布草稿。',
     '',
   ]
   accountIds.forEach((id, index) => {
@@ -128,7 +138,7 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
       } else if (isBoth) {
         lines.push('- 平台：微信公众号（【长文 + 小绿书】联动同步更新，一文双发）')
         lines.push('- 长文：' + content.articles_per_day + ' 篇经典多图文，组合为 1 个多图文草稿，字数 ≥ ' + content.min_words + ' 字，主题以 theme_plan 为准')
-        lines.push('- 小绿书同步执行：同步提炼生成 ' + (content.newspic_articles_per_day || 1) + ' 篇独立小绿书卡片草稿（每篇 ' + (content.newspic_images_per_article || 4) + ' 张 3:4 竖版卡片，标题≤32字，逐篇单独发布草稿，绝不合并）')
+        lines.push('- 小绿书同步执行：同步提炼生成 ' + (content.newspic_articles_per_day || 1) + ' 篇独立小绿书卡片草稿（每篇 ' + (content.newspic_images_per_article || 4) + ' 张 3:4 竖版卡片，标题≤32字；发布时仅调用 1 次 gzh_publish_draft，绝不重复发布）')
         lines.push('- 封面比例：头条 ' + config.image_api.headline_cover_ratio + ' / 次条 ' + config.image_api.secondary_cover_ratio)
         lines.push('- 作者名 ' + profile.author_name + '；结尾自然引导关注品牌「' + profile.brand_name + '」')
       } else {
@@ -150,8 +160,10 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
       '纯小绿书账号直接构建小绿书文案与卡片规划。',
     '4. 使用 gzh_generate_images 生成图片：一次性提交该账号全部图片；长文提交 cover 与 content 图，小绿书提交 3:4 竖版 pic 卡片图（kind="pic"）。',
     '5. 使用 gzh_validate_html 校验全部文章（自动识别长文 HTML 或小绿书 JSON 文件并执行对应校验），发现问题先修复再复检。',
-    '6. 使用 gzh_publish_draft 创建草稿：长文合并为 1 个多图文草稿；小绿书则逐篇单独发布为独立草稿（微信官方小绿书不支持多图文合并，单篇发布）；知乎为逐篇独立草稿。',
-    '7. 正式发布草稿后使用 gzh_verify_draft 核验。',
+    '6. 使用 gzh_publish_draft 创建草稿（每个形态严格只调用 1 次，严禁循环或多次重复发布）：' +
+      '长文调用 1 次 gzh_publish_draft(article_type="news") 合并发布为 1 个多图文草稿包；' +
+      '小绿书无论设定篇数是多少，严格只需调用 1 次 gzh_publish_draft(article_type="newspic")（工具底层会自动为设定的每篇独立创建草稿并完成官方核验，绝不需要 Agent 循环调用，严禁重复提交发布！）；知乎为逐篇独立草稿。',
+    '7. 草稿核验与完成：gzh_publish_draft 内部已包含官方 draft/get 校验，返回 media_id 即代表任务彻底完成。长文若需二次校验可调用 gzh_verify_draft；小绿书已在发布工具内自动完成核验，严禁因多余校验导致重新触发发布！',
     '在需要用户提供主题或业务判断之前，先完成所有能够自主完成的步骤。',
     '全部账号完成后按账号汇总：选题/标题、草稿 media_id 或知乎草稿链接（或演练结果）与遗留问题。',
   ])

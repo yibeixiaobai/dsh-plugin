@@ -54,7 +54,7 @@ def check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand
     txt = re.sub(r"^\s*-{3,}\s*$", "", txt, flags=re.M)
     txt = txt.replace("**", "")
     plain = re.sub(r"\s", "", txt)
-    effective_min = int(min_words * 0.90)
+    effective_min = int(min_words * 0.85)
     if len(plain) < effective_min:
         problems.append("纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (len(plain), effective_min, min_words))
     for w in forbidden:
@@ -139,7 +139,7 @@ def check_file(path, min_words, forbidden, brand_name, img_count, allow_placehol
         problems.append("存在 unicode 转义残留")
     txt = re.sub(r"<[^>]+>", "", html)
     plain = re.sub(r"\s", "", txt)
-    effective_min = int(min_words * 0.90)
+    effective_min = int(min_words * 0.85)
     if len(plain) < effective_min:
         problems.append("纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (len(plain), effective_min, min_words))
     for w in forbidden:

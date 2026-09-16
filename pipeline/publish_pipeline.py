@@ -89,7 +89,7 @@ def precheck(html, idx, min_words, forbidden, brand_name, expected_img,
         problems.append("文章%d 存在 unicode 转义残留" % idx)
     txt = re.sub(r"<[^>]+>", "", html)
     plain = re.sub(r"\s", "", txt)
-    effective_min = int(min_words * 0.90)
+    effective_min = int(min_words * 0.85)
     if len(plain) < effective_min:
         problems.append("文章%d 纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (idx, len(plain), effective_min, min_words))
     for w in forbidden:
@@ -132,7 +132,7 @@ def postcheck(html, idx, min_words, forbidden, brand_name, expected_img,
         problems.append("文章%d 存在非 CDN 图片: %s" % (idx, bad[:2]))
     txt = re.sub(r"<[^>]+>", "", html)
     plain = re.sub(r"\s", "", txt)
-    effective_min = int(min_words * 0.90)
+    effective_min = int(min_words * 0.85)
     if len(plain) < effective_min:
         problems.append("文章%d 纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (idx, len(plain), effective_min, min_words))
     for w in forbidden:

@@ -27,39 +27,22 @@ const THEME_FILE_HINTS: Record<ThemeKey, string[]> = {
 const DOC_SPEC_EXAMPLE = {
   index: 1,
   theme: 'wenying',
-  intro: { pre: '金句前半句', hl: '核心词', post: '金句后半句' },
-  toc: ['核心趋势与政策背景', '核心审核要点与流程', '关键避坑建议与攻略'],
+  intro: { pre: '金句前半句', hl: '核心关键词', post: '金句后半句' },
+  toc: ['要点1：背景与趋势', '要点2：关键实操细节', '要点3：避坑与建议'],
   sections: [
     {
       h2: '01',
-      text: '核心趋势与政策背景深度解读',
+      text: '章节标题（实操中依此类推规划 4~6 个长章节）',
       blocks: [
         { p: ['普通文字段落...', ['kw', '关键词下划线'], ['b', '主题色加粗'], ['hl', '浅底高亮']] },
-        { p: ['深入展开论述第二段，每段建议 120-200 字，充分论证背景与核心意义...'] },
         { card: '单条重点提示卡内容' },
-        { img: { src: 'IMG_A1_1', caption: '核心趋势概览示意图' } },
-      ],
-    },
-    {
-      h2: '02',
-      text: '关键实操细节与流程规范',
-      blocks: [
-        { p: ['第二章节详细论述，拆解具体申报与评审实操细节...'] },
-        { card_ul: { title: '核心注意清单', items: ['材料准备要点', '审核周期与节点注意', '关键指标核对'] } },
-        { img: { src: 'IMG_A1_2', caption: '申报审批流程示意图' } },
+        { card_ul: { title: '核心清单', items: ['要点1', '要点2', '要点3'] } },
+        { img: { src: 'IMG_A1_1', caption: '示意图' } },
         { hr: true },
       ],
     },
-    {
-      h2: '03',
-      text: '高频避坑指南与专家建议',
-      blocks: [
-        { p: ['针对高频失误进行深度拆解并给出规避方案，确保正文文字充实深入...'] },
-        { p: ['结合评审实际案例提供可落地指引，提升文章学术指导价值与专业度...'] },
-      ],
-    },
   ],
-  sign_off: '结尾引导语（必须自然包含品牌名，像编辑真心推荐而非广告）',
+  sign_off: '结尾引导语（自然融入品牌名）',
 }
 
 export interface StyleGuide {
@@ -87,72 +70,31 @@ export interface StyleGuide {
 const ZHIHU_DOC_SPEC_EXAMPLE = {
   index: 1,
   intro: { pre: '开篇观点', hl: '核心词', post: '收束' },
-  toc: ['核心趋势与政策背景', '核心审核要点与流程', '关键避坑建议与攻略'],
+  toc: ['章节1核心趋势', '章节2实操要点', '章节3高频避坑'],
   sections: [
     {
       h2: '01',
-      text: '核心趋势与政策背景深度解读',
+      text: '章节标题（实操中依此类推规划 4~6 个长章节）',
       blocks: [
         { p: ['普通文字段落...', ['kw', '关键词'], ['b', '加粗'], ['hl', '强调']] },
-        { p: ['深入展开论述第二段，每段 120-200 字，充分论证背景与核心意义...'] },
         { card: '单条重点提示' },
-        { img: { src: 'IMG_A1_1', caption: '核心趋势概览示意图' } },
-      ],
-    },
-    {
-      h2: '02',
-      text: '关键实操细节与流程规范',
-      blocks: [
-        { p: ['第二章节详细论述，拆解具体申报与评审实操细节...'] },
-        { card_ul: { title: '核心注意清单', items: ['要点一', '要点二', '要点三'] } },
-        { img: { src: 'IMG_A1_2', caption: '申报审批流程示意图' } },
-        { hr: true },
-      ],
-    },
-    {
-      h2: '03',
-      text: '高频避坑指南与专家建议',
-      blocks: [
-        { p: ['针对高频失误进行深度拆解并给出规避方案，确保正文文字充实深入...'] },
+        { card_ul: { title: '核心清单', items: ['要点1', '要点2'] } },
+        { img: { src: 'IMG_A1_1', caption: '示意图' } },
       ],
     },
   ],
-  sign_off: '结尾引导语',
+  sign_off: '结尾引导语（自然融入品牌名）',
 }
 
-// 小绿书（图片消息 newspic）doc spec：
+// 小绿书（图片消息 newspic）doc spec 紧凑骨架：
 const NEWSPIC_DOC_SPEC_EXAMPLE = {
   index: 1,
   article_type: 'newspic',
-  title: '2026选刊避坑！中科院分区新规一览',
-  content:
-    '📌 核心速览：\n2026选刊规则迎来重大变动，作者需提前做好准备。\n\n' +
-    '👉 重点避坑建议：\n' +
-    '1. 认准向前就近原则认定旧版分区\n' +
-    '2. 重点防范高风险及预警期刊\n' +
-    '3. 关注代表作制度与实际成果转化\n\n' +
-    '关注文映千秋学术网，获取最新期刊动态与学术攻略！\n#期刊发表 #SCI选刊 #学术避坑',
+  title: '爆款小绿书标题（严格≤32字）',
+  content: '📌 核心速览：\n提炼核心干货，分段清晰并搭配 emoji 导读。\n\n关注文映千秋学术网获取更多干货！\n#学术攻略 #避坑指南',
   cards: [
-    {
-      sub: 1,
-      role: 'cover',
-      prompt: '学术期刊选刊指南封面，醒目大字报海报设计，深酒红与金色质感，现代扁平学术风格，高清无杂乱文字',
-    },
-    {
-      sub: 2,
-      role: 'points',
-      prompt: '学术论文申报与期刊筛选流程图，信息图表卡片，排版清晰整洁，中文图解',
-    },
-    {
-      sub: 3,
-      role: 'summary',
-      prompt: '学术发表注意事项清单卡片，要点清晰，极简科技风插画',
-    },
-    {
-      sub: 4,
-      role: 'action',
-      prompt: '学术研究者指南尾页海报，互动关注引导卡片，高品质视觉呈现',
-    },
+    { sub: 1, role: 'cover', prompt: '封面海报设计，3:4竖版大字报，高清无杂文字' },
+    { sub: 2, role: 'content', prompt: '重点流程图解信息卡片，排版清晰整洁' },
   ],
 }
 
@@ -161,7 +103,7 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const content = account.profile.content
   const n = content.newspic_articles_per_day || 1
   const cardCount = content.newspic_images_per_article || 4
-  const minWords = Math.min(content.min_words, 100)
+  const minWords = content.newspic_min_words ?? Math.min(content.min_words, 100)
   return {
     account_id: account.id,
     account_name: account.profile.name,
@@ -185,7 +127,7 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
       '标题严格 ≤ 32 字，超出微信接口报错拒绝',
       '作者名固定 ' + account.profile.author_name,
       '数量铁律：本次正好 ' + n + ' 篇小绿书（每篇包含 ' + cardCount + ' 张卡片图片 sub 1~' + cardCount + '）',
-      '发布铁律：小绿书只支持单篇独立发布，每篇单独调用草稿接口生成 1 个草稿，绝不组合发布',
+      '发布铁律：小绿书严格只需调用 1 次 gzh_publish_draft（article_type: "newspic"），单次提交全部 ' + n + ' 篇小绿书标题与摘要，底层会自动逐篇创建独立草稿并完成官方核验，严禁由 Agent 循环多次重复调用发布！',
       '卡片比例统一为 3:4 竖版（第 1 张卡片自动作为封面，无需额外封面图）',
       '正文字数：不低于 ' + minWords + ' 字纯文本，建议 150~500 字，分段清晰，善用 emoji 导读',
       '禁词表全文生效：严禁出现任何禁词',
@@ -332,7 +274,7 @@ export function styleGuideTool(cfg: Config) {
           '作者名固定 ' + account.profile.author_name,
           '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇正好 1 张封面；每篇正好 ' + contentImgs + ' 张正文配图，禁止增减' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 正文图占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动校验并自愈补位）'),
           ...(isBoth
-            ? ['小绿书同步更新铁律：当前账号已配置「长文 + 小绿书」同步更新（article_type: both 或 sync_newspic: true）。在生成长文 article_v2_{index}.html（共 ' + n + ' 篇合并为1个草稿）的同时，必须从长文提炼核心干货并同步生成 ' + (content.newspic_articles_per_day || 1) + ' 篇小绿书卡片图文 article_v2_{index}_pic.json（规范参考 newspic_spec），生成 3:4 竖版卡片图（kind: "pic"），并通过 gzh_publish_draft 传入 article_type: "newspic" 逐篇单独发布为独立草稿（绝不组合）！']
+            ? ['小绿书同步更新铁律：当前账号已配置「长文 + 小绿书」同步更新（article_type: both 或 sync_newspic: true）。在生成长文 article_v2_{index}.html（共 ' + n + ' 篇合并为1个草稿）的同时，必须从长文提炼核心干货并同步生成 ' + (content.newspic_articles_per_day || 1) + ' 篇小绿书卡片图文 article_v2_{index}_pic.json（规范参考 newspic_spec），生成 3:4 竖版卡片图（kind: "pic"）。发布时，小绿书严格只需调用 1 次 gzh_publish_draft(article_type: "newspic") 单次提交（底层会自动逐篇创建草稿并完成官方核验），严禁由 Agent 循环或多次重复发布！']
             : []),
           '选题铁律（全账号统一）：选题必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛，除非用户在本次补充要求中明确给出特定主题',
           '主题铁律：每篇文章主题严格按 theme_plan 对应主题撰写；gzh_build_article 会按设置强制覆盖 doc 内的 theme 字段',

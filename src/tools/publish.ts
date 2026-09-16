@@ -3,7 +3,7 @@ import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { appendPublishRecord } from '../publish-history.ts'
+import { appendPublishRecord, readAccountPublishRecords } from '../publish-history.ts'
 import { runZhihuPublish } from '../zhihu.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, accountScriptsDir, assertWechatCreds, brandDir,
@@ -40,6 +40,7 @@ export interface PublishOk {
   titles: string[]
   verify: { checked: boolean; article_count?: number; results?: unknown[] }
   result_file: string
+  already_published?: boolean
 }
 
 interface PublishArgs {
@@ -47,6 +48,7 @@ interface PublishArgs {
   digests: string[]
   article_files?: string[]
   article_type?: 'news' | 'newspic'
+  force?: boolean
   account_id?: string
 }
 
@@ -85,6 +87,10 @@ export function publishTool(cfg: Config) {
         description: '可选：指定发布的文章形态（news=长图文草稿，newspic=小绿书图片消息草稿）；缺省按账号设置',
         enum: ['news', 'newspic'],
       },
+      force: {
+        type: 'boolean',
+        description: '可选：强制发布，跳过防重复创建检查（默认 false 自动拦截相同标题或超出篇数配额的重复调用）',
+      },
       account_id: {
         type: 'string',
         description: '账号 ID；缺省使用默认账号',
@@ -115,6 +121,70 @@ export function publishTool(cfg: Config) {
         if (typeof d !== 'string' || d.length > 120) throw new Error('摘要超 120 字: ' + String(d).slice(0, 40))
       }
       const sdir = accountScriptsDir(cfg, account.id)
+
+      // 防重复发布保护（幂等拦截机制，坚决杜绝小绿书或长文被重复发布多次）：
+      if (!cfg.runtime.dry_run && !args.force && platform === 'gzh') {
+        const recentRecords = readAccountPublishRecords(cfg, account.id)
+
+        // 1. 完全相同标题与形态防重：如果当前传入的标题组合已在历史中发布过，直接复用已有的 media_id，绝不再次调用微信接口创建重复草稿！
+        const exactMatch = recentRecords.find((r) => {
+          const typeMatch = isNewspic ? r.article_type === 'newspic' : r.article_type !== 'newspic'
+          if (!typeMatch) return false
+          const recTitles = r.articles || []
+          return recTitles.length === args.titles.length && recTitles.every((t, i) => t === args.titles[i])
+        })
+        if (exactMatch && exactMatch.draft_media_id) {
+          const rawIds = exactMatch.draft_media_ids && exactMatch.draft_media_ids.length > 0
+            ? exactMatch.draft_media_ids
+            : [exactMatch.draft_media_id]
+          const mediaIds = rawIds.filter((id): id is string => Boolean(id))
+          return {
+            account_id: account.id,
+            platform: 'gzh',
+            dry_run: false,
+            already_published: true,
+            media_id: exactMatch.draft_media_id,
+            media_ids: mediaIds,
+            article_count: exactMatch.article_count || n,
+            titles: args.titles,
+            verify: { checked: true, article_count: exactMatch.article_count || n },
+            result_file: path.resolve(sdir, RESULT_FILE),
+          }
+        }
+
+        // 2. 小绿书篇数限额保护：若为小绿书，且本周期（最近4小时内）已发布的小绿书篇数已达到设定上限 newspic_articles_per_day，
+        // 自动复用最近一次成功的小绿书草稿结果，严禁由模型循环或重复调用导致在微信草稿箱生成多篇重复草稿！
+        if (isNewspic) {
+          const allowedNewspicCount = content.newspic_articles_per_day || 1
+          const nowMs = Date.now()
+          const recentNewspicBatches = recentRecords.filter((r) => {
+            if (r.article_type !== 'newspic' || !r.draft_media_id) return false
+            const recTime = new Date(r.timestamp).getTime()
+            return !isNaN(recTime) && (nowMs - recTime < 4 * 3600 * 1000)
+          })
+          const publishedCount = recentNewspicBatches.reduce((acc, r) => acc + (r.article_count || 1), 0)
+          if (publishedCount >= allowedNewspicCount && recentNewspicBatches.length > 0) {
+            const lastBatch = recentNewspicBatches[0]
+            const rawIds = lastBatch.draft_media_ids && lastBatch.draft_media_ids.length > 0
+              ? lastBatch.draft_media_ids
+              : [lastBatch.draft_media_id]
+            const mediaIds = rawIds.filter((id): id is string => Boolean(id))
+            return {
+              account_id: account.id,
+              platform: 'gzh',
+              dry_run: false,
+              already_published: true,
+              media_id: lastBatch.draft_media_id,
+              media_ids: mediaIds,
+              article_count: lastBatch.article_count || 1,
+              titles: lastBatch.articles,
+              verify: { checked: true, article_count: lastBatch.article_count || 1 },
+              result_file: path.resolve(sdir, RESULT_FILE),
+            }
+          }
+        }
+      }
+
       if (platform === 'zhihu') {
         return publishZhihu(cfg, account.id, sdir, args, n)
       }

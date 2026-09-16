@@ -28,13 +28,18 @@ export interface VerifyReport {
 }
 
 export function verifyTool(cfg: Config) {
-  return defineTool<{ media_id?: string; account_id?: string; expected_count?: number }, VerifyReport>({
+  return defineTool<{ media_id?: string; account_id?: string; expected_count?: number; article_type?: 'news' | 'newspic' }, VerifyReport>({
     name: 'gzh_verify_draft',
     description:
       '草稿核验：公众号账号走 draft/get（POST）逐篇核对标题长度/作者/摘要长度/图片数量/CDN 域名/品牌引导语/禁词，' +
       'media_id 来自 gzh_publish_draft 的返回（小绿书单篇草稿自动按1篇核对）；知乎账号打开草稿箱逐条核对标题（无 media_id 时以最近一次发布记录为准）。',
     parameters: {
       media_id: { type: 'string', description: '草稿 media_id（公众号必填；知乎可省略）' },
+      article_type: {
+        type: 'string',
+        description: '可选：草稿形态（news=长图文草稿，newspic=小绿书图片消息草稿）；缺省自动识别',
+        enum: ['news', 'newspic'],
+      },
       account_id: {
         type: 'string',
         description: '账号 ID；缺省使用默认账号',
@@ -49,10 +54,24 @@ export function verifyTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      const isNewspic = platform !== 'zhihu' && content.article_type === 'newspic'
+      const isNewspic = platform !== 'zhihu' && (
+        args.article_type === 'newspic' ||
+        content.article_type === 'newspic' ||
+        (args.expected_count === 1 && (content.article_type === 'both' || content.sync_newspic))
+      )
       const expectedCount = args.expected_count ?? (isNewspic ? 1 : content.articles_per_day)
       if (platform === 'zhihu') return verifyZhihu(cfg, account.id, expectedCount)
-      if (!args.media_id || typeof args.media_id !== 'string') throw new Error('media_id 不能为空')
+      if (!args.media_id || typeof args.media_id !== 'string') {
+        if (cfg.runtime.dry_run) {
+          return {
+            account_id: account.id,
+            article_count: expectedCount,
+            expected: expectedCount,
+            articles: [],
+          }
+        }
+        throw new Error('media_id 不能为空')
+      }
       if (!cfg.runtime.dry_run) assertWechatCreds(cfg, account.id)
       const expectedImgCount = isNewspic
         ? (content.newspic_images_per_article || 4)
