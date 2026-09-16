@@ -86,7 +86,7 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
     '',
     '硬性约束（任何时候不得偏离，与你的其它判断冲突时一律以本约束为准）：',
     '- 数量铁律：每个账号文章数正好等于其「每日文章数」，不多不少；每篇正好 1 张封面；每篇正文配图正好等于设置的配图数（为 0 则不生成）。',
-    '- 选题铁律：候选选题只能取自该账号的「选题方向」列表，禁止自拟、扩展或混搭；仅当补充要求中用户明确给出主题时才可替代，且仍须查重通过。',
+    '- 选题铁律（全账号统一严格生效）：候选选题必须围绕该账号「核心业务关键词」深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（严禁出现「关键词：...」、「【关键词】...」等任何冒号或括号前缀形式，如严禁“北大核心：...”、“SCI：...”）；所有账号（无论账号1还是账号2、账号3等后续所有账号）标题必须是自然吸睛、语意完整的陈述句或疑问句；仅当补充要求中明确给出特定主题时才可替代，拟定后必须全量提交 gzh_check_topics 查重通过。',
     '- 主题铁律：每篇文章主题严格按 gzh_get_style_guide 返回的 theme_plan 执行，构建时会按设置强制覆盖，不要自选或更换主题。',
     '- 不变量：作者名、品牌名、排版字号、主题色板、封面比例、禁词表均以设置为准，任务中禁止修改、另创或「优化」。',
     '- 禁止自由发挥：不要添加配置之外的栏目、系列名、活动、二维码或任何多余元素。',
@@ -103,11 +103,12 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
     const profile = config.accounts[id]
     const content = profile.content
     const platform = profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
+    const exampleWord = content.topics[0] || '核心词'
     lines.push('【账号 ' + (index + 1) + '/' + accountIds.length + '】account_id：' + id + '（' + profile.name + '）')
-    lines.push('- 选题方向（候选选题的唯一来源）：' + (content.topics.length > 0 ? content.topics.join('、') : '（为空时按查重通过的自拟选题，其余铁律不变）'))
-    const targetWords = Math.max(content.min_words + 300, Math.ceil(content.min_words * 1.15))
+    lines.push('- 核心业务关键词（选题检索关联依据）：' + (content.topics.length > 0 ? content.topics.join('、') : '（为空时按查重通过的自拟选题，其余铁律不变）') + '；必须围绕这些关键词检索关联深度选题，严禁直接作为标题开头词或前缀（严禁“' + exampleWord + '：...”格式）')
+    const targetWords = Math.max(content.min_words + 400, Math.ceil(content.min_words * 1.2))
     lines.push('- 每日文章数：' + content.articles_per_day + ' 篇；每篇纯文字下限 ≥ ' + content.min_words +
-      ' 字（撰写目标务必按 ' + targetWords + ' 字以上充分展开，确保去格式后字数充实达标）；每篇正文配图 ' +
+      ' 字（撰写目标务必按 ' + targetWords + ' 字以上充分展开，规划 4~6 个长章节、每章 3~5 个长段落并搭配 card 展开，杜绝因字数不足触发断言导致重写返工）；每篇正文配图 ' +
       config.image_api.content_images_per_article + ' 张')
     if (platform === 'zhihu') {
       lines.push('- 平台：知乎专栏（标准 Markdown 形态；浏览器自动化发布，默认只存知乎草稿箱' +
@@ -125,11 +126,11 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
   })
   lines.push(...[
     '每个账号按以下顺序自主推进，不要只给计划：',
-    '1. 使用 gzh_check_topics 完成选题查重：候选选题不得与该账号历史、其它账号历史、以及本批次其它账号已确定的选题/标题重复；高风险选题必须替换，替换后仍须取自选题方向列表。',
+    '1. 使用 gzh_check_topics 完成选题查重：以核心业务关键词为依据检索发掘关联选题，严禁使用任何「关键词：...」或「【关键词】...」前缀格式（工具已内置前缀拦截，违规将直接判为 high 风险）；候选选题不得与该账号历史、其它账号历史、以及本批次其它账号已确定的选题重复；高风险选题必须替换。',
     '2. 使用 gzh_get_style_guide 获取该账号规范（按账号平台返回公众号 HTML 或知乎 Markdown 规范）；文章数、配图数、主题分配（theme_plan）、禁词全部以返回值为准。',
-    '3. 撰写并构建：撰写 doc_json 时每篇必须按目标字数充实展开各章节，并在 sections 的 blocks 内分布正好等于配图数的 img 占位块（如 IMG_A{index}_1、IMG_A{index}_2，系统具备自动补全与 10% 容差底线），用 gzh_build_article 逐篇构建。',
-    '4. 使用 gzh_generate_images 生成封面和正文配图；数量必须与配置一致，不要多生成。',
-    '5. 使用 gzh_validate_html 校验全部文章，发现问题先修复再复检；修复只允许改正错误，不得改动数量、主题与品牌要素。',
+    '3. 撰写并构建：撰写 doc_json 时每篇必须按目标字数充实展开各章节（规划 4~6 个长章节，每章 3~5 个长段落搭配 card/card_ul 充分展开，确保去格式后字数充实达标，杜绝因字数不足触发断言导致重写返工），并在 sections 的 blocks 内分布正好等于配图数的 img 占位块（如 IMG_A{index}_1、IMG_A{index}_2，系统具备自动补全与容差底线），用 gzh_build_article 逐篇构建。',
+    '4. 使用 gzh_generate_images 生成封面和正文配图：一次性提交该账号全部图片，参数 items_json 传入 JSON 数组字符串（或 items 数组），格式为 [{"kind":"cover","index":1,"prompt":"..."},{"kind":"content","index":1,"sub":1,"prompt":"..."}]。',
+    '5. 使用 gzh_validate_html 校验全部文章：直接传入 files（如 ["article_v2_1.html", ...] 或留空自动校验全部文章），发现问题先修复再复检；修复只允许改正错误，不得改动数量、主题与品牌要素。',
     '6. 使用 gzh_publish_draft 创建草稿（公众号合并为 1 个多图文草稿，知乎为逐篇独立草稿）；若当前是演练模式，则完成演练校验即可。',
     '7. 正式发布草稿后使用 gzh_verify_draft 核验。',
     '在需要用户提供主题或业务判断之前，先完成所有能够自主完成的步骤。',
@@ -139,7 +140,7 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
     lines.push('本次补充要求：' + request)
     lines.push('补充要求仅在与上述硬性约束不冲突时生效；冲突时以约束为准并在汇总中说明。')
   } else {
-    lines.push('本次未指定主题：从各账号的选题方向列表中提出候选选题并完成查重后继续。')
+    lines.push('本次未指定主题：围绕各账号的核心业务关键词检索关联选题（所有账号均严禁使用任何关键词冒号或括号前缀），提出候选选题并完成查重后继续。')
   }
   return lines.join('\n')
 }

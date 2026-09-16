@@ -96,8 +96,12 @@ def main():
             seen.add(k)
             history.append((k, s))
 
+    PREFIX_PATTERN = re.compile(r"^(\s*[\[【(（].+?[\]】)）]\s*|[^\s：:]{2,12}[：:])\s*")
+
     items = []
     for topic in topics:
+        prefix_matched = PREFIX_PATTERN.match(topic)
+        prefix_violation = bool(prefix_matched)
         matches = []
         for title, source in history:
             score = similarity(topic, title)
@@ -110,13 +114,17 @@ def main():
                 })
         matches.sort(key=lambda m: -m["score"])
         top = matches[0]["score"] if matches else 0.0
-        risk = "high" if top >= 0.55 else ("medium" if top >= 0.40 else "low")
-        items.append({
+        risk = "high" if (top >= 0.55 or prefix_violation) else ("medium" if top >= 0.40 else "low")
+        item = {
             "topic": topic,
             "risk": risk,
             "top_score": round(top, 3),
             "matches": matches[:8],
-        })
+        }
+        if prefix_violation:
+            item["prefix_violation"] = True
+            item["warning"] = "检测到标题使用前缀开头（如「%s」），违反全账号选题铁律。严禁将业务关键词作为开头词语或前缀标签，必须去除前缀并改为自然流畅的完整叙述标题。" % prefix_matched.group(0).strip()
+        items.append(item)
 
     emit({"ok": True, "data": {"history_count": len(history), "items": items}})
 

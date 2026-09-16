@@ -25,8 +25,7 @@ export function validateHtmlTool(cfg: Config) {
     parameters: {
       files: {
         type: 'array',
-        required: true,
-        description: '文章文件名列表（scripts 目录内；公众号为 .html，知乎为 .md，如 article_v2_1）',
+        description: '文章文件名列表（scripts 目录内；公众号为 .html，知乎为 .md，如 article_v2_1.html；缺省或留空自动校验该账号全部文章）',
         items: { type: 'string' },
       },
       allow_placeholders: {
@@ -43,12 +42,19 @@ export function validateHtmlTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      const files = args.files ?? []
-      if (!Array.isArray(files) || files.length === 0) throw new Error('files 不能为空')
       const requiredExt = platform === 'zhihu' ? '.md' : '.html'
+      let files = Array.isArray(args.files) ? args.files.filter(Boolean).map(String) : []
+      if (files.length === 0) {
+        files = Array.from({ length: content.articles_per_day }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
+      } else {
+        files = files.map((f) => {
+          const trimmed = f.trim()
+          return trimmed.endsWith(requiredExt) ? trimmed : trimmed + requiredExt
+        })
+      }
       for (const f of files) {
-        if (typeof f !== 'string' || /[\\/]/.test(f) || !f.endsWith(requiredExt)) {
-          throw new Error('files 必须是 scripts 目录内的 ' + requiredExt.toUpperCase() + ' 文件名（不带路径）: ' + String(f))
+        if (/[\\/]/.test(f)) {
+          throw new Error('files 不能包含路径分隔符: ' + String(f))
         }
       }
       const expectedImgs = platform === 'zhihu' ? contentImagesPerArticle(cfg) : expectedArticleImageCount(cfg, account.profile)

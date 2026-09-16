@@ -189,7 +189,7 @@ export const DEFAULT_CONTENT: ContentConfig = {
 const ContentSchema = Schema.object({
   articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('每日文章数（组合为 1 个多图文草稿）'),
   min_words: Schema.number().min(500).max(10000).step(100).default(2000).description('每篇纯文字下限（字）'),
-  topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('选题方向'),
+  topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('核心业务关键词（用于检索关联选题，严禁直接作为标题开头词）'),
   forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),
   ending_guide_required: Schema.boolean().default(true).description('结尾必须自然引导关注品牌'),
 })
@@ -245,7 +245,7 @@ export const Config: Schema<Config> = Schema.object({
   content: Schema.object({
     articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('每日文章数（组合为 1 个多图文草稿）'),
     min_words: Schema.number().min(500).max(10000).step(100).default(2000).description('每篇纯文字下限（字）'),
-    topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('选题方向'),
+    topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('核心业务关键词（用于检索关联选题，严禁直接作为标题开头词）'),
     forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),
     ending_guide_required: Schema.boolean().default(true).description('结尾必须自然引导关注品牌'),
   }).description('② 内容规则'),

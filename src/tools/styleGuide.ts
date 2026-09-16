@@ -145,8 +145,8 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
       '平台：知乎专栏；产出为标准 Markdown，无主题色板/引言卡/三列目录/品牌头尾图等公众号组件',
       '作者名固定 ' + account.profile.author_name,
       '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '）；知乎每篇是独立文章草稿（不是多图文组合）；每篇正好 ' + contentImgs + ' 张正文配图' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动自愈补齐）'),
-      '选题铁律：选题只能取自下方 topics 列表；禁止自拟、扩展或混搭，除非用户在本次补充要求中明确给出',
-      '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（构建时严格去除标记与空白统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 300, Math.ceil(content.min_words * 1.15)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/清单深度展开，确保纯汉字充实达标（构建工具设有 10% 容差底线）',
+      '选题铁律（全账号统一）：选题必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛，除非用户在本次补充要求中明确给出特定主题',
+      '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（构建时严格去除标记与空白统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 400, Math.ceil(content.min_words * 1.2)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/清单深度展开，确保纯汉字充实达标，杜绝断言失败重写浪费 token（构建工具设有容差底线）',
       '标题不超过 100 字，禁词表全文生效（构建与校验时断言）',
       content.ending_guide_required
         ? '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）'
@@ -235,12 +235,12 @@ export function styleGuideTool(cfg: Config) {
         hard_rules: [
           '作者名固定 ' + account.profile.author_name,
           '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇正好 1 张封面；每篇正好 ' + contentImgs + ' 张正文配图，禁止增减' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 正文图占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动校验并自愈补位）'),
-          '选题铁律：选题只能取自下方 topics 列表；禁止自拟、扩展或混搭，除非用户在本次补充要求中明确给出',
+          '选题铁律（全账号统一）：选题必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛，除非用户在本次补充要求中明确给出特定主题',
           '主题铁律：每篇文章主题严格按 theme_plan 对应主题撰写；gzh_build_article 会按设置强制覆盖 doc 内的 theme 字段',
           '每篇正文共 ' + expectedArticleImageCount(cfg, account.profile) + ' 张 img' +
             (account.profile.brand_images.header.enabled ? '，含头部品牌图' : '') +
             (account.profile.brand_images.footer.enabled ? '，含尾部品牌图' : ''),
-          '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（纯单行 HTML 去标签及空格后统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 300, Math.ceil(content.min_words * 1.15)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/card_ul，确保纯汉字充实达标（构建工具设有 10% 容差底线）',
+          '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（纯单行 HTML 去标签及空格后统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 400, Math.ceil(content.min_words * 1.2)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/card_ul，确保纯汉字充实达标，杜绝断言失败重写浪费 token（构建工具设有容差底线）',
           '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）',
           '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio,
           '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',

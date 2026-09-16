@@ -27,14 +27,14 @@ export function checkTopicsTool(cfg: Config) {
   return defineTool<{ topics: string[]; account_id?: string }, TopicReport>({
     name: 'gzh_check_topics',
     description:
-      '选题查重：把候选选题与该公众号历史发布标题（publish_result.json 与历史 gen_*/publish_* 脚本），' +
+      '选题查重：把围绕核心业务关键词深度检索关联拟定出的候选选题/标题，与该账号历史发布标题（publish_result.json 与历史 gen_*/publish_* 脚本），' +
       '以及其它账号的历史标题做相似度比对，返回 high/medium/low 风险与最接近的历史标题。' +
-      '每日写文选题前必调，high 风险选题应更换。每账号一次提交全部候选选题（topics 数组批量），不要一项一调。',
+      '选题必须围绕业务关键词关联拓展，严禁直接将关键词作为标题开头词语。每日写文选题前必调，high 风险选题应更换。每账号一次提交全部候选选题（topics 数组批量），不要一项一调。',
     parameters: {
       topics: {
         type: 'array',
         required: true,
-        description: '候选选题/标题列表',
+        description: '围绕核心业务关键词检索关联拟定出的候选选题/标题列表（严禁将关键词直接作为开头词语或前缀）',
         items: { type: 'string' },
       },
       account_id: {
