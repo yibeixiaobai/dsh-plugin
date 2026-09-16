@@ -27,6 +27,7 @@ export interface PublishBatchRecord {
   author: string
   timestamp: string
   draft_media_id?: string
+  draft_media_ids?: string[]
   articles: string[]
   digests?: string[]
   items: PublishArticleDetail[]
@@ -84,11 +85,16 @@ export function normalizeBatchItems(record: Partial<PublishBatchRecord>): Publis
   const rawDrafts = Array.isArray((record as Record<string, unknown>).drafts)
     ? ((record as Record<string, unknown>).drafts as Array<Record<string, unknown>>)
     : []
+  const mediaIds = Array.isArray((record as Record<string, unknown>).draft_media_ids)
+    ? ((record as Record<string, unknown>).draft_media_ids as string[])
+    : []
   return titles.map((title, idx) => ({
     index: idx + 1,
     title,
     digest: digests[idx] || '',
-    draft_id: record.platform === 'zhihu' ? (rawDrafts[idx]?.draft_id ? String(rawDrafts[idx].draft_id) : undefined) : undefined,
+    draft_id: record.platform === 'zhihu'
+      ? (rawDrafts[idx]?.draft_id ? String(rawDrafts[idx].draft_id) : undefined)
+      : (mediaIds[idx] || record.draft_media_id),
     url: record.platform === 'zhihu' ? (rawDrafts[idx]?.url ? String(rawDrafts[idx].url) : undefined) : undefined,
     published: record.platform === 'zhihu' ? (rawDrafts[idx]?.published !== undefined ? Boolean(rawDrafts[idx].published) : undefined) : undefined,
   }))

@@ -70,7 +70,10 @@ def account_credentials(conf, account_id):
 def under(base, p):
     """规范化 p 并强制其位于 base 之内；越界（上级目录引用、目录外绝对路径）一律拒绝。"""
     bp = os.path.abspath(base)
-    cp = os.path.abspath(p)
+    if not os.path.isabs(p):
+        cp = os.path.abspath(os.path.join(bp, p))
+    else:
+        cp = os.path.abspath(p)
     if cp != bp and not cp.startswith(bp + os.sep):
         raise SystemExit("路径越界: " + str(p))
     return cp
@@ -187,7 +190,7 @@ def publish_newspic(job, args, scripts_abs, cache):
         sys.exit(1)
 
     if job.get("dry_run"):
-        emit({"ok": True, "data": {"dry_run": True, "checks": ["全部 %d 篇小绿书通过发布前校验" % n], "cache": cache}})
+        emit({"ok": True, "data": {"dry_run": True, "checks": ["全部 %d 篇小绿书通过发布前校验（演练模式：不创建独立草稿）" % n], "media_ids": [], "cache": cache}})
         return
 
     resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
@@ -235,21 +238,39 @@ def publish_newspic(job, args, scripts_abs, cache):
             "only_fans_can_comment": int(job.get("only_fans_can_comment", 0)),
         })
 
-    media_id = create_draft(token, articles_payload)
-    print("小绿书草稿创建成功 media_id: " + media_id)
+    # 微信小绿书图片消息不支持组合发布，每篇单独发布为一个独立草稿
+    published_media_ids = []
+    verifies = []
+    for i, single_payload in enumerate(articles_payload, 1):
+        mid = create_draft(token, [single_payload])
+        print("小绿书第 %d/%d 篇草稿创建成功 media_id: %s" % (i, len(articles_payload), mid))
+        published_media_ids.append(mid)
+        time.sleep(0.5)
 
-    verify = {"checked": False}
     if job.get("verify", True):
-        draft = verify_draft(token, media_id)
-        items = draft.get("news_item", [])
-        verify = {"checked": True, "article_count": len(items)}
-        if len(items) != n:
-            emit({"ok": False, "error": "草稿篇数不符：草稿 %d / 预期 %d" % (len(items), n),
-                  "data": {"media_id": media_id, "cache": cache, "verify": verify}})
-            sys.exit(1)
+        for i, mid in enumerate(published_media_ids, 1):
+            draft = verify_draft(token, mid)
+            items = draft.get("news_item", [])
+            if len(items) != 1:
+                emit({"ok": False, "error": "小绿书第 %d 篇草稿篇数异常：草稿 %d / 预期 1" % (i, len(items)),
+                      "data": {"media_id": mid, "media_ids": published_media_ids, "cache": cache}})
+                sys.exit(1)
+            verifies.append({"media_id": mid, "article_count": len(items)})
 
-    emit({"ok": True, "data": {"account_id": account_id, "dry_run": False, "media_id": media_id, "article_count": n,
-                               "titles": [d["title"] for d in articles_data], "cache": cache, "verify": verify}})
+    primary_media_id = published_media_ids[0] if published_media_ids else ""
+    emit({
+        "ok": True,
+        "data": {
+            "account_id": account_id,
+            "dry_run": False,
+            "media_id": primary_media_id,
+            "media_ids": published_media_ids,
+            "article_count": len(published_media_ids),
+            "titles": [d["title"] for d in articles_data],
+            "cache": cache,
+            "verify": {"checked": bool(job.get("verify", True)), "results": verifies, "article_count": len(published_media_ids)},
+        },
+    })
 
 
 def main():

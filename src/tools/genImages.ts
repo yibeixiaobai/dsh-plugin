@@ -59,6 +59,7 @@ export function genImagesTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const count = account.profile.content.articles_per_day
+      const newspicCount = account.profile.content.newspic_articles_per_day || 1
       let inputs: ImageItemInput[] = []
       const raw = args.items ?? args.items_json
       if (!raw) {
@@ -79,12 +80,13 @@ export function genImagesTool(cfg: Config) {
 
       const items: GenItem[] = inputs.map((it) => {
         const index = Number(it.index)
-        if (!Number.isInteger(index) || index < 1 || index > count) {
-          throw new Error('index 必须是 1~' + count)
-        }
         const prompt = String(it.prompt || it.description || it.text || '').trim()
         if (!prompt) throw new Error('prompt 提示词不能为空')
         const rawKind = String(it.kind || it.type || '').trim().toLowerCase()
+        const maxIdx = rawKind === 'pic' ? newspicCount : count
+        if (!Number.isInteger(index) || index < 1 || index > maxIdx) {
+          throw new Error('index 必须是 1~' + maxIdx)
+        }
         if (rawKind === 'pic') {
           const sub = Number(it.sub ?? 1)
           if (!Number.isInteger(sub) || sub < 1 || sub > 20) {

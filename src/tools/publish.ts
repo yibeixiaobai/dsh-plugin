@@ -14,10 +14,11 @@ import {
 interface PublishResult {
   dry_run: boolean
   media_id?: string
+  media_ids?: string[]
   article_count?: number
   titles?: string[]
   cache: Record<string, string>
-  verify?: { checked: boolean; article_count?: number }
+  verify?: { checked: boolean; article_count?: number; results?: unknown[] }
   checks?: string[]
 }
 
@@ -33,10 +34,11 @@ export interface PublishOk {
   platform: string
   dry_run: boolean
   media_id?: string
+  media_ids?: string[]
   drafts?: ZhihuDraftInfo[]
   article_count: number
   titles: string[]
-  verify: { checked: boolean; article_count?: number }
+  verify: { checked: boolean; article_count?: number; results?: unknown[] }
   result_file: string
 }
 
@@ -56,14 +58,15 @@ export function publishTool(cfg: Config) {
   return defineTool<PublishArgs, PublishOk>({
     name: 'gzh_publish_draft',
     description:
-      '组合发布：公众号账号走 上传素材（缓存断点续跑）→ 替换占位符 → 机器校验 → draft/add 合并为草稿' +
-      '（长文为多图文，小绿书为图片消息草稿，不直接群发），可选 draft/get 核验；知乎账号走 浏览器自动化（登录态发布，N 篇 = N 个独立草稿，' +
-      '默认只存知乎草稿箱）。发布前请先对全部文章跑 gzh_validate_html。演练模式（设置中 dry_run）只校验不联网。',
+      '发布草稿：公众号账号走 上传素材（缓存断点续跑）→ 替换占位符 → 机器校验 → draft/add' +
+      '（长文组合为 1 个多图文草稿；小绿书每篇单独生成独立草稿，不组合发布），可选 draft/get 核验；' +
+      '知乎账号走 浏览器自动化（登录态发布，N 篇 = N 个独立草稿，默认只存知乎草稿箱）。' +
+      '发布前请先对全部文章跑 gzh_validate_html。演练模式（设置中 dry_run）只校验不联网。',
     parameters: {
       titles: {
         type: 'array',
         required: true,
-        description: '每篇标题（公众号长文 ≤64 字，小绿书 ≤32 字，知乎 ≤100 字），数量须等于设置的每日文章数',
+        description: '每篇标题（长文 ≤64 字，小绿书 ≤32 字，知乎 ≤100 字），数量须等于设置的对应篇数',
         items: { type: 'string' },
       },
       digests: {
@@ -74,7 +77,7 @@ export function publishTool(cfg: Config) {
       },
       article_files: {
         type: 'array',
-        description: '可选：自定义文章文件名（scripts 目录内）；缺省公众号长文用 article_v2_1..N.html，小绿书用 article_v2_1..N_pic.json，知乎用 article_v2_1..N.md',
+        description: '可选：自定义文章文件名（scripts 目录内）；缺省长文用 article_v2_1..N.html，小绿书用 article_v2_1..N_pic.json，知乎用 article_v2_1..N.md',
         items: { type: 'string' },
       },
       article_type: {
@@ -92,14 +95,19 @@ export function publishTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      const n = content.articles_per_day
+      const isNewspic = platform !== 'zhihu' && (
+        (args.article_type === 'newspic') ||
+        (!args.article_type && content.article_type === 'newspic') ||
+        Boolean(args.article_files && args.article_files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
+      )
+      const n = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
       if (!Array.isArray(args.titles) || args.titles.length !== n) {
         throw new Error('titles 必须是 ' + n + ' 个')
       }
       if (!Array.isArray(args.digests) || args.digests.length !== n) {
         throw new Error('digests 必须是 ' + n + ' 个')
       }
-      const maxTitle = platform === 'zhihu' ? 100 : 64
+      const maxTitle = platform === 'zhihu' ? 100 : isNewspic ? 32 : 64
       for (const t of args.titles) {
         if (typeof t !== 'string' || t.length > maxTitle) throw new Error('标题超 ' + maxTitle + ' 字: ' + String(t).slice(0, 40))
       }
@@ -110,7 +118,7 @@ export function publishTool(cfg: Config) {
       if (platform === 'zhihu') {
         return publishZhihu(cfg, account.id, sdir, args, n)
       }
-      return publishGzh(cfg, account.id, sdir, args, n)
+      return publishGzh(cfg, account.id, sdir, args, n, isNewspic)
     },
   })
 }
@@ -199,12 +207,9 @@ async function publishZhihu(
 
 /** 公众号分支：与既有链路逐字节等价（上传缓存 → 占位符替换 → 校验 → draft/add → 可选核验） */
 async function publishGzh(
-  cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number,
+  cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number, isNewspic: boolean,
 ): Promise<PublishOk> {
   const account = resolveAccount(cfg, accountId)
-  const isNewspic = (args.article_type === 'newspic') ||
-    (!args.article_type && account.profile.content.article_type === 'newspic') ||
-    (args.article_files && args.article_files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
   const contentImgs = contentImagesPerArticle(cfg)
   const ext = isNewspic ? '_pic.json' : '.html'
   const articlePaths = defaultArticleFiles(sdir, n, ext, args.article_files)
@@ -264,7 +269,7 @@ async function publishGzh(
     brand_name: account.profile.brand_name,
     ending_guide_required: account.profile.content.ending_guide_required,
     content_img_count: isNewspic ? (account.profile.content.newspic_images_per_article || 4) : contentImgs,
-    min_words: isNewspic ? Math.min(account.profile.content.min_words, 100) : account.profile.content.min_words,
+    min_words: isNewspic ? (account.profile.content.newspic_min_words ?? 100) : account.profile.content.min_words,
     forbidden: account.profile.content.forbidden_words,
     verify: cfg.runtime.verify_after_publish,
   }
@@ -285,13 +290,16 @@ async function publishGzh(
     }
   }
   if (!result.media_id) throw new Error('发布成功但未返回 media_id')
-  writeTextFile(sdir, MEDIA_ID_FILE, result.media_id + '\n')
+  const mediaIds = result.media_ids && result.media_ids.length > 0 ? result.media_ids : [result.media_id]
+  writeTextFile(sdir, MEDIA_ID_FILE, mediaIds.join('\n') + '\n')
   const now = stampNow()
   const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
     status: 'success',
     account_id: accountId,
     platform: 'gzh',
+    article_type: isNewspic ? 'newspic' : 'news',
     draft_media_id: result.media_id,
+    draft_media_ids: mediaIds,
     article_count: n,
     author: account.profile.author_name,
     timestamp: now,
@@ -307,8 +315,15 @@ async function publishGzh(
       author: account.profile.author_name,
       timestamp: now,
       draft_media_id: result.media_id,
+      draft_media_ids: mediaIds,
       articles: args.titles,
       digests: args.digests,
+      items: args.titles.map((title, i) => ({
+        index: i + 1,
+        title,
+        digest: args.digests[i] || '',
+        draft_id: isNewspic ? (mediaIds[i] || result.media_id) : result.media_id,
+      })),
     })
   } catch {
     // best-effort history append
@@ -316,6 +331,7 @@ async function publishGzh(
   return {
     account_id: accountId, platform: 'gzh', dry_run: false,
     media_id: result.media_id,
+    media_ids: mediaIds,
     article_count: result.article_count ?? n,
     titles: args.titles,
     verify: result.verify ?? { checked: false },

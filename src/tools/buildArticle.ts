@@ -61,12 +61,13 @@ export function buildArticleTool(cfg: Config) {
       } catch {
         throw new Error('doc_json 不是合法 JSON：' + String(args.doc_json).slice(0, 120))
       }
+      const isNewspic = platform !== 'zhihu' && (doc.article_type === 'newspic' || content.article_type === 'newspic')
+      const maxIdx = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
       const idx = Number(doc.index)
-      if (!Number.isInteger(idx) || idx < 1 || idx > content.articles_per_day) {
-        throw new Error('index 必须是 1~' + content.articles_per_day)
+      if (!Number.isInteger(idx) || idx < 1 || idx > maxIdx) {
+        throw new Error('index 必须是 1~' + maxIdx)
       }
       const sdir = accountScriptsDir(cfg, account.id)
-      const isNewspic = platform !== 'zhihu' && (doc.article_type === 'newspic' || content.article_type === 'newspic')
       // 主题严格按设置解析（头条/次条/rotate 按篇轮换），doc 内自带 theme 一律忽略，防止自由发挥
       const theme = platform === 'zhihu' ? 'markdown' : isNewspic ? 'newspic' : resolveTheme(cfg, idx)
 

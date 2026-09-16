@@ -16,7 +16,7 @@ export interface ValidateReport {
 }
 
 export function validateHtmlTool(cfg: Config) {
-  return defineTool<{ files: string[]; allow_placeholders?: boolean; account_id?: string }, ValidateReport>({
+  return defineTool<{ files?: string[]; allow_placeholders?: boolean; article_type?: 'news' | 'newspic'; account_id?: string }, ValidateReport>({
     name: 'gzh_validate_html',
     description:
       '发布前机器校验：公众号校验换行/unicode 转义/占位符/纯文字字数/禁词/品牌引导语/图片数量/CDN 域名，' +
@@ -25,8 +25,13 @@ export function validateHtmlTool(cfg: Config) {
     parameters: {
       files: {
         type: 'array',
-        description: '文章文件名列表（scripts 目录内；公众号为 .html，知乎为 .md，如 article_v2_1.html；缺省或留空自动校验该账号全部文章）',
+        description: '可选：文章文件名列表（scripts 目录内；公众号长文为 .html，小绿书为 _pic.json，知乎为 .md；缺省或留空自动校验该账号全部文章）',
         items: { type: 'string' },
+      },
+      article_type: {
+        type: 'string',
+        description: '可选：指定文章形态（news=长文，newspic=小绿书图片消息）；缺省按账号设置',
+        enum: ['news', 'newspic'],
       },
       allow_placeholders: {
         type: 'boolean',
@@ -42,11 +47,16 @@ export function validateHtmlTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      const isNewspic = platform !== 'zhihu' && content.article_type === 'newspic'
+      const isNewspic = platform !== 'zhihu' && (
+        args.article_type === 'newspic' ||
+        (!args.article_type && content.article_type === 'newspic') ||
+        Boolean(args.files && args.files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
+      )
+      const count = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
       const requiredExt = platform === 'zhihu' ? '.md' : isNewspic ? '_pic.json' : '.html'
       let files = Array.isArray(args.files) ? args.files.filter(Boolean).map(String) : []
       if (files.length === 0) {
-        files = Array.from({ length: content.articles_per_day }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
+        files = Array.from({ length: count }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
       } else {
         files = files.map((f) => {
           const trimmed = f.trim()

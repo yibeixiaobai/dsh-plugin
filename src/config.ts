@@ -16,6 +16,7 @@ export interface ContentConfig {
   article_type?: ArticleType
   sync_newspic?: boolean
   articles_per_day: number
+  newspic_articles_per_day?: number
   min_words: number
   topics: string[]
   forbidden_words: string[]
@@ -189,6 +190,7 @@ export const DEFAULT_CONTENT: ContentConfig = {
   article_type: 'news',
   sync_newspic: false,
   articles_per_day: 6,
+  newspic_articles_per_day: 1,
   min_words: 2000,
   topics: DEFAULT_TOPICS,
   forbidden_words: DEFAULT_FORBIDDEN_WORDS,
@@ -200,7 +202,8 @@ export const DEFAULT_CONTENT: ContentConfig = {
 const ContentSchema = Schema.object({
   article_type: Schema.union(['news', 'newspic', 'both']).default('news').description('文章形态：news=仅长文，newspic=仅小绿书图片消息，both=长文与小绿书同步更新发布'),
   sync_newspic: Schema.boolean().default(false).description('公众号更新时长文与小绿书同步执行（一文双发：长文草稿 + 对应提炼的小绿书卡片草稿）'),
-  articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('每日文章数（长文组合为 1 个草稿包）'),
+  articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('长文每日篇数（长文组合为 1 个多图文草稿包）'),
+  newspic_articles_per_day: Schema.number().min(1).max(20).step(1).default(1).description('小绿书每日篇数（每篇独立为1个草稿，不组合发布；默认1篇）'),
   min_words: Schema.number().min(50).max(10000).step(50).default(2000).description('长文纯文字下限（字）'),
   topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('核心业务关键词（用于检索关联选题，严禁直接作为标题开头词）'),
   forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),
@@ -260,7 +263,8 @@ export const Config: Schema<Config> = Schema.object({
   content: Schema.object({
     article_type: Schema.union(['news', 'newspic', 'both']).default('news').description('文章形态：news=仅长文，newspic=仅小绿书图片消息，both=长文与小绿书同步更新发布'),
     sync_newspic: Schema.boolean().default(false).description('公众号更新时长文与小绿书同步执行（一文双发：长文草稿 + 对应提炼的小绿书卡片草稿）'),
-    articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('每日文章数（长文组合为 1 个草稿包）'),
+    articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('长文每日篇数（长文组合为 1 个草稿包）'),
+    newspic_articles_per_day: Schema.number().min(1).max(20).step(1).default(1).description('小绿书每日篇数（每篇独立为1个草稿，不组合发布；默认1篇）'),
     min_words: Schema.number().min(50).max(10000).step(50).default(2000).description('长文纯文字下限（字）'),
     topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('核心业务关键词（用于检索关联选题，严禁直接作为标题开头词）'),
     forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),

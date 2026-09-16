@@ -5,6 +5,7 @@ import {
   type AccountProfile,
   type BrandImageConfig,
   type Config,
+  type ContentConfig,
   type ImageProviderConfig,
 } from './config.ts'
 
@@ -131,4 +132,9 @@ export function applyNormalizedConfig(target: Config, source: Config): Config {
   const normalized = normalizeConfig(source)
   Object.assign(target, normalized)
   return normalized
+}
+
+export function articlesPerDay(content: ContentConfig, articleType?: 'news' | 'newspic' | 'both'): number {
+  const isNewspic = articleType === 'newspic' || (!articleType && content.article_type === 'newspic')
+  return isNewspic ? (content.newspic_articles_per_day || 1) : (content.articles_per_day || 6)
 }

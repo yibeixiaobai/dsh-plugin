@@ -120,14 +120,15 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
       const isNewspicOnly = content.article_type === 'newspic'
       const isBoth = content.article_type === 'both' || content.sync_newspic === true
       if (isNewspicOnly) {
-        lines.push('- 平台：微信公众号（小绿书形态：纯图片消息轮播卡片）')
-        lines.push('- 卡片规范：' + (content.newspic_images_per_article || 4) + ' 张卡片，比例统一 3:4 竖版（第1张自动作为封面）')
+        lines.push('- 平台：微信公众号（小绿书形态：纯图片消息轮播卡片，单篇独立发布草稿，不合并）')
+        lines.push('- 篇数要求：' + (content.newspic_articles_per_day || 1) + ' 篇小绿书独立草稿')
+        lines.push('- 卡片规范：每篇 ' + (content.newspic_images_per_article || 4) + ' 张卡片，比例统一 3:4 竖版（第1张自动作为封面）')
         lines.push('- 文案要求：纯文字文案 ≥ ' + (content.newspic_min_words || 100) + ' 字（支持 emoji 与 #话题标签，严禁 HTML）')
         lines.push('- 作者名 ' + profile.author_name + '；结尾自然引导关注品牌「' + profile.brand_name + '」')
       } else if (isBoth) {
         lines.push('- 平台：微信公众号（【长文 + 小绿书】联动同步更新，一文双发）')
-        lines.push('- 长文：' + content.articles_per_day + ' 篇经典多图文，字数 ≥ ' + content.min_words + ' 字，主题以 theme_plan 为准')
-        lines.push('- 小绿书同步执行：同步提炼长文核心要点生成对应小绿书卡片草稿（' + (content.newspic_images_per_article || 4) + ' 张 3:4 竖版卡片，标题≤32字）')
+        lines.push('- 长文：' + content.articles_per_day + ' 篇经典多图文，组合为 1 个多图文草稿，字数 ≥ ' + content.min_words + ' 字，主题以 theme_plan 为准')
+        lines.push('- 小绿书同步执行：同步提炼生成 ' + (content.newspic_articles_per_day || 1) + ' 篇独立小绿书卡片草稿（每篇 ' + (content.newspic_images_per_article || 4) + ' 张 3:4 竖版卡片，标题≤32字，逐篇单独发布草稿，绝不合并）')
         lines.push('- 封面比例：头条 ' + config.image_api.headline_cover_ratio + ' / 次条 ' + config.image_api.secondary_cover_ratio)
         lines.push('- 作者名 ' + profile.author_name + '；结尾自然引导关注品牌「' + profile.brand_name + '」')
       } else {
@@ -149,7 +150,7 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
       '纯小绿书账号直接构建小绿书文案与卡片规划。',
     '4. 使用 gzh_generate_images 生成图片：一次性提交该账号全部图片；长文提交 cover 与 content 图，小绿书提交 3:4 竖版 pic 卡片图（kind="pic"）。',
     '5. 使用 gzh_validate_html 校验全部文章（自动识别长文 HTML 或小绿书 JSON 文件并执行对应校验），发现问题先修复再复检。',
-    '6. 使用 gzh_publish_draft 创建草稿：长文合并为 1 个多图文草稿；若开启了小绿书同步更新，再调用 gzh_publish_draft 传入 article_type="newspic" 发布对应的小绿书图片消息草稿；知乎为逐篇独立草稿。',
+    '6. 使用 gzh_publish_draft 创建草稿：长文合并为 1 个多图文草稿；小绿书则逐篇单独发布为独立草稿（微信官方小绿书不支持多图文合并，单篇发布）；知乎为逐篇独立草稿。',
     '7. 正式发布草稿后使用 gzh_verify_draft 核验。',
     '在需要用户提供主题或业务判断之前，先完成所有能够自主完成的步骤。',
     '全部账号完成后按账号汇总：选题/标题、草稿 media_id 或知乎草稿链接（或演练结果）与遗留问题。',

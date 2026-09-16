@@ -74,6 +74,7 @@ export interface StyleGuide {
   hard_rules: string[]
   forbidden_words: string[]
   articles_per_day: number
+  newspic_articles_per_day?: number
   topics: string[]
   content_images_per_article: number
   theme_plan: Record<string, ThemeKey>
@@ -158,7 +159,7 @@ const NEWSPIC_DOC_SPEC_EXAMPLE = {
 function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const account = resolveAccount(cfg, accountId)
   const content = account.profile.content
-  const n = content.articles_per_day
+  const n = content.newspic_articles_per_day || 1
   const cardCount = content.newspic_images_per_article || 4
   const minWords = Math.min(content.min_words, 100)
   return {
@@ -183,7 +184,8 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
       '平台形态：微信公众号小绿书（图片消息 newspic）',
       '标题严格 ≤ 32 字，超出微信接口报错拒绝',
       '作者名固定 ' + account.profile.author_name,
-      '数量铁律：本次正好 ' + n + ' 篇小绿书；每篇包含 ' + cardCount + ' 张卡片图片（sub 1~' + cardCount + '）',
+      '数量铁律：本次正好 ' + n + ' 篇小绿书（每篇包含 ' + cardCount + ' 张卡片图片 sub 1~' + cardCount + '）',
+      '发布铁律：小绿书只支持单篇独立发布，每篇单独调用草稿接口生成 1 个草稿，绝不组合发布',
       '卡片比例统一为 3:4 竖版（第 1 张卡片自动作为封面，无需额外封面图）',
       '正文字数：不低于 ' + minWords + ' 字纯文本，建议 150~500 字，分段清晰，善用 emoji 导读',
       '禁词表全文生效：严禁出现任何禁词',
@@ -330,7 +332,7 @@ export function styleGuideTool(cfg: Config) {
           '作者名固定 ' + account.profile.author_name,
           '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇正好 1 张封面；每篇正好 ' + contentImgs + ' 张正文配图，禁止增减' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 正文图占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动校验并自愈补位）'),
           ...(isBoth
-            ? ['小绿书同步更新铁律：当前账号已配置「长文 + 小绿书」同步更新（article_type: both 或 sync_newspic: true）。在生成长文 article_v2_{index}.html 的同时，必须从长文提炼核心干货并同步生成对应的小绿书卡片图文 article_v2_{index}_pic.json（规范参考 newspic_spec），生成 3:4 竖版卡片图（kind: "pic"），并通过 gzh_publish_draft 传入 article_type: "newspic" 独立发布小绿书草稿！']
+            ? ['小绿书同步更新铁律：当前账号已配置「长文 + 小绿书」同步更新（article_type: both 或 sync_newspic: true）。在生成长文 article_v2_{index}.html（共 ' + n + ' 篇合并为1个草稿）的同时，必须从长文提炼核心干货并同步生成 ' + (content.newspic_articles_per_day || 1) + ' 篇小绿书卡片图文 article_v2_{index}_pic.json（规范参考 newspic_spec），生成 3:4 竖版卡片图（kind: "pic"），并通过 gzh_publish_draft 传入 article_type: "newspic" 逐篇单独发布为独立草稿（绝不组合）！']
             : []),
           '选题铁律（全账号统一）：选题必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛，除非用户在本次补充要求中明确给出特定主题',
           '主题铁律：每篇文章主题严格按 theme_plan 对应主题撰写；gzh_build_article 会按设置强制覆盖 doc 内的 theme 字段',
@@ -345,6 +347,7 @@ export function styleGuideTool(cfg: Config) {
         ],
         forbidden_words: content.forbidden_words,
         articles_per_day: n,
+        newspic_articles_per_day: isBoth ? (content.newspic_articles_per_day || 1) : undefined,
         topics: [...content.topics],
         content_images_per_article: contentImgs,
         theme_plan: themePlan,

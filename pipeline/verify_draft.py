@@ -71,6 +71,9 @@ def main():
         raise SystemExit("draft/get 失败: " + json.dumps(draft, ensure_ascii=False)[:400])
 
     items = draft["news_item"]
+    is_newspic_draft = bool(items and (items[0].get("image_info") or {}).get("image_list"))
+    expected_count = 1 if (is_newspic_draft and args.expected_count == 6) else args.expected_count
+
     articles = []
     for idx, it in enumerate(items, 1):
         title, author, digest = it.get("title", ""), it.get("author", ""), it.get("digest", "")
@@ -88,15 +91,17 @@ def main():
         problems = []
         if author != args.author:
             problems.append("作者不符: " + author)
-        if len(title) > 64:
-            problems.append("标题超长 %d 字" % len(title))
-        if len(digest) > 120:
+        max_title = 32 if is_newspic_draft else 64
+        if len(title) > max_title:
+            problems.append("标题超长 %d 字（上限 %d）" % (len(title), max_title))
+        if not is_newspic_draft and len(digest) > 120:
             problems.append("摘要超长 %d 字" % len(digest))
         if n_img != args.expected_img_count or not all_cdn:
             problems.append("图片数 %d / 全CDN %s" % (n_img, all_cdn))
-        effective_min = int(args.min_words * 0.90)
+        req_min_words = min(args.min_words, 100) if is_newspic_draft else args.min_words
+        effective_min = int(req_min_words * 0.90)
         if len(plain) < effective_min:
-            problems.append("纯文字 %d 字 < 容差下限 %d（设定 %d）" % (len(plain), effective_min, args.min_words))
+            problems.append("纯文字 %d 字 < 容差下限 %d（设定 %d）" % (len(plain), effective_min, req_min_words))
         if args.brand_name not in txt:
             problems.append("缺少品牌引导语")
         for w in forbidden:
@@ -110,10 +115,10 @@ def main():
         })
         print("第%d篇「%s」%s" % (idx, title[:24], "通过" if not problems else "存在问题"))
 
-    ok = len(articles) == args.expected_count and all(not a["problems"] for a in articles)
-    if len(articles) != args.expected_count:
-        articles.append({"index": len(articles) + 1, "problems": ["篇数 %d != 预期 %d" % (len(articles), args.expected_count)]})
-    emit({"ok": ok, "data": {"account_id": account_id, "article_count": len(items), "expected": args.expected_count, "articles": articles}})
+    ok = len(articles) == expected_count and all(not a["problems"] for a in articles)
+    if len(articles) != expected_count:
+        articles.append({"index": len(articles) + 1, "problems": ["篇数 %d != 预期 %d" % (len(articles), expected_count)]})
+    emit({"ok": ok, "data": {"account_id": account_id, "article_count": len(items), "expected": expected_count, "articles": articles}})
 
 
 if __name__ == "__main__":

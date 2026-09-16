@@ -28,16 +28,20 @@ export interface VerifyReport {
 }
 
 export function verifyTool(cfg: Config) {
-  return defineTool<{ media_id?: string; account_id?: string }, VerifyReport>({
+  return defineTool<{ media_id?: string; account_id?: string; expected_count?: number }, VerifyReport>({
     name: 'gzh_verify_draft',
     description:
       '草稿核验：公众号账号走 draft/get（POST）逐篇核对标题长度/作者/摘要长度/图片数量/CDN 域名/品牌引导语/禁词，' +
-      'media_id 来自 gzh_publish_draft 的返回；知乎账号打开草稿箱逐条核对标题（无 media_id 时以最近一次发布记录为准）。',
+      'media_id 来自 gzh_publish_draft 的返回（小绿书单篇草稿自动按1篇核对）；知乎账号打开草稿箱逐条核对标题（无 media_id 时以最近一次发布记录为准）。',
     parameters: {
       media_id: { type: 'string', description: '草稿 media_id（公众号必填；知乎可省略）' },
       account_id: {
         type: 'string',
         description: '账号 ID；缺省使用默认账号',
+      },
+      expected_count: {
+        type: 'number',
+        description: '可选：期望篇数（长文缺省为每日文章数，小绿书单篇草稿缺省为 1）',
       },
     },
     output: { schema: { type: 'json' }, render: renderJson },
@@ -45,9 +49,18 @@ export function verifyTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      if (platform === 'zhihu') return verifyZhihu(cfg, account.id, content.articles_per_day)
+      const isNewspic = platform !== 'zhihu' && content.article_type === 'newspic'
+      const expectedCount = args.expected_count ?? (isNewspic ? 1 : content.articles_per_day)
+      if (platform === 'zhihu') return verifyZhihu(cfg, account.id, expectedCount)
       if (!args.media_id || typeof args.media_id !== 'string') throw new Error('media_id 不能为空')
       if (!cfg.runtime.dry_run) assertWechatCreds(cfg, account.id)
+      const expectedImgCount = isNewspic
+        ? (content.newspic_images_per_article || 4)
+        : expectedArticleImageCount(cfg, account.profile)
+      const minWords = isNewspic
+        ? (content.newspic_min_words || 100)
+        : content.min_words
+
       const report = await runPipeline<Omit<VerifyReport, 'account_id'>>(
         cfg,
         'verify_draft.py',
@@ -56,11 +69,11 @@ export function verifyTool(cfg: Config) {
           '--account-id', account.id,
           '--scripts-dir', accountScriptsDir(cfg, account.id),
           '--resource-dir', runtimeResourceDir(),
-          '--expected-count', String(content.articles_per_day),
+          '--expected-count', String(expectedCount),
           '--author', account.profile.author_name,
           '--brand-name', account.profile.brand_name,
-          '--expected-img-count', String(expectedArticleImageCount(cfg, account.profile)),
-          '--min-words', String(content.min_words),
+          '--expected-img-count', String(expectedImgCount),
+          '--min-words', String(minWords),
           '--forbidden', JSON.stringify(content.forbidden_words),
         ],
         120000,
