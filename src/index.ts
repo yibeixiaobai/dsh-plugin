@@ -7,6 +7,7 @@ import { normalizeConfig, applyNormalizedConfig } from './config-runtime.ts'
 import { registerBrandImageRoutes } from './brand-images.ts'
 import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
+import { registerPublishHistoryRoutes } from './publish-history.ts'
 import { registerQuickCommand } from './command.ts'
 import { ensureWorkspace, hydrateConfigFromWx, syncConfig, workspaceDir } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
@@ -40,6 +41,7 @@ export function apply(ctx: Context, config: ConfigT) {
   registerBrandImageRoutes(ctx, () => liveConfig)
   registerImageTestRoute(ctx, () => liveConfig)
   registerZhihuRoutes(ctx, () => liveConfig)
+  registerPublishHistoryRoutes(ctx, () => liveConfig)
   let source = () => liveConfig
 
   ctx.inject(['settings'], (settingsCtx) => {

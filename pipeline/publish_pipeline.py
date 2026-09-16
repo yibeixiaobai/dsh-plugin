@@ -192,16 +192,16 @@ def publish_newspic(job, args, scripts_abs, cache):
 
     resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
     sys.path.insert(0, resource_scripts)
-    from publish_template import create_draft, get_access_token, upload_content_image, verify_draft
+    from publish_template import create_draft, get_access_token, upload_cover, upload_content_image, verify_draft
 
     conf = json.load(open(os.path.join(scripts_abs, "wx_config.json"), encoding="utf-8"))
     account_id, appid, app_secret = account_credentials(conf, job.get("account_id"))
     token = get_access_token(appid, app_secret)
 
-    # 上传每张卡片图片
+    # 上传每张卡片图片（微信小绿书图片消息须使用永久素材 media_id）
     articles_payload = []
     for i, data in enumerate(articles_data, 1):
-        pic_urls = []
+        pic_media_ids = []
         for j in range(1, len(data["cards"]) + 1):
             pic_path = None
             for ext in (".png", ".jpg", ".jpeg"):
@@ -211,16 +211,17 @@ def publish_newspic(job, args, scripts_abs, cache):
                     break
             if not pic_path:
                 raise SystemExit("缺少小绿书卡片图: pic_%d_%d" % (i, j))
-            cache_key = file_hash(pic_path) + ":PIC_" + str(i) + "_" + str(j)
-            if job.get("use_cache") and cache_key in cache:
-                url = cache[cache_key]
-                print("pic_%d_%d (缓存)" % (i, j))
+            cache_key = file_hash(pic_path) + ":PIC_MEDIA_" + str(i) + "_" + str(j)
+            cached_media = cache.get(cache_key)
+            if job.get("use_cache") and cached_media and not str(cached_media).startswith("http"):
+                media_id = cached_media
+                print("pic_%d_%d (缓存 media_id)" % (i, j))
             else:
-                url = upload_content_image(token, pic_path)
-                cache[cache_key] = url
-                print("pic_%d_%d -> %s" % (i, j, url[:60]))
+                media_id = upload_cover(token, pic_path)
+                cache[cache_key] = media_id
+                print("pic_%d_%d -> media_id: %s" % (i, j, media_id[:20]))
                 time.sleep(0.3)
-            pic_urls.append(url)
+            pic_media_ids.append(media_id)
 
         articles_payload.append({
             "article_type": "newspic",
@@ -228,7 +229,7 @@ def publish_newspic(job, args, scripts_abs, cache):
             "content": data["content"],
             "author": job.get("author", "文映学术win00.cn"),
             "image_info": {
-                "image_list": [{"image_url": u} for u in pic_urls]
+                "image_list": [{"image_media_id": mid} for mid in pic_media_ids]
             },
             "need_open_comment": int(job.get("need_open_comment", 1)),
             "only_fans_can_comment": int(job.get("only_fans_can_comment", 0)),

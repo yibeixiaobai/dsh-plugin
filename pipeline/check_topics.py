@@ -29,6 +29,16 @@ def extract_history(scripts_dir, tag):
     titles = []
     if not os.path.isdir(scripts_dir):
         return titles
+    ph = os.path.join(scripts_dir, "publish_history.json")
+    if os.path.exists(ph):
+        try:
+            records = json.load(open(ph, encoding="utf-8"))
+            if isinstance(records, list):
+                for rec in records:
+                    for t in rec.get("articles", []):
+                        titles.append((t, tag + ":publish_history.json"))
+        except Exception as ex:
+            print("跳过 publish_history.json: %s" % ex, file=sys.stderr)
     pr = os.path.join(scripts_dir, "publish_result.json")
     if os.path.exists(pr):
         try:
@@ -99,10 +109,29 @@ def main():
     PREFIX_PATTERN = re.compile(r"^(\s*[\[【(（].+?[\]】)）]\s*|[^\s：:]{2,12}[：:])\s*")
 
     items = []
-    for topic in topics:
+    for idx, topic in enumerate(topics):
         prefix_matched = PREFIX_PATTERN.match(topic)
         prefix_violation = bool(prefix_matched)
         matches = []
+        batch_duplicates = []
+        # 同批次候选选题互斥比对（相同账号配置的选题不应该重复）
+        for other_idx, other_topic in enumerate(topics):
+            if other_idx == idx:
+                continue
+            b_score = similarity(topic, other_topic)
+            if b_score >= 0.40:
+                kind = "batch-duplicate" if b_score >= 0.55 else "batch-overlap"
+                match_entry = {
+                    "title": other_topic,
+                    "source": "当前配置候选(第%d篇)" % (other_idx + 1),
+                    "score": round(b_score, 3),
+                    "kind": kind,
+                }
+                matches.append(match_entry)
+                if b_score >= 0.55:
+                    batch_duplicates.append((other_idx + 1, other_topic))
+
+        # 本账号历史比对
         for title, source in history:
             score = similarity(topic, title)
             if score >= 0.40:
@@ -114,16 +143,23 @@ def main():
                 })
         matches.sort(key=lambda m: -m["score"])
         top = matches[0]["score"] if matches else 0.0
-        risk = "high" if (top >= 0.55 or prefix_violation) else ("medium" if top >= 0.40 else "low")
+        risk = "high" if (top >= 0.55 or prefix_violation or batch_duplicates) else ("medium" if top >= 0.40 else "low")
         item = {
             "topic": topic,
             "risk": risk,
             "top_score": round(top, 3),
             "matches": matches[:8],
         }
+        warnings = []
+        if batch_duplicates:
+            item["batch_duplicate"] = True
+            other_names = "、".join(["第%d篇《%s》" % (pos, name) for pos, name in batch_duplicates[:3]])
+            warnings.append("检测到与相同账号本次配置中的候选选题（%s）高度相似或重复，相同账号选题严禁重复，请更换该选题。" % other_names)
         if prefix_violation:
             item["prefix_violation"] = True
-            item["warning"] = "检测到标题使用前缀开头（如「%s」），违反全账号选题铁律。严禁将业务关键词作为开头词语或前缀标签，必须去除前缀并改为自然流畅的完整叙述标题。" % prefix_matched.group(0).strip()
+            warnings.append("检测到标题使用前缀开头（如「%s」），违反全账号选题铁律。严禁将业务关键词作为开头词语或前缀标签，必须去除前缀并改为自然流畅的完整叙述标题。" % prefix_matched.group(0).strip())
+        if warnings:
+            item["warning"] = "；".join(warnings)
         items.append(item)
 
     emit({"ok": True, "data": {"history_count": len(history), "items": items}})

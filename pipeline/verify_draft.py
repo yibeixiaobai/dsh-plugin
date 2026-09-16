@@ -78,6 +78,11 @@ def main():
         imgs = re.findall(r'(?:data-src|src)="(http[^"]+)"', content)
         n_img = len(re.findall(r"<img", content))
         all_cdn = bool(imgs) and all("mmbiz.qpic.cn" in u for u in imgs)
+        image_info = it.get("image_info") or {}
+        image_list = image_info.get("image_list") or []
+        if image_list:
+            n_img = len(image_list)
+            all_cdn = True
         txt = re.sub(r"<[^>]+>", "", content)
         plain = re.sub(r"\s", "", txt)
         problems = []

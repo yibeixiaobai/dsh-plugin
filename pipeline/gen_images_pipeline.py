@@ -89,15 +89,30 @@ class NonRetryableProviderError(Exception):
 
 def generate_raw(base_url, api_key, model, prompt, timeout):
     url = base_url.rstrip("/") + "/v1/images/generations"
-    try:
-        resp = requests.post(
-            url,
-            json={"model": model, "prompt": prompt, "quality": "hd"},
-            headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
-            timeout=timeout,
-        )
-    except requests.RequestException as e:
-        raise RetryableProviderError(type(e).__name__ + ": " + str(e)[:240])
+    connect_timeout = 10
+    read_timeout = max(30, min(timeout, 75))
+    timeout_tuple = (connect_timeout, read_timeout)
+    resp = None
+    last_err = None
+    for attempt in range(2):
+        try:
+            resp = requests.post(
+                url,
+                json={"model": model, "prompt": prompt, "quality": "hd"},
+                headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
+                timeout=timeout_tuple,
+            )
+            break
+        except (requests.Timeout, requests.ConnectionError) as e:
+            last_err = e
+            if attempt == 0:
+                time.sleep(2)
+                continue
+            raise RetryableProviderError(type(e).__name__ + ": " + str(e)[:240])
+        except requests.RequestException as e:
+            raise RetryableProviderError(type(e).__name__ + ": " + str(e)[:240])
+    if resp is None:
+        raise RetryableProviderError("请求未完成: " + str(last_err)[:240])
     if resp.status_code in RETRYABLE_STATUS or resp.status_code >= 500:
         raise RetryableProviderError(
             "HTTP " + str(resp.status_code) + ": " + resp.text[:240])
@@ -159,6 +174,7 @@ def provider_pool(conf, selected_ids):
         item for item in raw
         if isinstance(item, dict) and item.get("enabled", True)
         and item.get("base_url") and item.get("api_key")
+        and not ("kuaipao.pro" in str(item.get("base_url", "")).lower())
     ]
     skipped = [
         str(item.get("id", "?")) for item in raw
@@ -341,17 +357,14 @@ def main():
             generated.append({"out": out_abs, "dry_run": True, "prompt_head": prompt[:60]})
             continue
         outcome = generate_item_with_pool(
-            item, providers, active, disabled, prompt, out_abs, timeout,
+            item, providers, active, set(), prompt, out_abs, timeout,
             job.get("model", "gpt-image-2"))
         generated.extend(outcome["generated"])
         failed.extend(outcome["failed"])
         attempts.extend(outcome["attempts"])
         active = outcome["active"]
-        disabled = outcome["disabled"]
         if outcome["provider_used"]:
             provider_used = outcome["provider_used"]
-        if outcome["terminal"] == "exhausted":
-            break  # 全部接口已失败，剩余条目必然同样失败
         if k < len(items) - 1:
             time.sleep(2)
 

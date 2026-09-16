@@ -130,7 +130,11 @@ Remove-Item -LiteralPath $stateFile -Force -ErrorAction SilentlyContinue
 
 # ---------------------------------------------------------------- 启动新实例
 Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
-$command = "cd /d `"$root`" && npx --yes @deepseek-ai/dsh web --port $port --no-open > `"$log`" 2>&1"
+$geminiEyesDir = Join-Path $env:USERPROFILE '.dsh\profiles\web\node_modules\dsh-gemini-eyes-bundle'
+if (Test-Path -LiteralPath $geminiEyesDir) {
+  $env:GEMINI_EYES_DIR = $geminiEyesDir
+}
+$command = "cd /d `"$root`" && npx --yes @deepseek-ai/dsh@0.1.6-alpha.1 web --port $port --no-open > `"$log`" 2>&1"
 $process = Start-Process -FilePath 'cmd.exe' `
   -ArgumentList '/c', $command `
   -WorkingDirectory $root `

@@ -14,6 +14,7 @@ export { runtimeResourceDir }
 
 export const CACHE_FILE = 'uploaded_urls.json'
 export const RESULT_FILE = 'publish_result.json'
+export const HISTORY_FILE = 'publish_history.json'
 export const MEDIA_ID_FILE = 'draft_media_id.txt'
 
 export function pyBase(cfg: Config) {

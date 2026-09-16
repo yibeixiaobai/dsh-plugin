@@ -3,6 +3,7 @@ import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
+import { appendPublishRecord } from '../publish-history.ts'
 import { runZhihuPublish } from '../zhihu.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, accountScriptsDir, assertWechatCreds, brandDir,
@@ -154,16 +155,40 @@ async function publishZhihu(
       titles: args.titles, verify: { checked: false }, result_file: '',
     }
   }
+  const now = stampNow()
+  const authorName = cfg.accounts[accountId]?.author_name ?? ''
   const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
     status: 'success',
     account_id: accountId,
     platform: 'zhihu',
     article_count: n,
-    author: cfg.accounts[accountId]?.author_name ?? '',
-    timestamp: stampNow(),
+    author: authorName,
+    timestamp: now,
     articles: args.titles,
     drafts: result.drafts,
   }, null, 2) + '\n')
+  try {
+    appendPublishRecord(cfg, {
+      id: `batch_${now.replace(/[^0-9]/g, '').slice(0, 14)}_${Math.random().toString(36).slice(2, 6)}`,
+      account_id: accountId,
+      platform: 'zhihu',
+      article_count: n,
+      author: authorName,
+      timestamp: now,
+      articles: args.titles,
+      digests: args.digests,
+      items: result.drafts.map((d, i) => ({
+        index: i + 1,
+        title: d.title,
+        digest: args.digests[i] || '',
+        draft_id: d.draft_id,
+        url: d.url,
+        published: d.published,
+      })),
+    })
+  } catch {
+    // best-effort history append
+  }
   writeTextFile(sdir, 'draft_urls.txt', result.drafts.map((d) => d.url).join('\n') + '\n')
   return {
     account_id: accountId, platform: 'zhihu', dry_run: false,
@@ -261,6 +286,7 @@ async function publishGzh(
   }
   if (!result.media_id) throw new Error('发布成功但未返回 media_id')
   writeTextFile(sdir, MEDIA_ID_FILE, result.media_id + '\n')
+  const now = stampNow()
   const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
     status: 'success',
     account_id: accountId,
@@ -268,9 +294,25 @@ async function publishGzh(
     draft_media_id: result.media_id,
     article_count: n,
     author: account.profile.author_name,
-    timestamp: stampNow(),
+    timestamp: now,
     articles: args.titles,
   }, null, 2) + '\n')
+  try {
+    appendPublishRecord(cfg, {
+      id: `batch_${now.replace(/[^0-9]/g, '').slice(0, 14)}_${Math.random().toString(36).slice(2, 6)}`,
+      account_id: accountId,
+      platform: 'gzh',
+      article_type: isNewspic ? 'newspic' : 'news',
+      article_count: n,
+      author: account.profile.author_name,
+      timestamp: now,
+      draft_media_id: result.media_id,
+      articles: args.titles,
+      digests: args.digests,
+    })
+  } catch {
+    // best-effort history append
+  }
   return {
     account_id: accountId, platform: 'gzh', dry_run: false,
     media_id: result.media_id,
