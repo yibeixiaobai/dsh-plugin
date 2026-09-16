@@ -140,6 +140,117 @@ def postcheck(html, idx, min_words, forbidden, brand_name, expected_img,
     return problems, len(srcs), len(plain)
 
 
+def publish_newspic(job, args, scripts_abs, cache):
+    titles = job["titles"]
+    n = len(titles)
+    article_paths = [under(scripts_abs, p) for p in job["article_files"]]
+    if len(article_paths) != n:
+        raise SystemExit("article_files 数量必须与 titles 一致")
+
+    articles_data = []
+    all_checks = []
+    min_words = int(job.get("min_words", 80))
+    limit = 80 if min_words > 500 else max(10, int(min_words * 0.80))
+    forbidden = job.get("forbidden", [])
+    brand_name = job.get("brand_name", "")
+    require_brand = bool(job.get("ending_guide_required", False))
+
+    for i, p in enumerate(article_paths, 1):
+        if not os.path.exists(p):
+            raise SystemExit("文章文件不存在: " + p)
+        try:
+            doc = json.load(open(p, encoding="utf-8"))
+        except Exception as e:
+            raise SystemExit("读取小绿书文件失败: %s (%s)" % (p, e))
+
+        t = doc.get("title") or titles[i - 1]
+        if len(t) > 32:
+            all_checks.append("小绿书%d 标题超 32 字: %s" % (i, t))
+        c = doc.get("content", "")
+        plain = re.sub(r"\s", "", c)
+        if len(plain) < limit:
+            all_checks.append("小绿书%d 纯文字 %d 字低于下限 %d" % (i, len(plain), limit))
+        for w in forbidden:
+            if w in plain or w in t:
+                all_checks.append("小绿书%d 含禁词: %s" % (i, w))
+        if require_brand and brand_name and brand_name not in plain:
+            all_checks.append("小绿书%d 缺少品牌引导语: %s" % (i, brand_name))
+
+        cards = doc.get("cards", [])
+        if not cards or len(cards) > 20:
+            all_checks.append("小绿书%d 卡片张数不符（须 1~20 张，当前 %d 张）" % (i, len(cards)))
+
+        articles_data.append({"title": t, "content": c, "cards": cards})
+
+    if all_checks:
+        emit({"ok": False, "error": "发布前校验未通过", "data": {"checks": all_checks, "cache": cache}})
+        sys.exit(1)
+
+    if job.get("dry_run"):
+        emit({"ok": True, "data": {"dry_run": True, "checks": ["全部 %d 篇小绿书通过发布前校验" % n], "cache": cache}})
+        return
+
+    resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
+    sys.path.insert(0, resource_scripts)
+    from publish_template import create_draft, get_access_token, upload_content_image, verify_draft
+
+    conf = json.load(open(os.path.join(scripts_abs, "wx_config.json"), encoding="utf-8"))
+    account_id, appid, app_secret = account_credentials(conf, job.get("account_id"))
+    token = get_access_token(appid, app_secret)
+
+    # 上传每张卡片图片
+    articles_payload = []
+    for i, data in enumerate(articles_data, 1):
+        pic_urls = []
+        for j in range(1, len(data["cards"]) + 1):
+            pic_path = None
+            for ext in (".png", ".jpg", ".jpeg"):
+                cand = os.path.join(scripts_abs, "pic_%d_%d%s" % (i, j, ext))
+                if os.path.exists(cand):
+                    pic_path = cand
+                    break
+            if not pic_path:
+                raise SystemExit("缺少小绿书卡片图: pic_%d_%d" % (i, j))
+            cache_key = file_hash(pic_path) + ":PIC_" + str(i) + "_" + str(j)
+            if job.get("use_cache") and cache_key in cache:
+                url = cache[cache_key]
+                print("pic_%d_%d (缓存)" % (i, j))
+            else:
+                url = upload_content_image(token, pic_path)
+                cache[cache_key] = url
+                print("pic_%d_%d -> %s" % (i, j, url[:60]))
+                time.sleep(0.3)
+            pic_urls.append(url)
+
+        articles_payload.append({
+            "article_type": "newspic",
+            "title": data["title"][:32],
+            "content": data["content"],
+            "author": job.get("author", "文映学术win00.cn"),
+            "image_info": {
+                "image_list": [{"image_url": u} for u in pic_urls]
+            },
+            "need_open_comment": int(job.get("need_open_comment", 1)),
+            "only_fans_can_comment": int(job.get("only_fans_can_comment", 0)),
+        })
+
+    media_id = create_draft(token, articles_payload)
+    print("小绿书草稿创建成功 media_id: " + media_id)
+
+    verify = {"checked": False}
+    if job.get("verify", True):
+        draft = verify_draft(token, media_id)
+        items = draft.get("news_item", [])
+        verify = {"checked": True, "article_count": len(items)}
+        if len(items) != n:
+            emit({"ok": False, "error": "草稿篇数不符：草稿 %d / 预期 %d" % (len(items), n),
+                  "data": {"media_id": media_id, "cache": cache, "verify": verify}})
+            sys.exit(1)
+
+    emit({"ok": True, "data": {"account_id": account_id, "dry_run": False, "media_id": media_id, "article_count": n,
+                               "titles": [d["title"] for d in articles_data], "cache": cache, "verify": verify}})
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--job", default="", help="job JSON 文件名（scripts 目录内）")
@@ -160,6 +271,12 @@ def main():
             raise SystemExit("job 路径越界: " + job_path)
         job = json.load(open(job_path, encoding="utf-8"))
 
+    cache = dict(job.get("cache", {}))
+    is_newspic = job.get("article_type") == "newspic" or any(str(p).endswith("_pic.json") or str(p).endswith(".json") for p in job.get("article_files", []))
+    if is_newspic:
+        publish_newspic(job, args, scripts_abs, cache)
+        return
+
     titles = job["titles"]
     digests = job["digests"]
     n = len(titles)
@@ -170,7 +287,6 @@ def main():
     forbidden = job.get("forbidden", [])
     brand_name = job.get("brand_name", "文映千秋学术网")
     min_words = int(job.get("min_words", 2000))
-    cache = dict(job.get("cache", {}))
     brand_top_enabled = bool(job.get("brand_top_enabled", True))
     brand_bot_enabled = bool(job.get("brand_bot_enabled", True))
     content_img_count = max(0, min(4, int(job.get("content_img_count", 2))))

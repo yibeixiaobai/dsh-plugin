@@ -42,34 +42,42 @@ export function validateHtmlTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      const requiredExt = platform === 'zhihu' ? '.md' : '.html'
+      const isNewspic = platform !== 'zhihu' && content.article_type === 'newspic'
+      const requiredExt = platform === 'zhihu' ? '.md' : isNewspic ? '_pic.json' : '.html'
       let files = Array.isArray(args.files) ? args.files.filter(Boolean).map(String) : []
       if (files.length === 0) {
         files = Array.from({ length: content.articles_per_day }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
       } else {
         files = files.map((f) => {
           const trimmed = f.trim()
-          return trimmed.endsWith(requiredExt) ? trimmed : trimmed + requiredExt
+          if (trimmed.endsWith('.md') || trimmed.endsWith('.html') || trimmed.endsWith('.json')) return trimmed
+          return trimmed + requiredExt
         })
       }
+      const filesAreNewspic = isNewspic || files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json'))
       for (const f of files) {
         if (/[\\/]/.test(f)) {
           throw new Error('files 不能包含路径分隔符: ' + String(f))
         }
       }
-      const expectedImgs = platform === 'zhihu' ? contentImagesPerArticle(cfg) : expectedArticleImageCount(cfg, account.profile)
+      const expectedImgs = filesAreNewspic
+        ? (content.newspic_images_per_article || 4)
+        : platform === 'zhihu'
+          ? contentImagesPerArticle(cfg)
+          : expectedArticleImageCount(cfg, account.profile)
       const cmd = [
         '--files', JSON.stringify(files),
         '--scripts-dir', accountScriptsDir(cfg, account.id),
         '--resource-dir', runtimeResourceDir(),
-        '--min-words', String(content.min_words),
+        '--min-words', String(filesAreNewspic ? Math.min(content.min_words, 100) : content.min_words),
         '--forbidden', JSON.stringify(content.forbidden_words),
         '--brand-name', account.profile.brand_name,
         '--img-count', String(expectedImgs),
         '--platform', platform,
+        '--article-type', filesAreNewspic ? 'newspic' : 'news',
       ]
-      if (platform === 'zhihu' && content.ending_guide_required) cmd.push('--require-brand')
-      if (platform === 'gzh') cmd.push('--lint')
+      if ((platform === 'zhihu' || filesAreNewspic) && content.ending_guide_required) cmd.push('--require-brand')
+      if (platform === 'gzh' && !filesAreNewspic) cmd.push('--lint')
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')
       const report = await runPipeline<Omit<ValidateReport, 'account_id'>>(cfg, 'check_html.py', cmd, 120000)
       return { account_id: account.id, ...report }

@@ -78,6 +78,8 @@ export interface StyleGuide {
   content_images_per_article: number
   theme_plan: Record<string, ThemeKey>
   references: string[]
+  sync_newspic?: boolean
+  newspic_spec?: unknown
 }
 
 // 知乎 doc spec：与公众号同一骨架（intro/toc/sections/blocks/sign_off），theme 字段被忽略
@@ -115,6 +117,88 @@ const ZHIHU_DOC_SPEC_EXAMPLE = {
     },
   ],
   sign_off: '结尾引导语',
+}
+
+// 小绿书（图片消息 newspic）doc spec：
+const NEWSPIC_DOC_SPEC_EXAMPLE = {
+  index: 1,
+  article_type: 'newspic',
+  title: '2026选刊避坑！中科院分区新规一览',
+  content:
+    '📌 核心速览：\n2026选刊规则迎来重大变动，作者需提前做好准备。\n\n' +
+    '👉 重点避坑建议：\n' +
+    '1. 认准向前就近原则认定旧版分区\n' +
+    '2. 重点防范高风险及预警期刊\n' +
+    '3. 关注代表作制度与实际成果转化\n\n' +
+    '关注文映千秋学术网，获取最新期刊动态与学术攻略！\n#期刊发表 #SCI选刊 #学术避坑',
+  cards: [
+    {
+      sub: 1,
+      role: 'cover',
+      prompt: '学术期刊选刊指南封面，醒目大字报海报设计，深酒红与金色质感，现代扁平学术风格，高清无杂乱文字',
+    },
+    {
+      sub: 2,
+      role: 'points',
+      prompt: '学术论文申报与期刊筛选流程图，信息图表卡片，排版清晰整洁，中文图解',
+    },
+    {
+      sub: 3,
+      role: 'summary',
+      prompt: '学术发表注意事项清单卡片，要点清晰，极简科技风插画',
+    },
+    {
+      sub: 4,
+      role: 'action',
+      prompt: '学术研究者指南尾页海报，互动关注引导卡片，高品质视觉呈现',
+    },
+  ],
+}
+
+function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
+  const account = resolveAccount(cfg, accountId)
+  const content = account.profile.content
+  const n = content.articles_per_day
+  const cardCount = content.newspic_images_per_article || 4
+  const minWords = Math.min(content.min_words, 100)
+  return {
+    account_id: account.id,
+    account_name: account.profile.name,
+    platform: 'gzh',
+    theme: 'wenying',
+    palette: THEME_PALETTES.wenying,
+    typography_rules: {
+      format: '小绿书图片消息（article_v2_{index}_pic.json），多图轮播+纯文本说明',
+      title_limit: '标题必须严格 ≤ 32 字（微信官方强制限制）',
+      content_format: '纯文本内容，支持换行和 emoji，严禁任何 HTML 标签',
+      image_format: '每篇配 ' + cardCount + ' 张卡片图，第 1 张自动作为封面，统一尺寸比例 3:4 竖版',
+    },
+    doc_spec: NEWSPIC_DOC_SPEC_EXAMPLE,
+    parts_format: [
+      'title → 爆款短标题（≤32字）',
+      'content → 纯文案正文（分段/emoji/文末引导/话题标签 #xxx）',
+      'cards → 多图生图提示词列表（每张 sub 从 1 到 ' + cardCount + '）',
+    ],
+    hard_rules: [
+      '平台形态：微信公众号小绿书（图片消息 newspic）',
+      '标题严格 ≤ 32 字，超出微信接口报错拒绝',
+      '作者名固定 ' + account.profile.author_name,
+      '数量铁律：本次正好 ' + n + ' 篇小绿书；每篇包含 ' + cardCount + ' 张卡片图片（sub 1~' + cardCount + '）',
+      '卡片比例统一为 3:4 竖版（第 1 张卡片自动作为封面，无需额外封面图）',
+      '正文字数：不低于 ' + minWords + ' 字纯文本，建议 150~500 字，分段清晰，善用 emoji 导读',
+      '禁词表全文生效：严禁出现任何禁词',
+      content.ending_guide_required
+        ? '正文结尾必须自然包含品牌名「' + account.profile.brand_name + '」'
+        : '正文结尾引导语可选',
+      '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
+    ],
+    forbidden_words: content.forbidden_words,
+    articles_per_day: n,
+    topics: [...content.topics],
+    content_images_per_article: cardCount,
+    theme_plan: {},
+    references: [],
+  }
 }
 
 function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
@@ -164,18 +248,23 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
 }
 
 export function styleGuideTool(cfg: Config) {
-  return defineTool<{ theme?: string; account_id?: string }, StyleGuide>({
+  return defineTool<{ theme?: string; account_id?: string; article_type?: 'news' | 'newspic' }, StyleGuide>({
     name: 'gzh_get_style_guide',
     description:
       '获取写作与排版规范（按账号平台返回）：公众号=主题色板/doc_spec 格式/13px 排版铁律/禁词表/硬性规则/' +
-      '主题计划 theme_plan；知乎=Markdown 形态的 doc_spec 与硬性规则。' +
+      '主题计划 theme_plan；小绿书=图片消息 doc_spec 与硬性规则；知乎=Markdown 形态的 doc_spec 与硬性规则。' +
       '返回值自包含，写文无需读参考文档、源码或历史文章（references 路径仅在构建/校验报错且提示需要时查阅）。' +
       '每日写文前必读一次；文章数、选题方向、配图数与主题分配必须严格按返回值执行，不得自行调整。',
     parameters: {
       theme: {
         type: 'string',
-        description: '主题键（仅公众号账号生效，缺省用设置的头条主题）',
+        description: '主题键（仅公众号长文生效，缺省用设置的头条主题）',
         enum: Object.keys(THEME_NAMES),
+      },
+      article_type: {
+        type: 'string',
+        description: '可选：指定文章形态（news=长图文，newspic=小绿书图片消息）；缺省按账号设置',
+        enum: ['news', 'newspic'],
       },
       account_id: {
         type: 'string',
@@ -185,10 +274,15 @@ export function styleGuideTool(cfg: Config) {
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
+      const articleType = args.article_type || account.profile.content.article_type || 'news'
+      if (articleType === 'newspic' && account.profile.platform !== 'zhihu') {
+        return newspicStyleGuide(cfg, account.id)
+      }
       if (account.profile.platform === 'zhihu') {
         return zhihuStyleGuide(cfg, account.id)
       }
       const content = account.profile.content
+      const isBoth = content.article_type === 'both' || content.sync_newspic === true
       const n = content.articles_per_day
       const contentImgs = contentImagesPerArticle(cfg)
       const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : resolveTheme(cfg, 1)) as ThemeKey
@@ -235,6 +329,9 @@ export function styleGuideTool(cfg: Config) {
         hard_rules: [
           '作者名固定 ' + account.profile.author_name,
           '数量铁律：本次正好 ' + n + ' 篇（index 1~' + n + '），组合为 1 个多图文草稿；每篇正好 1 张封面；每篇正好 ' + contentImgs + ' 张正文配图，禁止增减' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 正文图占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动校验并自愈补位）'),
+          ...(isBoth
+            ? ['小绿书同步更新铁律：当前账号已配置「长文 + 小绿书」同步更新（article_type: both 或 sync_newspic: true）。在生成长文 article_v2_{index}.html 的同时，必须从长文提炼核心干货并同步生成对应的小绿书卡片图文 article_v2_{index}_pic.json（规范参考 newspic_spec），生成 3:4 竖版卡片图（kind: "pic"），并通过 gzh_publish_draft 传入 article_type: "newspic" 独立发布小绿书草稿！']
+            : []),
           '选题铁律（全账号统一）：选题必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛，除非用户在本次补充要求中明确给出特定主题',
           '主题铁律：每篇文章主题严格按 theme_plan 对应主题撰写；gzh_build_article 会按设置强制覆盖 doc 内的 theme 字段',
           '每篇正文共 ' + expectedArticleImageCount(cfg, account.profile) + ' 张 img' +
@@ -252,6 +349,8 @@ export function styleGuideTool(cfg: Config) {
         content_images_per_article: contentImgs,
         theme_plan: themePlan,
         references,
+        sync_newspic: isBoth,
+        ...(isBoth ? { newspic_spec: NEWSPIC_DOC_SPEC_EXAMPLE } : {}),
       }
     },
   })

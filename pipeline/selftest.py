@@ -406,6 +406,77 @@ def main():
     )
     results.append(("word_count_tolerance 纯文字10%容差机制", tol_ok, r_tol))
 
+    # 13. 小绿书（newspic 图片消息构建、校验与发布演练）
+    newspic_doc = {
+        "index": 95,
+        "article_type": "newspic",
+        "title": "2026选刊避坑！中科院分区新规一览",
+        "content": "📌 核心速览：2026年选刊规则与期刊分区评价体系迎来重大调整，申报人员与科研学者需提前做好防范与应对规划。敬请关注文映千秋学术网！#选刊 #学术出版",
+        "cards": [
+            {"sub": 1, "role": "cover", "prompt": "封面卡片海报，醒目标题"},
+            {"sub": 2, "role": "points", "prompt": "要点说明信息图"},
+        ]
+    }
+    r_np = run_script(os.path.join(here, "build_article.py"), [
+        "--doc-json", json.dumps(newspic_doc, ensure_ascii=False),
+        "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs,
+        "--min-words", "40",
+        "--forbidden", "[]",
+        "--brand-name", "文映千秋学术网",
+        "--article-type", "newspic",
+        "--require-brand"
+    ])
+    np_ok = (
+        r_np["exit"] == 0 and r_np["result"] and r_np["result"].get("ok")
+        and r_np["result"]["data"].get("article_type") == "newspic"
+        and r_np["result"]["data"].get("img_count") == 2
+    )
+    np_file_path = os.path.join(scripts_abs, "article_v2_95_pic.json")
+    with open(np_file_path, "w", encoding="utf-8") as _f:
+        json.dump((r_np["result"] or {}).get("data") or {}, _f, ensure_ascii=False)
+    np_job = {
+        "account_id": "test",
+        "article_type": "newspic",
+        "titles": ["2026选刊避坑！中科院分区新规一览"],
+        "digests": ["摘要占位"],
+        "article_files": [np_file_path],
+        "author": "文映学术win00.cn",
+        "brand_name": "文映千秋学术网",
+        "ending_guide_required": True,
+        "min_words": 40,
+        "forbidden": [],
+        "dry_run": True,
+        "cache": {},
+    }
+    try:
+        r_np_chk = run_script(os.path.join(here, "check_html.py"), [
+            "--files", json.dumps(["article_v2_95_pic.json"]),
+            "--scripts-dir", scripts_abs,
+            "--min-words", "40",
+            "--forbidden", "[]",
+            "--brand-name", "文映千秋学术网",
+            "--img-count", "2",
+            "--allow-placeholders",
+            "--article-type", "newspic",
+            "--require-brand"
+        ])
+        r_np_pub = run_script(os.path.join(here, "publish_pipeline.py"), [
+            "--job-json", json.dumps(np_job, ensure_ascii=False),
+            "--scripts-dir", scripts_abs,
+            "--brand-dir", brand_abs,
+            "--resource-dir", resource_abs
+        ])
+        np_all_ok = (
+            np_ok
+            and r_np_chk["exit"] == 0 and r_np_chk["result"] and r_np_chk["result"]["data"].get("passed")
+            and r_np_pub["exit"] == 0 and r_np_pub["result"] and r_np_pub["result"].get("ok")
+        )
+    finally:
+        if os.path.exists(np_file_path):
+            os.remove(np_file_path)
+    results.append(("newspic 小绿书构建+校验+发布演练", np_all_ok, r_np_pub if not np_all_ok else r_np))
+
     print("=" * 60)
     failed = 0
     for name, ok, r in results:

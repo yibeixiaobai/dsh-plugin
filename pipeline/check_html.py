@@ -77,7 +77,57 @@ def check_file_md(path, min_words, forbidden, brand_name, img_count, require_bra
     """知乎 Markdown 文章校验：读文件后走 check_md_text，与 zhihu_components.plain_text 同口径。"""
     md = open(path, encoding="utf-8").read()
     r = check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders)
-    return {"file": path, **r}
+def check_file_newspic(path, min_words, forbidden, brand_name, img_count, require_brand, scripts_dir, allow_placeholders):
+    """小绿书图片消息校验：读取 JSON，校验标题/文字/禁词/品牌/卡片图片。"""
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except Exception as e:
+        return {"file": path, "plain_chars": 0, "img_count": 0, "problems": ["JSON 解析失败: " + str(e)]}
+
+    problems = []
+    title = str(data.get("title", "")).strip()
+    if not title:
+        problems.append("标题不能为空")
+    elif len(title) > 32:
+        problems.append("标题超长：%d 字 > 32 字限制" % len(title))
+
+    content = str(data.get("content", "")).strip()
+    if "<" in content and ">" in content:
+        problems.append("正文含有非法 HTML 标签")
+    plain = re.sub(r"\s", "", content)
+    limit = 80 if min_words > 500 else max(10, int(min_words * 0.80))
+    if len(plain) < limit:
+        problems.append("纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (len(plain), limit, min_words))
+
+    for w in forbidden:
+        if w in plain or w in title:
+            problems.append("含禁词: " + w)
+
+    if require_brand and brand_name and brand_name not in plain:
+        problems.append("缺少品牌引导语: " + brand_name)
+
+    cards = data.get("cards", [])
+    if not isinstance(cards, list) or len(cards) == 0:
+        problems.append("卡片列表为空")
+    elif len(cards) > 20:
+        problems.append("卡片数量 %d > 20 张限制" % len(cards))
+
+    idx = data.get("index", 1)
+    missing_pics = []
+    for j in range(1, len(cards) + 1):
+        found = False
+        for ext in (".png", ".jpg", ".jpeg"):
+            pic_cand = os.path.join(scripts_dir, "pic_%d_%d%s" % (idx, j, ext))
+            if os.path.exists(pic_cand):
+                found = True
+                break
+        if not found:
+            missing_pics.append("pic_%d_%d" % (idx, j))
+
+    if missing_pics and not allow_placeholders:
+        problems.append("缺少卡片图片: %s" % missing_pics[:3])
+
+    return {"file": path, "plain_chars": len(plain), "img_count": len(cards), "problems": problems}
 
 
 def check_file(path, min_words, forbidden, brand_name, img_count, allow_placeholders):
@@ -144,7 +194,8 @@ def main():
     ap.add_argument("--allow-placeholders", action="store_true", help="发布前阶段允许 IMG_*/__BRAND_* 占位符")
     ap.add_argument("--lint", action="store_true", help="同时运行 validate_gzh_html.py 校验")
     ap.add_argument("--platform", choices=["gzh", "zhihu"], default="gzh", help="发布平台分支")
-    ap.add_argument("--require-brand", action="store_true", help="知乎分支：结尾必须包含品牌名")
+    ap.add_argument("--article-type", choices=["news", "newspic"], default="news", help="文章形态")
+    ap.add_argument("--require-brand", action="store_true", help="知乎/小绿书分支：结尾必须包含品牌名")
     ap.add_argument("--gzh-design-scripts", default="")
     ap.add_argument("--resource-dir", default="", help="插件内置运行资源目录")
     args = ap.parse_args()
@@ -156,6 +207,10 @@ def main():
         fp = resolve_under(args.scripts_dir, f)
         if not os.path.exists(fp):
             results.append({"file": fp, "problems": ["文件不存在"]})
+            continue
+        if args.article_type == "newspic" or f.endswith("_pic.json") or f.endswith(".json"):
+            results.append(check_file_newspic(fp, args.min_words, forbidden, args.brand_name,
+                                              args.img_count, args.require_brand, args.scripts_dir, args.allow_placeholders))
             continue
         if args.platform == "zhihu":
             results.append(check_file_md(fp, args.min_words, forbidden, args.brand_name,

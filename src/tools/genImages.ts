@@ -4,7 +4,7 @@ import { providerPool, resolveAccount } from '../config-runtime.ts'
 import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, renderJson, runPipeline } from './shared.ts'
 
 interface GenItem {
-  kind: 'cover' | 'content'
+  kind: 'cover' | 'content' | 'pic'
   index: number
   sub?: number
   prompt: string
@@ -35,17 +35,16 @@ export function genImagesTool(cfg: Config) {
   return defineTool<{ items_json?: string | any[]; items?: any[]; account_id?: string }, GenReport>({
     name: 'gzh_generate_images',
     description:
-      'AI 生图：封面与正文信息图。公众号账号封面比例头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' +
-      cfg.image_api.secondary_cover_ratio + '；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
-      '按生图接口优先级执行：任何接口级失败（网络/超时/任意 HTTP 错误/返回格式异常）自动切换下一个接口，' +
-      '成功后保持该接口；全部接口失败才报错并附各接口失败原因。演练模式（设置中 dry_run）只校验不联网。',
+      'AI 生图：封面、正文信息图及小绿书卡片图。公众号长文封面比例头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' +
+      cfg.image_api.secondary_cover_ratio + '；小绿书卡片图（kind: pic）统一为 3:4 竖版；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
+      '按生图接口优先级执行：任何接口级失败自动切换下一个接口，成功后保持该接口；全部接口失败才报错。演练模式（dry_run）只校验不联网。',
     parameters: {
       items_json: {
         type: 'string',
         description:
-          '生图任务列表：支持传入 JSON 数组字符串或直接传对象数组。每项如 {"kind":"cover","index":1,"prompt":"封面提示词"} ' +
-          '或 {"kind":"content","index":1,"sub":1,"prompt":"信息图提示词"}。cover 自动落盘 cover_{index}.png，' +
-          'content 落盘 content_{index}_{sub}.png',
+          '生图任务列表：支持传入 JSON 数组字符串或直接传对象数组。每项如 {"kind":"cover","index":1,"prompt":"封面提示词"}、' +
+          '{"kind":"content","index":1,"sub":1,"prompt":"信息图提示词"} 或 {"kind":"pic","index":1,"sub":1,"prompt":"小绿书卡片提示词"}。' +
+          'cover 自动落盘 cover_{index}.png，content 落盘 content_{index}_{sub}.png，pic 落盘 pic_{index}_{sub}.png',
       },
       items: {
         type: 'array',
@@ -86,6 +85,17 @@ export function genImagesTool(cfg: Config) {
         const prompt = String(it.prompt || it.description || it.text || '').trim()
         if (!prompt) throw new Error('prompt 提示词不能为空')
         const rawKind = String(it.kind || it.type || '').trim().toLowerCase()
+        if (rawKind === 'pic') {
+          const sub = Number(it.sub ?? 1)
+          if (!Number.isInteger(sub) || sub < 1 || sub > 20) {
+            throw new Error('pic 图 sub 必须是 1~20（按小绿书卡片张数）')
+          }
+          return {
+            kind: 'pic', index, sub, prompt,
+            out: 'pic_' + index + '_' + sub + '.png',
+            size: [...COVER_SIZES['3:4']] as [number, number],
+          }
+        }
         const isCover = rawKind === 'cover' || (!it.sub && rawKind !== 'content')
         if (isCover) {
           // 知乎封面统一 16:9（机器强制）；公众号按设置的头条/次条比例

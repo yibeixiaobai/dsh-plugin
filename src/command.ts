@@ -117,21 +117,39 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
         ? '；结尾自然引导关注「' + profile.brand_name + '」'
         : '；结尾引导语可选'))
     } else {
-      lines.push('- 平台：微信公众号（' + content.articles_per_day + ' 篇组合为 1 个多图文草稿）')
-      lines.push('- 主题：头条 ' + config.typography.headline_theme + '，次条 ' + config.typography.secondary_theme + '；每篇以 theme_plan 为准')
-      lines.push('- 封面比例：头条 ' + config.image_api.headline_cover_ratio + ' / 次条 ' + config.image_api.secondary_cover_ratio)
-      lines.push('- 作者名 ' + profile.author_name + '；结尾自然引导关注品牌「' + profile.brand_name + '」')
+      const isNewspicOnly = content.article_type === 'newspic'
+      const isBoth = content.article_type === 'both' || content.sync_newspic === true
+      if (isNewspicOnly) {
+        lines.push('- 平台：微信公众号（小绿书形态：纯图片消息轮播卡片）')
+        lines.push('- 卡片规范：' + (content.newspic_images_per_article || 4) + ' 张卡片，比例统一 3:4 竖版（第1张自动作为封面）')
+        lines.push('- 文案要求：纯文字文案 ≥ ' + (content.newspic_min_words || 100) + ' 字（支持 emoji 与 #话题标签，严禁 HTML）')
+        lines.push('- 作者名 ' + profile.author_name + '；结尾自然引导关注品牌「' + profile.brand_name + '」')
+      } else if (isBoth) {
+        lines.push('- 平台：微信公众号（【长文 + 小绿书】联动同步更新，一文双发）')
+        lines.push('- 长文：' + content.articles_per_day + ' 篇经典多图文，字数 ≥ ' + content.min_words + ' 字，主题以 theme_plan 为准')
+        lines.push('- 小绿书同步执行：同步提炼长文核心要点生成对应小绿书卡片草稿（' + (content.newspic_images_per_article || 4) + ' 张 3:4 竖版卡片，标题≤32字）')
+        lines.push('- 封面比例：头条 ' + config.image_api.headline_cover_ratio + ' / 次条 ' + config.image_api.secondary_cover_ratio)
+        lines.push('- 作者名 ' + profile.author_name + '；结尾自然引导关注品牌「' + profile.brand_name + '」')
+      } else {
+        lines.push('- 平台：微信公众号（' + content.articles_per_day + ' 篇组合为 1 个多图文草稿）')
+        lines.push('- 主题：头条 ' + config.typography.headline_theme + '，次条 ' + config.typography.secondary_theme + '；每篇以 theme_plan 为准')
+        lines.push('- 封面比例：头条 ' + config.image_api.headline_cover_ratio + ' / 次条 ' + config.image_api.secondary_cover_ratio)
+        lines.push('- 作者名 ' + profile.author_name + '；结尾自然引导关注品牌「' + profile.brand_name + '」')
+      }
     }
     lines.push('')
   })
   lines.push(...[
     '每个账号按以下顺序自主推进，不要只给计划：',
     '1. 使用 gzh_check_topics 完成选题查重：以核心业务关键词为依据检索发掘关联选题，严禁使用任何「关键词：...」或「【关键词】...」前缀格式（工具已内置前缀拦截，违规将直接判为 high 风险）；候选选题不得与该账号历史、其它账号历史、以及本批次其它账号已确定的选题重复；高风险选题必须替换。',
-    '2. 使用 gzh_get_style_guide 获取该账号规范（按账号平台返回公众号 HTML 或知乎 Markdown 规范）；文章数、配图数、主题分配（theme_plan）、禁词全部以返回值为准。',
-    '3. 撰写并构建：撰写 doc_json 时每篇必须按目标字数充实展开各章节（规划 4~6 个长章节，每章 3~5 个长段落搭配 card/card_ul 充分展开，确保去格式后字数充实达标，杜绝因字数不足触发断言导致重写返工），并在 sections 的 blocks 内分布正好等于配图数的 img 占位块（如 IMG_A{index}_1、IMG_A{index}_2，系统具备自动补全与容差底线），用 gzh_build_article 逐篇构建。',
-    '4. 使用 gzh_generate_images 生成封面和正文配图：一次性提交该账号全部图片，参数 items_json 传入 JSON 数组字符串（或 items 数组），格式为 [{"kind":"cover","index":1,"prompt":"..."},{"kind":"content","index":1,"sub":1,"prompt":"..."}]。',
-    '5. 使用 gzh_validate_html 校验全部文章：直接传入 files（如 ["article_v2_1.html", ...] 或留空自动校验全部文章），发现问题先修复再复检；修复只允许改正错误，不得改动数量、主题与品牌要素。',
-    '6. 使用 gzh_publish_draft 创建草稿（公众号合并为 1 个多图文草稿，知乎为逐篇独立草稿）；若当前是演练模式，则完成演练校验即可。',
+    '2. 使用 gzh_get_style_guide 获取该账号规范（按账号平台返回公众号 HTML、小绿书或知乎 Markdown 规范）；文章数、配图数、主题分配（theme_plan）、禁词全部以返回值为准。',
+    '3. 撰写并构建：' +
+      '长文按目标字数充实展开各章节并用 gzh_build_article 构建；' +
+      '若开启了小绿书同步更新（both 模式或 sync_newspic 开关），紧接着基于长文核心要点，调用 gzh_build_article 传入 article_type="newspic" 构建设有 3~6 张卡片的小绿书文案与生图规划（article_v2_{index}_pic.json）；' +
+      '纯小绿书账号直接构建小绿书文案与卡片规划。',
+    '4. 使用 gzh_generate_images 生成图片：一次性提交该账号全部图片；长文提交 cover 与 content 图，小绿书提交 3:4 竖版 pic 卡片图（kind="pic"）。',
+    '5. 使用 gzh_validate_html 校验全部文章（自动识别长文 HTML 或小绿书 JSON 文件并执行对应校验），发现问题先修复再复检。',
+    '6. 使用 gzh_publish_draft 创建草稿：长文合并为 1 个多图文草稿；若开启了小绿书同步更新，再调用 gzh_publish_draft 传入 article_type="newspic" 发布对应的小绿书图片消息草稿；知乎为逐篇独立草稿。',
     '7. 正式发布草稿后使用 gzh_verify_draft 核验。',
     '在需要用户提供主题或业务判断之前，先完成所有能够自主完成的步骤。',
     '全部账号完成后按账号汇总：选题/标题、草稿 media_id 或知乎草稿链接（或演练结果）与遗留问题。',

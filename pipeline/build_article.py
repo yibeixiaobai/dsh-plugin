@@ -142,6 +142,66 @@ def main_zhihu(args, doc, forbidden):
                    "plain_chars": plain_chars, "img_count": img_count, "problems": problems}})
 
 
+def main_newspic(args, doc, forbidden):
+    """小绿书分支：纯文本说明 + 多图卡片提示词列表。"""
+    idx = int(doc.get("index", 1))
+    if not (1 <= idx <= 99):
+        raise SystemExit("index 必须在 1~99")
+    title = str(doc.get("title", "")).strip()
+    if not title:
+        raise SystemExit("小绿书 title 不能为空")
+    if len(title) > 32:
+        raise SystemExit("小绿书 title 不能超过 32 字（当前 %d 字）" % len(title))
+    content = str(doc.get("content", "")).strip()
+    if not content:
+        raise SystemExit("小绿书 content 不能为空")
+    if "<" in content and ">" in content:
+        content = re.sub(r"<[^>]+>", "", content)
+    plain = re.sub(r"\s", "", content)
+    limit = 80 if args.min_words > 500 else max(10, int(args.min_words * 0.80))
+    if len(plain) < limit:
+        raise SystemExit("小绿书纯文字不足：%d < %d（设定下限 %d 字）" % (len(plain), limit, args.min_words))
+    if args.require_brand and args.brand_name:
+        if args.brand_name not in plain:
+            raise SystemExit("缺少品牌引导语: " + args.brand_name)
+
+    cards = doc.get("cards", [])
+    if not isinstance(cards, list) or len(cards) == 0:
+        raise SystemExit("小绿书 cards 列表不能为空（必须规划 1~20 张卡片提示词）")
+    if len(cards) > 20:
+        raise SystemExit("小绿书 cards 数量不能超过 20 张（当前 %d 张）" % len(cards))
+
+    normalized_cards = []
+    for j, c in enumerate(cards, 1):
+        prompt = str(c.get("prompt") or c.get("description") or c.get("text") or "").strip()
+        if not prompt:
+            raise SystemExit("第 %d 张卡片 prompt 不能为空" % j)
+        normalized_cards.append({
+            "sub": int(c.get("sub", j)),
+            "role": str(c.get("role", "cover" if j == 1 else "content")),
+            "prompt": prompt,
+        })
+
+    problems = []
+    for w in forbidden:
+        if w in plain or w in title:
+            problems.append("含禁词: " + w)
+
+    emit({
+        "ok": len(problems) == 0,
+        "data": {
+            "index": idx,
+            "article_type": "newspic",
+            "title": title,
+            "content": content,
+            "cards": normalized_cards,
+            "plain_chars": len(plain),
+            "img_count": len(normalized_cards),
+            "problems": problems,
+        }
+    })
+
+
 def ensure_doc_images(doc, idx, target_count):
     """确保 doc 中的正文配图占位符数量与格式恰好为 target_count 个（IMG_A{idx}_1 ~ IMG_A{idx}_{target_count}）。
     若模型漏填（如 0 个）、填错占位符名称或数量不符，自动自愈补齐或规整，避免构建中断。"""
@@ -219,8 +279,9 @@ def main():
     ap.add_argument("--typography", default="{}", help='{"font_size":"13px",...}')
     ap.add_argument("--brand-images", default="{}", help='{"header":{...},"footer":{...}}')
     ap.add_argument("--platform", choices=["gzh", "zhihu"], default="gzh", help="发布平台分支")
+    ap.add_argument("--article-type", choices=["news", "newspic"], default="news", help="文章形态")
     ap.add_argument("--content-img-count", type=int, default=2, help="每篇正文配图占位符数（0-4）")
-    ap.add_argument("--require-brand", action="store_true", help="知乎分支：结尾必须包含品牌名")
+    ap.add_argument("--require-brand", action="store_true", help="结尾必须包含品牌名")
     args = ap.parse_args()
 
     base_abs = os.path.abspath(args.scripts_dir)
@@ -237,6 +298,13 @@ def main():
 
     if args.platform == "zhihu":
         main_zhihu(args, doc, forbidden)
+        return
+
+    article_type = args.article_type
+    if doc.get("article_type") == "newspic":
+        article_type = "newspic"
+    if article_type == "newspic":
+        main_newspic(args, doc, forbidden)
         return
 
     typo = {"font_size": "13px", "line_height": "20px", "paragraph_margin": "25px", "text_indent": "2em"}

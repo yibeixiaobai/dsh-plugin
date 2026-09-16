@@ -66,8 +66,9 @@ export function buildArticleTool(cfg: Config) {
         throw new Error('index 必须是 1~' + content.articles_per_day)
       }
       const sdir = accountScriptsDir(cfg, account.id)
+      const isNewspic = platform !== 'zhihu' && (doc.article_type === 'newspic' || content.article_type === 'newspic')
       // 主题严格按设置解析（头条/次条/rotate 按篇轮换），doc 内自带 theme 一律忽略，防止自由发挥
-      const theme = platform === 'zhihu' ? 'markdown' : resolveTheme(cfg, idx)
+      const theme = platform === 'zhihu' ? 'markdown' : isNewspic ? 'newspic' : resolveTheme(cfg, idx)
 
       const built = await runPipeline<BuiltArticle>(
         cfg,
@@ -76,39 +77,53 @@ export function buildArticleTool(cfg: Config) {
           '--doc-json', JSON.stringify({ ...doc, index: idx, theme: platform === 'zhihu' ? 'wenying' : theme }),
           '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
-          '--min-words', String(content.min_words),
+          '--min-words', String(isNewspic ? Math.min(content.min_words, 100) : content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--platform', platform,
-          ...(platform === 'zhihu'
+          '--article-type', isNewspic ? 'newspic' : 'news',
+          ...(isNewspic
             ? [
-              '--content-img-count', String(contentImagesPerArticle(cfg)),
+              '--brand-name', account.profile.brand_name,
               ...(content.ending_guide_required ? ['--require-brand'] : []),
-              '--brand-name', account.profile.brand_name,
             ]
-            : [
-              '--content-img-count', String(contentImagesPerArticle(cfg)),
-              '--brand-name', account.profile.brand_name,
-              '--brand-images', JSON.stringify(account.profile.brand_images),
-              '--typography', JSON.stringify({
-                font_size: cfg.typography.font_size,
-                line_height: cfg.typography.line_height,
-                paragraph_margin: cfg.typography.paragraph_margin,
-                text_indent: cfg.typography.text_indent,
-              }),
-            ]),
+            : platform === 'zhihu'
+              ? [
+                '--content-img-count', String(contentImagesPerArticle(cfg)),
+                ...(content.ending_guide_required ? ['--require-brand'] : []),
+                '--brand-name', account.profile.brand_name,
+              ]
+              : [
+                '--content-img-count', String(contentImagesPerArticle(cfg)),
+                '--brand-name', account.profile.brand_name,
+                '--brand-images', JSON.stringify(account.profile.brand_images),
+                '--typography', JSON.stringify({
+                  font_size: cfg.typography.font_size,
+                  line_height: cfg.typography.line_height,
+                  paragraph_margin: cfg.typography.paragraph_margin,
+                  text_indent: cfg.typography.text_indent,
+                }),
+              ]),
         ],
         120000,
       )
 
       // Python 纯构建返回产物，TS 侧落盘（文件名白名单 + 目录守卫）
-      const ext = platform === 'zhihu' ? '.md' : '.html'
+      const ext = platform === 'zhihu' ? '.md' : isNewspic ? '_pic.json' : '.html'
       const name = 'article_v2_' + idx + ext
-      const payload = platform === 'zhihu' ? built.markdown : built.html
+      const payload = isNewspic
+        ? JSON.stringify(built, null, 2) + '\n'
+        : platform === 'zhihu'
+          ? built.markdown
+          : built.html
       if (payload === undefined) throw new Error('构建结果缺少' + (platform === 'zhihu' ? 'markdown' : 'html') + '字段')
       const file = writeTextFile(sdir, name, payload)
 
       // 完整发布级校验（占位符阶段）；gzh-design lint 仅对公众号 HTML 有意义
-      const expectedImgs = platform === 'zhihu' ? contentImagesPerArticle(cfg) : expectedArticleImageCount(cfg, account.profile)
+      const expectedImgs = isNewspic
+        ? built.img_count
+        : platform === 'zhihu'
+          ? contentImagesPerArticle(cfg)
+          : expectedArticleImageCount(cfg, account.profile)
       const check = await runPipeline<CheckReport>(
         cfg,
         'check_html.py',
@@ -116,14 +131,15 @@ export function buildArticleTool(cfg: Config) {
           '--files', JSON.stringify([name]),
           '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
-          '--min-words', String(content.min_words),
+          '--min-words', String(isNewspic ? Math.min(content.min_words, 100) : content.min_words),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--brand-name', account.profile.brand_name,
           '--img-count', String(expectedImgs),
           '--allow-placeholders',
           '--platform', platform,
-          ...(platform === 'zhihu' && content.ending_guide_required ? ['--require-brand'] : []),
-          ...(platform === 'gzh' ? ['--lint'] : []),
+          '--article-type', isNewspic ? 'newspic' : 'news',
+          ...((platform === 'zhihu' || isNewspic) && content.ending_guide_required ? ['--require-brand'] : []),
+          ...(platform === 'gzh' && !isNewspic ? ['--lint'] : []),
         ],
         120000,
       )

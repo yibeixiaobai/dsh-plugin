@@ -151,6 +151,7 @@ export function syncConfig(cfg: Config): SyncReport {
         || (id === defaultAccount.id ? String(existing.app_secret ?? '') : ''),
       author_name: account.author_name,
       brand_name: account.brand_name,
+      content: account.content,
     }
   })
   const providers = providerPool(cfg).map(({ id, provider }) => {

@@ -43,6 +43,7 @@ interface PublishArgs {
   titles: string[]
   digests: string[]
   article_files?: string[]
+  article_type?: 'news' | 'newspic'
   account_id?: string
 }
 
@@ -54,26 +55,31 @@ export function publishTool(cfg: Config) {
   return defineTool<PublishArgs, PublishOk>({
     name: 'gzh_publish_draft',
     description:
-      '组合发布：公众号账号走 上传素材（缓存断点续跑）→ 替换占位符 → 机器校验 → draft/add 合并为 1 个多图文草稿' +
-      '（不直接群发），可选 draft/get 核验；知乎账号走 浏览器自动化（登录态发布，N 篇 = N 个独立草稿，' +
+      '组合发布：公众号账号走 上传素材（缓存断点续跑）→ 替换占位符 → 机器校验 → draft/add 合并为草稿' +
+      '（长文为多图文，小绿书为图片消息草稿，不直接群发），可选 draft/get 核验；知乎账号走 浏览器自动化（登录态发布，N 篇 = N 个独立草稿，' +
       '默认只存知乎草稿箱）。发布前请先对全部文章跑 gzh_validate_html。演练模式（设置中 dry_run）只校验不联网。',
     parameters: {
       titles: {
         type: 'array',
         required: true,
-        description: '每篇标题（公众号 ≤64 字，知乎 ≤100 字），数量须等于设置的每日文章数',
+        description: '每篇标题（公众号长文 ≤64 字，小绿书 ≤32 字，知乎 ≤100 字），数量须等于设置的每日文章数',
         items: { type: 'string' },
       },
       digests: {
         type: 'array',
         required: true,
-        description: '每篇摘要（≤120 字）；知乎无摘要字段但数量仍须一致（保持调用契约统一）',
+        description: '每篇摘要（≤120 字）；知乎/小绿书无摘要字段但数量仍须一致（保持调用契约统一）',
         items: { type: 'string' },
       },
       article_files: {
         type: 'array',
-        description: '可选：自定义文章文件名（scripts 目录内）；缺省公众号用 article_v2_1..N.html，知乎用 article_v2_1..N.md',
+        description: '可选：自定义文章文件名（scripts 目录内）；缺省公众号长文用 article_v2_1..N.html，小绿书用 article_v2_1..N_pic.json，知乎用 article_v2_1..N.md',
         items: { type: 'string' },
+      },
+      article_type: {
+        type: 'string',
+        description: '可选：指定发布的文章形态（news=长图文草稿，newspic=小绿书图片消息草稿）；缺省按账号设置',
+        enum: ['news', 'newspic'],
       },
       account_id: {
         type: 'string',
@@ -171,23 +177,29 @@ async function publishGzh(
   cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number,
 ): Promise<PublishOk> {
   const account = resolveAccount(cfg, accountId)
+  const isNewspic = (args.article_type === 'newspic') ||
+    (!args.article_type && account.profile.content.article_type === 'newspic') ||
+    (args.article_files && args.article_files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
   const contentImgs = contentImagesPerArticle(cfg)
-  const articlePaths = defaultArticleFiles(sdir, n, '.html', args.article_files)
+  const ext = isNewspic ? '_pic.json' : '.html'
+  const articlePaths = defaultArticleFiles(sdir, n, ext, args.article_files)
 
-  // 封面/正文图：演练模式不要求存在，正式发布缺失即报错
+  // 封面/正文图：演练模式不要求存在，正式发布缺失即报错（小绿书不使用传统封面/正文图）
   const coverPaths: string[] = []
   const contentFiles: Record<string, string> = {}
-  for (let i = 1; i <= n; i++) {
-    if (cfg.runtime.dry_run) {
-      coverPaths.push(path.resolve(sdir, 'cover_' + i + '.png'))
-    } else {
-      coverPaths.push(findImage(sdir, 'cover_' + i))
-    }
-    for (let j = 1; j <= contentImgs; j++) {
-      const key = 'IMG_A' + i + '_' + j
-      contentFiles[key] = cfg.runtime.dry_run
-        ? path.resolve(sdir, 'content_' + i + '_' + j + '.png')
-        : findImage(sdir, 'content_' + i + '_' + j)
+  if (!isNewspic) {
+    for (let i = 1; i <= n; i++) {
+      if (cfg.runtime.dry_run) {
+        coverPaths.push(path.resolve(sdir, 'cover_' + i + '.png'))
+      } else {
+        coverPaths.push(findImage(sdir, 'cover_' + i))
+      }
+      for (let j = 1; j <= contentImgs; j++) {
+        const key = 'IMG_A' + i + '_' + j
+        contentFiles[key] = cfg.runtime.dry_run
+          ? path.resolve(sdir, 'content_' + i + '_' + j + '.png')
+          : findImage(sdir, 'content_' + i + '_' + j)
+      }
     }
   }
   const bdir = brandDir(cfg)
@@ -196,16 +208,19 @@ async function publishGzh(
 
   if (!cfg.runtime.dry_run) {
     assertWechatCreds(cfg, accountId)
-    if (account.profile.brand_images.header.enabled && !fs.existsSync(brandTop)) {
-      throw new Error('缺少头部品牌图: ' + brandTop)
-    }
-    if (account.profile.brand_images.footer.enabled && !fs.existsSync(brandBot)) {
-      throw new Error('缺少尾部品牌图: ' + brandBot)
+    if (!isNewspic) {
+      if (account.profile.brand_images.header.enabled && !fs.existsSync(brandTop)) {
+        throw new Error('缺少头部品牌图: ' + brandTop)
+      }
+      if (account.profile.brand_images.footer.enabled && !fs.existsSync(brandBot)) {
+        throw new Error('缺少尾部品牌图: ' + brandBot)
+      }
     }
   }
 
   const job = {
     account_id: accountId,
+    article_type: isNewspic ? 'newspic' : 'news',
     titles: args.titles,
     digests: args.digests,
     article_files: articlePaths,
@@ -213,8 +228,8 @@ async function publishGzh(
     content_files: contentFiles,
     brand_top: brandTop,
     brand_bot: brandBot,
-    brand_top_enabled: account.profile.brand_images.header.enabled,
-    brand_bot_enabled: account.profile.brand_images.footer.enabled,
+    brand_top_enabled: isNewspic ? false : account.profile.brand_images.header.enabled,
+    brand_bot_enabled: isNewspic ? false : account.profile.brand_images.footer.enabled,
     cache: readUploadCache(cfg, accountId),
     use_cache: cfg.runtime.use_upload_cache,
     dry_run: cfg.runtime.dry_run,
@@ -222,8 +237,9 @@ async function publishGzh(
     only_fans_can_comment: 0,
     author: account.profile.author_name,
     brand_name: account.profile.brand_name,
-    content_img_count: contentImgs,
-    min_words: account.profile.content.min_words,
+    ending_guide_required: account.profile.content.ending_guide_required,
+    content_img_count: isNewspic ? (account.profile.content.newspic_images_per_article || 4) : contentImgs,
+    min_words: isNewspic ? Math.min(account.profile.content.min_words, 100) : account.profile.content.min_words,
     forbidden: account.profile.content.forbidden_words,
     verify: cfg.runtime.verify_after_publish,
   }
