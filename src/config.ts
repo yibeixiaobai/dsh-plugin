@@ -66,7 +66,7 @@ export interface BrandImagesConfig {
 }
 
 // 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化）
-export type Platform = 'gzh' | 'zhihu'
+export type Platform = 'gzh' | 'zhihu' | (string & {})
 export const PLATFORMS: Platform[] = ['gzh', 'zhihu']
 
 /** 知乎文章封面比例（编辑器按内容图自动取封面，生成尺寸用 16:9） */
@@ -226,7 +226,7 @@ const BrandImageSchema = Schema.object({
 })
 
 const AccountSchema = Schema.object({
-  platform: Schema.union(['gzh', 'zhihu']).default('gzh').description('平台：gzh=公众号（appid 登录），zhihu=知乎专栏（扫码登录）'),
+  platform: Schema.string().default('gzh').description('平台：gzh=公众号（appid 登录），zhihu=知乎专栏（扫码登录）'),
   name: Schema.string().default('默认账号').description('账号显示名称'),
   enabled: Schema.boolean().default(true).description('是否启用'),
   appid: Schema.string().default('').description('公众号 AppID（知乎账号留空）'),
