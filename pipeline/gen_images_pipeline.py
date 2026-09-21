@@ -68,7 +68,7 @@ def fetch_bytes(u, timeout):
     current = u
     for _ in range(MAX_REDIRECTS + 1):
         assert_public_http_url(current)
-        resp = requests.get(current, timeout=timeout, allow_redirects=False)
+        resp = requests.get(current, timeout=max(30, int(timeout)), allow_redirects=False)
         if resp.status_code in (301, 302, 303, 307, 308):
             current = resp.headers.get("Location", "")
             if not current:
@@ -89,8 +89,8 @@ class NonRetryableProviderError(Exception):
 
 def generate_raw(base_url, api_key, model, prompt, timeout):
     url = base_url.rstrip("/") + "/v1/images/generations"
-    connect_timeout = 10
-    read_timeout = max(30, min(timeout, 75))
+    connect_timeout = 15
+    read_timeout = max(60, min(int(timeout), 300))
     timeout_tuple = (connect_timeout, read_timeout)
     resp = None
     last_err = None
@@ -174,7 +174,6 @@ def provider_pool(conf, selected_ids):
         item for item in raw
         if isinstance(item, dict) and item.get("enabled", True)
         and item.get("base_url") and item.get("api_key")
-        and not ("kuaipao.pro" in str(item.get("base_url", "")).lower())
     ]
     skipped = [
         str(item.get("id", "?")) for item in raw
@@ -346,8 +345,11 @@ def main():
     disabled = set()
     provider_used = None
     if not job.get("dry_run"):
-        conf = json.load(open(os.path.join(base_abs, "wx_config.json"), encoding="utf-8"))
-        providers = provider_pool(conf, job.get("provider_ids", []))
+        if job.get("providers"):
+            providers = provider_pool({"image_api_providers": job["providers"]}, job.get("provider_ids", []))
+        else:
+            conf = json.load(open(os.path.join(base_abs, "wx_config.json"), encoding="utf-8"))
+            providers = provider_pool(conf, job.get("provider_ids", []))
     for k, item in enumerate(items):
         out_abs = under(output_abs, item["out"])
         prompt = str(item["prompt"])

@@ -124,7 +124,7 @@ export function resolveAccount(config: Config, accountId?: string): ResolvedAcco
 export function providerPool(config: Config): Array<{ id: string; provider: ImageProviderConfig }> {
   return Object.entries(config.image_providers)
     .map(([id, provider]) => ({ id, provider: clone(provider) }))
-    .filter((entry) => entry.provider.enabled && !entry.provider.base_url.includes('kuaipao.pro'))
+    .filter((entry) => entry.provider.enabled)
     .sort((left, right) => left.provider.priority - right.provider.priority || left.id.localeCompare(right.id))
 }
 

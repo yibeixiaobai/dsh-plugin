@@ -4,8 +4,7 @@ import path from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Config } from './config.ts'
-import { providerPool } from './config-runtime.ts'
-import { scriptsDir, workspaceDir } from './sync.ts'
+import { scriptsDir, syncConfig, workspaceDir } from './sync.ts'
 import { runPipeline } from './tools/shared.ts'
 
 export const IMAGE_TEST_ROUTE = '/api/gzh-publisher/test-image'
@@ -112,30 +111,36 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
     if (!safeProviderId(providerId)) throw new Error('provider_id 无效')
     if (prompt.length > 2000) throw new Error('测试提示词不能超过 2000 字')
 
-    const provider = providerPool(config).find((item) => item.id === providerId)
-    if (!provider) throw new Error('接口不存在或未启用: ' + providerId)
-    if (!provider.provider.api_key.trim()) throw new Error('该接口尚未填写 API Key')
+    const configured = config.image_providers?.[providerId]
+    if (!configured) throw new Error('接口不存在: ' + providerId)
+    if (!configured.enabled) throw new Error('接口未启用: ' + providerId)
+    if (!configured.base_url.trim()) throw new Error('该接口尚未填写 Base URL')
+    if (!configured.api_key.trim()) throw new Error('该接口尚未填写 API Key')
     if (config.runtime.dry_run) {
       sendJson(res, 200, { ok: true, dry_run: true, provider_id: providerId, message: '当前为演练模式，未发起真实请求' })
       return
     }
 
+    syncConfig(config)
+
     const relative = `gzh_test_images/${providerId}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}.png`
     const output = path.resolve(workspace, relative)
     fs.mkdirSync(path.dirname(output), { recursive: true })
+    const timeoutSec = Math.max(90, Math.round((config.runtime.request_timeout_ms || 30000) / 1000) * 2)
     const job = {
       items: [{ kind: 'cover', index: 1, prompt, out: output, size: [768, 327] }],
       provider_ids: [providerId],
-      model: provider.provider.model,
+      providers: [{ id: providerId, ...configured }],
+      model: configured.model,
       dry_run: false,
       zh_only: false,
-      timeout_sec: Math.max(30, Math.round(config.runtime.request_timeout_ms / 1000)),
+      timeout_sec: timeoutSec,
     }
     const report = await runPipeline<Record<string, unknown>>(
       config,
       'gen_images_pipeline.py',
       ['--job-json', JSON.stringify(job), '--scripts-dir', scripts, '--output-dir', testDir],
-      Math.max(60000, config.runtime.request_timeout_ms * 2),
+      Math.max(180000, timeoutSec * 2 * 1000 + 30000),
     )
     if (Array.isArray(report.failed) && report.failed.length > 0) {
       throw new Error(String((report.failed[0] as Record<string, unknown>).error ?? '接口测试失败'))
@@ -144,8 +149,8 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
     sendJson(res, 200, {
       ok: true,
       provider_id: providerId,
-      provider_name: provider.provider.name,
-      model: provider.provider.model,
+      provider_name: configured.name,
+      model: configured.model,
       file: relative,
       preview_url: `${IMAGE_TEST_ROUTE}?file=${encodeURIComponent(relative)}&t=${Date.now()}`,
     })

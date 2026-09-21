@@ -127,19 +127,20 @@ export function genImagesTool(cfg: Config) {
       const providers = providerPool(cfg)
       if (!dryRun && providers.length === 0) throw new Error('没有启用的生图接口')
 
+      const timeoutSecPerItem = Math.max(90, Math.round((cfg.runtime.request_timeout_ms || 30000) / 1000) * 2)
       const job = {
         items,
         provider_ids: providers.map(({ id }) => id),
         model: providers[0]?.provider.model ?? cfg.image_api.model,
         dry_run: dryRun,
         zh_only: cfg.image_api.image_lang_zh_only,
-        timeout_sec: Math.max(30, Math.round(cfg.runtime.request_timeout_ms / 1000) * 4),
+        timeout_sec: timeoutSecPerItem,
       }
       const report = await runPipeline<Omit<GenReport, 'account_id'>>(
         cfg,
         'gen_images_pipeline.py',
         ['--job-json', JSON.stringify(job), '--scripts-dir', accountScriptsDir(cfg, account.id)],
-        Math.max(60000, items.length * 180000),
+        Math.max(180000, items.length * (timeoutSecPerItem * 2 + 10) * 1000),
       )
       return { account_id: account.id, ...report }
     },
