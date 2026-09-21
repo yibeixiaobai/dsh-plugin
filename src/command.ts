@@ -102,7 +102,11 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
     '- 规范自包含：gzh_get_style_guide 返回值已含写文所需全部信息（doc_spec 骨架、parts_format、硬性规则、theme_plan、禁词表），不要读取源码、参考文档或历史文章；references 路径仅在工具报错且提示需要时才查阅。',
     '- 只走工具，不走 shell：构建、校验、发布、核验一律调用 gzh_* 工具，禁止在终端手敲脚本。',
     '',
-    '防返工写文铁律（建议四 · 前期杜绝断言失败重写浪费数万 Token）：',
+    '生图铁律（建议四 · 强制使用生图接口生成全新图片，绝不跳过）：',
+    '- 必须强制调用 gzh_generate_images 生成全新图片：每篇文章的封面图（cover_{index}.png）与正文图（content_{index}_{sub}.png）、小绿书卡片图（pic_{index}_{sub}.png）必须严格调用 gzh_generate_images，使用插件配置中生效的生图接口全部重新生成！',
+    '- 严禁复用历史旧图：严禁因目录中存在历史旧图而跳过生图，严禁从本地旧图备份或其它目录复制图片来应付发布！每次任务必须产出与本次选题和文章内容完全对应的全新高清配图。',
+    '',
+    '防返工写文铁律（建议五 · 前期杜绝断言失败重写浪费数万 Token）：',
     '- 字数一次达标：规划 4~6 个长章节、每章 3~5 个长段落并搭配 card/清单展开，撰写目标务必按设定下限 × 1.15~1.2 标准展开（如 2000 字目标按 2300 字以上撰写），确保一次构建即稳定高于 85% 容差底线（系统已内置 15% 容差与 80 字自动自愈兜底），杜绝返工！',
     '- 选题严禁前缀：选题必须围绕核心业务关键词深度检索关联拓展，严禁出现任何「关键词：...」、「【关键词】...」等冒号或括号前缀（工具内置前缀拦截，违规直接判为 high 风险），确保选题一次查重通过。',
     '- 品牌引导语自然融入：必须在正文结尾引导语（sign_off）自然包含账号品牌名，确保构建断言一次通过。',
@@ -158,7 +162,7 @@ function taskPrompt(config: Config, accountIds: string[], request: string): stri
       '长文按目标字数充实展开各章节并用 gzh_build_article 构建；' +
       '若开启了小绿书同步更新（both 模式或 sync_newspic 开关），紧接着基于长文核心要点，调用 gzh_build_article 传入 article_type="newspic" 构建设有 3~6 张卡片的小绿书文案与生图规划（article_v2_{index}_pic.json）；' +
       '纯小绿书账号直接构建小绿书文案与卡片规划。',
-    '4. 使用 gzh_generate_images 生成图片：一次性提交该账号全部图片；长文提交 cover 与 content 图，小绿书提交 3:4 竖版 pic 卡片图（kind="pic"）。',
+    '4. 【必须生图 · 严禁跳过】使用 gzh_generate_images 生成全新图片：必须完整调用该工具，一次性提交该账号全部图片，使用插件设置中配置生效的生图接口生成全新配图；长文提交全部 cover 与 content 图，小绿书提交 3:4 竖版 pic 卡片图（kind="pic"）。严禁跳过生图、严禁从备份复制旧图！',
     '5. 使用 gzh_validate_html 校验全部文章（自动识别长文 HTML 或小绿书 JSON 文件并执行对应校验），发现问题先修复再复检。',
     '6. 使用 gzh_publish_draft 创建草稿（每个形态严格只调用 1 次，严禁循环或多次重复发布）：' +
       '长文调用 1 次 gzh_publish_draft(article_type="news") 合并发布为 1 个多图文草稿包；' +

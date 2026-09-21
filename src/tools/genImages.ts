@@ -1,6 +1,7 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { COVER_SIZES, type Config, ZHIHU_COVER_RATIO } from '../config.ts'
 import { providerPool, resolveAccount } from '../config-runtime.ts'
+import { syncConfig } from '../sync.ts'
 import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, renderJson, runPipeline } from './shared.ts'
 
 interface GenItem {
@@ -127,10 +128,13 @@ export function genImagesTool(cfg: Config) {
       const providers = providerPool(cfg)
       if (!dryRun && providers.length === 0) throw new Error('没有启用的生图接口')
 
+      syncConfig(cfg)
+
       const timeoutSecPerItem = Math.max(90, Math.round((cfg.runtime.request_timeout_ms || 30000) / 1000) * 2)
       const job = {
         items,
         provider_ids: providers.map(({ id }) => id),
+        providers: providers.map(({ id, provider }) => ({ id, ...provider })),
         model: providers[0]?.provider.model ?? cfg.image_api.model,
         dry_run: dryRun,
         zh_only: cfg.image_api.image_lang_zh_only,
