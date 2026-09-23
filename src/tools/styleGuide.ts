@@ -282,9 +282,9 @@ export function styleGuideTool(cfg: Config) {
             (account.profile.brand_images.header.enabled ? '，含头部品牌图' : '') +
             (account.profile.brand_images.footer.enabled ? '，含尾部品牌图' : ''),
           '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（纯单行 HTML 去标签及空格后统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 400, Math.ceil(content.min_words * 1.2)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/card_ul，确保纯汉字充实达标，杜绝断言失败重写浪费 token（构建工具设有容差底线）',
-          '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）',
-          '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio,
-          '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
+          '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio + '；封面图提示词应强调横版开阔宏大、留白充裕、中心明确，禁止边缘堆积重要文字元素，适配不同设备裁剪',
+          '正文配图：提示词应强调学术信息图表或概念结构呈现，清晰现代设计，结构分明，干净背景，极简信息美学',
+          '生图铁律：画面中文字必须全部是中文，禁止出现任何英文单词、英文字母，禁止二维码、乱码字符与水印；系统已内置多线程并发与本地优雅保底',
           content.ending_guide_required ? '结尾引导语为硬性要求' : '结尾引导语可选',
         ],
         forbidden_words: content.forbidden_words,

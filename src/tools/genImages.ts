@@ -1,6 +1,8 @@
+import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { COVER_SIZES, type Config, ZHIHU_COVER_RATIO } from '../config.ts'
+import { COVER_SIZES, type Config, ZHIHU_COVER_RATIO, type CoverRatio } from '../config.ts'
 import { providerPool, resolveAccount } from '../config-runtime.ts'
+import { discoverDshImageModels } from '../dsh-models.ts'
 import { syncConfig } from '../sync.ts'
 import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, renderJson, runPipeline } from './shared.ts'
 
@@ -15,7 +17,7 @@ interface GenItem {
 
 interface GenReport {
   account_id: string
-  generated: Array<{ out: string; w?: number; h?: number; dry_run?: boolean }>
+  generated: Array<{ out: string; w?: number; h?: number; dry_run?: boolean; fallback?: boolean }>
   failed: Array<{ index?: number; sub?: number; error: string }>
   dry_run: boolean
   provider_used?: string
@@ -32,13 +34,14 @@ interface ImageItemInput {
   text?: string
 }
 
-export function genImagesTool(cfg: Config) {
+export function genImagesTool(cfg: Config, ctx?: Context) {
   return defineTool<{ items_json?: string | any[]; items?: any[]; account_id?: string }, GenReport>({
     name: 'gzh_generate_images',
     description:
-      'AI 生图：封面、正文信息图及小绿书卡片图。公众号长文封面比例头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' +
-      cfg.image_api.secondary_cover_ratio + '；小绿书卡片图（kind: pic）统一为 3:4 竖版；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
-      '按生图接口优先级执行：任何接口级失败自动切换下一个接口，成功后保持该接口；全部接口失败才报错。演练模式（dry_run）只校验不联网。',
+      'AI 生图：封面、正文信息图及小绿书卡片图。多线程并发生图加速，支持同接口备用模型与本地优雅降级保底。' +
+      '公众号长文封面比例头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' +
+      cfg.image_api.secondary_cover_ratio + '；小绿书卡片图（kind: pic）统一按账号配置比例生成；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
+      '按生图接口优先级执行：任何接口级失败自动切换下一个接口，成功后保持该接口；全网接口失败自动触发本地优雅保底。演练模式（dry_run）只校验不联网。',
     parameters: {
       items_json: {
         type: 'string',
@@ -93,10 +96,12 @@ export function genImagesTool(cfg: Config) {
           if (!Number.isInteger(sub) || sub < 1 || sub > 20) {
             throw new Error('pic 图 sub 必须是 1~20（按小绿书卡片张数）')
           }
+          const ratio = (account.profile.content.newspic_image_ratio || '3:4') as CoverRatio
+          const picSize = COVER_SIZES[ratio] || COVER_SIZES['3:4']
           return {
             kind: 'pic', index, sub, prompt,
             out: 'pic_' + index + '_' + sub + '.png',
-            size: [...COVER_SIZES['3:4']] as [number, number],
+            size: [...picSize] as [number, number],
           }
         }
         const isCover = rawKind === 'cover' || (!it.sub && rawKind !== 'content')
@@ -124,13 +129,38 @@ export function genImagesTool(cfg: Config) {
       })
 
       const dryRun = cfg.runtime.dry_run
-      if (!dryRun) assertImageCreds(cfg)
-      const providers = providerPool(cfg)
-      if (!dryRun && providers.length === 0) throw new Error('没有启用的生图接口')
+      let providers = providerPool(cfg)
+      if (!dryRun && providers.length === 0 && ctx) {
+        try {
+          const dshModels = await discoverDshImageModels(ctx)
+          const usable = dshModels.filter((m) => m.base_url && m.api_key)
+          if (usable.length > 0) {
+            providers = usable.map((m, idx) => ({
+              id: 'dsh-' + m.provider + '-' + m.model_id,
+              provider: {
+                enabled: true,
+                name: `主dsh-${m.provider_name}-${m.model_name}`,
+                base_url: m.base_url!,
+                api_key: m.api_key!,
+                model: m.model_id,
+                priority: 900 + idx,
+              },
+            }))
+          }
+        } catch {
+          /* 忽略主 dsh 模型探测失败 */
+        }
+      }
+
+      const enableFallback = cfg.image_api.enable_local_fallback ?? true
+      if (!dryRun && providers.length === 0 && !enableFallback) {
+        throw new Error('没有启用的生图接口，且未开启本地降级保底')
+      }
 
       syncConfig(cfg)
 
-      const timeoutSecPerItem = Math.max(90, Math.round((cfg.runtime.request_timeout_ms || 30000) / 1000) * 2)
+      const timeoutSecPerItem = Math.max(60, Math.round((cfg.runtime.request_timeout_ms || 30000) / 1000))
+      const concurrency = Math.max(1, Math.min(10, Number(cfg.image_api.concurrency || 3)))
       const job = {
         items,
         provider_ids: providers.map(({ id }) => id),
@@ -138,13 +168,15 @@ export function genImagesTool(cfg: Config) {
         model: providers[0]?.provider.model ?? cfg.image_api.model,
         dry_run: dryRun,
         zh_only: cfg.image_api.image_lang_zh_only,
+        concurrency,
+        enable_local_fallback: enableFallback,
         timeout_sec: timeoutSecPerItem,
       }
       const report = await runPipeline<Omit<GenReport, 'account_id'>>(
         cfg,
         'gen_images_pipeline.py',
         ['--job-json', JSON.stringify(job), '--scripts-dir', accountScriptsDir(cfg, account.id)],
-        Math.max(180000, items.length * (timeoutSecPerItem * 2 + 10) * 1000),
+        Math.max(180000, Math.ceil(items.length / concurrency) * (timeoutSecPerItem * 2 + 10) * 1000),
       )
       return { account_id: account.id, ...report }
     },

@@ -45,6 +45,11 @@ declare module '@deepseek-ai/cordis' {
         ) => void | Promise<void>
       }): () => void
     }
+    llm?: {
+      listProviders(): Array<{ provider: string; displayName?: string }>
+      listModels(provider: string): Promise<Array<{ id: string; name?: string; description?: string; inputModalities?: readonly string[] }>>
+      listConfigurableProviders?(): Array<{ provider: string; displayName: string; settingsNs: string }>
+    }
   }
 }
 

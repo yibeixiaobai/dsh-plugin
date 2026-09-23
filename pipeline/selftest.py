@@ -16,6 +16,7 @@ import json
 import os
 import runpy
 import sys
+import time
 
 MARKER = "###RESULT### "
 
@@ -476,6 +477,70 @@ def main():
         if os.path.exists(np_file_path):
             os.remove(np_file_path)
     results.append(("newspic 小绿书构建+校验+发布演练", np_all_ok, r_np_pub if not np_all_ok else r_np))
+
+    # 14. 生图并发加速演练
+    concurrent_job = {
+        "items": [
+            {"kind": "cover", "index": 1, "prompt": "并发封面1", "out": "c_t1.png", "size": [64, 64]},
+            {"kind": "cover", "index": 2, "prompt": "并发封面2", "out": "c_t2.png", "size": [64, 64]},
+            {"kind": "content", "index": 1, "sub": 1, "prompt": "并发内容1", "out": "cnt_t1.png", "size": [64, 64]},
+        ],
+        "providers": [{"id": "p_fast", "name": "PF", "base_url": "https://fast.example", "api_key": "k", "model": "m"}],
+        "concurrency": 3,
+        "timeout_sec": 30,
+    }
+    coordinator = gp.ConcurrentCoordinator(concurrent_job["providers"])
+    original_raw_c, original_save_c = gp.generate_raw, gp.save_resized
+    try:
+        from concurrent.futures import ThreadPoolExecutor
+        def fake_fast_gen(base_url, api_key, model, prompt, timeout, size=None):
+            time.sleep(0.05)
+            return b"fast_img"
+        gp.generate_raw = fake_fast_gen
+        gp.save_resized = lambda raw, out, size: (64, 64)
+        t_start = time.time()
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futs = [executor.submit(coordinator.run_item, it, it["prompt"], os.path.join(scripts_abs, it["out"]), 10, "m", False) for it in concurrent_job["items"]]
+            results_c = [f.result() for f in futs]
+        t_elapsed = time.time() - t_start
+        conc_ok = (
+            len(results_c) == 3
+            and all(r["terminal"] == "success" for r in results_c)
+            and all(r["provider_used"] == "p_fast" for r in results_c)
+            and t_elapsed < 0.14
+        )
+    finally:
+        gp.generate_raw, gp.save_resized = original_raw_c, original_save_c
+    results.append(("gen_images 并发加速演练", conc_ok, {"exit": 0, "result": {"data": {"results": results_c, "elapsed": t_elapsed}}}))
+
+    # 15. 本地优雅降级保底图演练（全接口失效时触发本地动态生成）
+    fb_job = {
+        "items": [
+            {"kind": "cover", "index": 1, "prompt": "保底测试封面", "out": "cover_fb_test.png", "size": [640, 360]},
+        ],
+        "providers": [{"id": "p_dead", "name": "PD", "base_url": "https://dead.example", "api_key": "k", "model": "m"}],
+        "enable_local_fallback": True,
+        "timeout_sec": 10,
+    }
+    fb_out_file = os.path.join(scripts_abs, "cover_fb_test.png")
+    try:
+        def fake_dead_gen(base_url, api_key, model, prompt, timeout, size=None):
+            raise gp.RetryableProviderError("HTTP 500: Server Dead")
+        gp.generate_raw = fake_dead_gen
+        r_fb = run_script(os.path.join(here, "gen_images_pipeline.py"), [
+            "--job-json", json.dumps(fb_job, ensure_ascii=False), "--scripts-dir", scripts_abs])
+        fb_ok = (
+            r_fb["exit"] == 0 and r_fb["result"] and r_fb["result"].get("ok")
+            and len(r_fb["result"]["data"].get("generated", [])) == 1
+            and r_fb["result"]["data"]["generated"][0].get("fallback") is True
+            and os.path.exists(fb_out_file)
+        )
+    finally:
+        gp.generate_raw = original_raw_c
+        if os.path.exists(fb_out_file):
+            try: os.remove(fb_out_file)
+            except: pass
+    results.append(("gen_images 本地优雅降级保底演练", fb_ok, r_fb))
 
     print("=" * 60)
     failed = 0

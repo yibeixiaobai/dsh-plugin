@@ -22,6 +22,7 @@ job（TS 侧生成的 JSON 文件，scripts 目录内）:
 输出协议：{ok, data:{dry_run, media_id?, verify?, cache, checks?}}
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import os
@@ -375,8 +376,11 @@ def main():
     if brand_bot_enabled:
         uploads["__BRAND_BOT__"] = brand_bot
     uploads.update(content_paths)
-    resolved = {}  # 本次运行的占位符 → 刚上传/命中的 URL（替换只认它，保证与当前文件内容一致）
-    path_urls = {}  # 同一文件多占位符拼写（IMG_A 与 __IMG_）只上传一次
+    resolved = {}  # 本次运行的占位符 → 刚上传/命中的 URL
+    path_urls = {}  # 同一文件多占位符拼写只上传一次
+
+    # 1. 优先从缓存读取
+    to_upload = {}
     for key in sorted(uploads):
         p = uploads[key]
         if not os.path.exists(p):
@@ -387,13 +391,29 @@ def main():
         cache_key = file_hash(p) + ":" + key
         if job.get("use_cache") and cache_key in cache:
             resolved[key] = cache[cache_key]
+            path_urls[p] = resolved[key]
             print(key + " （缓存）")
         else:
-            resolved[key] = upload_content_image(token, p)
-            cache[cache_key] = resolved[key]
-            print(key + " -> " + resolved[key][:60])
-            time.sleep(0.3)
-        path_urls[p] = resolved[key]
+            if p not in to_upload:
+                to_upload[p] = []
+            to_upload[p].append((key, cache_key))
+
+    # 2. 多线程并发上传未命中的正文素材
+    if to_upload:
+        def do_upload(item):
+            f_path, keys_info = item
+            url = upload_content_image(token, f_path)
+            return f_path, url, keys_info
+
+        with ThreadPoolExecutor(max_workers=min(4, len(to_upload))) as executor:
+            futures = [executor.submit(do_upload, it) for it in to_upload.items()]
+            for f in as_completed(futures):
+                f_path, url, keys_info = f.result()
+                path_urls[f_path] = url
+                for k, c_k in keys_info:
+                    resolved[k] = url
+                    cache[c_k] = url
+                    print(k + " -> " + url[:60])
 
     # [3] 替换占位符 + 最终校验
     final_htmls = []
@@ -410,21 +430,33 @@ def main():
         final_htmls.append(html)
         print("文章%d 最终校验通过（%d 张图，纯文字 %d 字）" % (i, n_img, chars))
 
-    # [4] 上传封面（material/add_material → media_id；键同样带内容 hash）
-    cover_ids = []
+    # [4] 上传封面（material/add_material → media_id；并发加速）
+    cover_ids = [None] * n
+    covers_to_upload = []
     for i, p in enumerate(cover_paths, 1):
         key = "COVER_" + str(i)
         if not os.path.exists(p):
             raise SystemExit("缺少封面: " + p)
         cache_key = file_hash(p) + ":" + key
         if job.get("use_cache") and cache_key in cache:
-            cover_ids.append(cache[cache_key])
+            cover_ids[i - 1] = cache[cache_key]
             print(key + " （缓存）")
-            continue
-        cache[cache_key] = upload_cover(token, p)
-        cover_ids.append(cache[cache_key])
-        print(key + " -> " + cache[cache_key][:40])
-        time.sleep(0.5)
+        else:
+            covers_to_upload.append((i - 1, key, cache_key, p))
+
+    if covers_to_upload:
+        def do_upload_cover(item):
+            idx, k, c_k, p = item
+            mid = upload_cover(token, p)
+            return idx, k, c_k, mid
+
+        with ThreadPoolExecutor(max_workers=min(4, len(covers_to_upload))) as executor:
+            futures = [executor.submit(do_upload_cover, it) for it in covers_to_upload]
+            for f in as_completed(futures):
+                idx, k, c_k, mid = f.result()
+                cover_ids[idx] = mid
+                cache[c_k] = mid
+                print(k + " -> " + mid[:40])
 
     # [5] draft/add 组合多图文草稿
     articles = []

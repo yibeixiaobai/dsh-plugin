@@ -8,6 +8,7 @@ import { registerBrandImageRoutes } from './brand-images.ts'
 import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
 import { registerPublishHistoryRoutes } from './publish-history.ts'
+import { registerDshModelRoutes } from './dsh-models.ts'
 import { registerQuickCommand } from './command.ts'
 import { ensureWorkspace, hydrateConfigFromWx, syncConfig, workspaceDir } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
@@ -42,6 +43,7 @@ export function apply(ctx: Context, config: ConfigT) {
   registerImageTestRoute(ctx, () => liveConfig)
   registerZhihuRoutes(ctx, () => liveConfig)
   registerPublishHistoryRoutes(ctx, () => liveConfig)
+  registerDshModelRoutes(ctx)
   let source = () => liveConfig
 
   ctx.inject(['settings'], (settingsCtx) => {
@@ -89,7 +91,7 @@ export function apply(ctx: Context, config: ConfigT) {
   ctx.tools.register(checkTopicsTool(liveConfig))
   ctx.tools.register(styleGuideTool(liveConfig))
   ctx.tools.register(buildArticleTool(liveConfig))
-  ctx.tools.register(genImagesTool(liveConfig))
+  ctx.tools.register(genImagesTool(liveConfig, ctx))
   ctx.tools.register(validateHtmlTool(liveConfig))
   ctx.tools.register(publishTool(liveConfig))
   ctx.tools.register(verifyTool(liveConfig))

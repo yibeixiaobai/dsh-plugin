@@ -89,7 +89,9 @@ def main():
         txt = re.sub(r"<[^>]+>", "", content)
         plain = re.sub(r"\s", "", txt)
         problems = []
-        if author != args.author:
+        # 小绿书「图片消息」草稿的 draft/get 不回显 author（恒为空），
+        # 对 newspic 跳过作者比对，避免误判「作者不符: 」。
+        if not is_newspic_draft and author != args.author:
             problems.append("作者不符: " + author)
         max_title = 32 if is_newspic_draft else 64
         if len(title) > max_title:

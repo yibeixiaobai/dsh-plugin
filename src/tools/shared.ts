@@ -36,7 +36,9 @@ export async function runPipeline<T>(
   })
   if (!r.ok || r.data === undefined) {
     const logs = r.logs.length ? '\n--- Python 最近输出 ---\n' + r.logs.slice(-8).join('\n') : ''
-    throw new Error(String(r.error ?? 'Python 未返回结果') + logs)
+    // Python 已返回结构化结果但 ok=false 时，把 data 一并带出，避免报成误导性的「未返回结果」
+    const detail = r.data !== undefined ? '\n--- Python 结果 ---\n' + JSON.stringify(r.data) : ''
+    throw new Error(String(r.error ?? 'Python 未返回结果') + logs + detail)
   }
   return r.data
 }

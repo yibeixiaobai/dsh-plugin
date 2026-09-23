@@ -22,6 +22,7 @@ export interface ContentConfig {
   forbidden_words: string[]
   ending_guide_required: boolean
   newspic_images_per_article?: number
+  newspic_image_ratio?: CoverRatio
   newspic_min_words?: number
 }
 
@@ -42,6 +43,8 @@ export interface ImageApiConfig {
   secondary_cover_ratio: CoverRatio
   content_images_per_article: number
   image_lang_zh_only: boolean
+  concurrency?: number
+  enable_local_fallback?: boolean
 }
 
 export type BrandImageFit = 'contain' | 'cover' | 'fill'
@@ -196,6 +199,7 @@ export const DEFAULT_CONTENT: ContentConfig = {
   forbidden_words: DEFAULT_FORBIDDEN_WORDS,
   ending_guide_required: true,
   newspic_images_per_article: 4,
+  newspic_image_ratio: '3:4',
   newspic_min_words: 100,
 }
 
@@ -209,6 +213,7 @@ const ContentSchema = Schema.object({
   forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),
   ending_guide_required: Schema.boolean().default(true).description('结尾必须自然引导关注品牌'),
   newspic_images_per_article: Schema.number().min(1).max(20).step(1).default(4).description('小绿书：每篇轮播图片张数（1-20，默认4）'),
+  newspic_image_ratio: Schema.union(['3:4', '1:1', '16:9']).default('3:4').description('小绿书卡片比例（默认 3:4 竖版）'),
   newspic_min_words: Schema.number().min(30).max(1000).step(10).default(100).description('小绿书：纯文字文案下限（字，推荐 80~300）'),
 })
 
@@ -288,6 +293,8 @@ export const Config: Schema<Config> = Schema.object({
     secondary_cover_ratio: Schema.union(['21:9', '16:9', '1:1']).default('1:1').description('次条封面比例'),
     content_images_per_article: Schema.number().min(0).max(4).step(1).default(2).description('每篇正文配图数（第1张AI信息图+第2张真实图）'),
     image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
+    concurrency: Schema.number().min(1).max(10).step(1).default(3).description('生图并发数（多线程同时生图以大幅提速，推荐 3）'),
+    enable_local_fallback: Schema.boolean().default(true).description('接口全部失效时启用本地优雅降级保底图（保证流程不中断）'),
   }).description('④ AI 配图'),
   brand_images: Schema.object({
     header: Schema.object({
