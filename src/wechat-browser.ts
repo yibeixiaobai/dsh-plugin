@@ -22,6 +22,58 @@ export interface WechatOriginalResult {
   completed: string[]
   error?: string
   screenshot?: string
+  /** 逐草稿明细：草稿箱中每个「文章」草稿的处理结果 */
+  drafts?: Array<{ appmsgid: string; title: string; articles: number; enabled: number; skipped: number; status: 'ok' | 'failed'; error?: string }>
+  /** 汇总：草稿数（总数/成功/失败）与文章数 */
+  summary?: { drafts_total: number; drafts_ok: number; drafts_failed: number; articles_total: number }
+  note?: string
+}
+
+interface DraftRef { appmsgid: string; title: string }
+
+const DRAFT_LIST_PAGE_SIZE = 20
+/** 草稿箱「文章」列表 URL：type=77 只返回图文文章草稿，天然不含小绿书（贴图）草稿 */
+function draftListUrl(token: string, begin: number): string {
+  return 'https://mp.weixin.qq.com/cgi-bin/appmsg?begin=' + begin
+    + '&count=' + DRAFT_LIST_PAGE_SIZE
+    + '&type=77&action=list_card&token=' + encodeURIComponent(token) + '&lang=zh_CN'
+}
+
+function draftEditUrl(token: string, appmsgid: string): string {
+  return 'https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit'
+    + '&type=10&appmsgid=' + encodeURIComponent(appmsgid)
+    + '&token=' + encodeURIComponent(token) + '&lang=zh_CN'
+}
+
+/**
+ * 分页枚举草稿箱中全部「文章」草稿（type=77 不含小绿书贴图草稿）。
+ * 上限页数兜底，避免异常页面导致死循环。
+ */
+async function listArticleDrafts(page: Page, token: string): Promise<DraftRef[]> {
+  const drafts: DraftRef[] = []
+  const seen = new Set<string>()
+  for (let begin = 0; begin < DRAFT_LIST_PAGE_SIZE * 100; begin += DRAFT_LIST_PAGE_SIZE) {
+    await page.goto(draftListUrl(token, begin), { waitUntil: 'networkidle2', timeout: 60000 })
+    await new Promise((resolve) => setTimeout(resolve, 2200))
+    const items = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('.weui-desktop-card')).map((card) => {
+        const id = card.getAttribute('data-appid') || card.getAttribute('data-appmsgid') || ''
+        const titleEl = card.querySelector('.weui-desktop-publish__cover__title span, .weui-desktop-publish__cover__title')
+        return { appmsgid: id, title: (titleEl?.textContent || '').trim() }
+      }).filter((item) => item.appmsgid)
+    })
+    if (items.length === 0) break
+    let added = 0
+    for (const item of items) {
+      if (seen.has(item.appmsgid)) continue
+      seen.add(item.appmsgid)
+      drafts.push(item)
+      added += 1
+    }
+    // 无新增（分页重复）或不足一页 = 已到末尾
+    if (added === 0 || items.length < DRAFT_LIST_PAGE_SIZE) break
+  }
+  return drafts
 }
 
 async function debugScreenshot(page: Page, dir: string, label: string): Promise<string> {
@@ -379,7 +431,13 @@ async function runOriginalScriptInPage(
 }
 
 /**
- * 自动定位刚发布的草稿并执行批量开启原创与保存
+ * 遍历微信公众号草稿箱中「文章」标签下的**全部**草稿（新发布的与历史的都包含），
+ * 逐个进入编辑页，为其中每一篇文章开启文字原创声明并保存草稿。
+ *
+ * 说明：草稿箱列表使用 type=77（图文文章），小绿书/图片消息草稿不会出现在该列表中，
+ * 因此天然被跳过，符合「小绿书文章不需要开启原创」的要求。
+ *
+ * targetTitles 仅用于演练模式下回显，不再是定位条件（历史实现只处理首个匹配草稿，会漏掉其余草稿）。
  */
 export async function enableWechatDraftOriginal(
   cfg: Config,
@@ -424,103 +482,80 @@ export async function enableWechatDraftOriginal(
       )
     }
 
-    // 1. 进入草稿箱列表页面
-    const draftBoxUrl = `https://mp.weixin.qq.com/cgi-bin/appmsg?begin=0&count=10&type=77&action=list_card&token=${token}&lang=zh_CN`
-    await page.goto(draftBoxUrl, { waitUntil: 'networkidle2', timeout: 60000 })
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    // 2. 在草稿箱中查找刚发布的草稿卡片（根据标题匹配，或默认首条最新草稿）
-    const firstTargetTitle = targetTitles[0] || ''
-    const located = await page.evaluate((targetTitle) => {
-      // 遍历草稿卡片
-      const cards = Array.from(document.querySelectorAll('.weui-desktop-card, .appmsg_card, .js_appmsg_item, .appmsg_col, .weui-desktop-media'))
-      let matchedCard: Element | null = null
-
-      if (targetTitle) {
-        for (const card of cards) {
-          if (card.textContent && card.textContent.includes(targetTitle)) {
-            matchedCard = card
-            break
-          }
-        }
-      }
-      if (!matchedCard && cards.length > 0) {
-        matchedCard = cards[0]
-      }
-
-      const root: Element | Document = matchedCard || document
-
-      // 优先（旧版后台）：卡片内的静态编辑链接
-      const editAnchor = root.querySelector<HTMLAnchorElement>('a[href*="action=edit"], a[href*="appmsg_edit"]')
-      if (editAnchor && editAnchor.href) return { href: editAnchor.href, how: 'anchor' }
-
-      // 新版后台：卡片带 data-appid（其值即 appmsgid），据此直接构造编辑页 URL。
-      // 新版把“编辑”入口改成了 JS 触发的隐藏 div（无 href、悬停才可见），只能这样定位。
-      const holder = (matchedCard || document.querySelector('.weui-desktop-card')) as HTMLElement | null
-      const appmsgId = holder?.getAttribute('data-appid') || holder?.getAttribute('data-appmsgid')
-      if (appmsgId) {
-        const token = new URL(window.location.href).searchParams.get('token') || ''
-        return {
-          href: 'https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit'
-            + '&type=10&appmsgid=' + encodeURIComponent(appmsgId)
-            + '&token=' + encodeURIComponent(token) + '&lang=zh_CN',
-          how: 'data-appid',
-        }
-      }
-
-      // 兜底 1：直接触发隐藏的“编辑”元素（新版可能挂在 JS 上）
-      const editEl = Array.from(root.querySelectorAll<HTMLElement>('*'))
-        .find((el) => (el.textContent || '').trim() === '编辑')
-      if (editEl) {
-        editEl.click()
-        return { href: null, how: 'click' }
-      }
-
-      // 兜底 2：旧式文字链接
-      const textEdit = Array.from(root.querySelectorAll<HTMLAnchorElement>('a'))
-        .find((a) => a.textContent?.trim() === '编辑' || a.title?.trim() === '编辑')
-      if (textEdit?.href) return { href: textEdit.href, how: 'text-anchor' }
-
-      return { href: null, how: 'not-found' }
-    }, firstTargetTitle)
-
-    if (located.how === 'not-found' || (!located.href && located.how !== 'click')) {
+    // 1. 枚举草稿箱中「文章」标签下的全部草稿（type=77 不含小绿书贴图草稿）
+    const allDrafts = await listArticleDrafts(page, token)
+    if (allDrafts.length === 0) {
       const shot = await debugScreenshot(page, debugDir, 'draft_not_found')
-      throw new Error(
-        '在微信公众号草稿箱中未找到目标草稿的“编辑”入口。请检查草稿是否已成功生成。截图已存：' + shot,
-      )
+      throw new Error('微信公众号草稿箱中未找到任何「文章」草稿。截图已存：' + shot)
     }
 
-    // 3. 打开草稿编辑页
-    if (located.href) {
-      await page.goto(located.href, { waitUntil: 'domcontentloaded', timeout: 60000 })
-    } else {
-      // 点击式入口由后台自行跳转，等页面完成跳转
-      await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => undefined)
-    }
-    await new Promise((resolve) => setTimeout(resolve, 3000))
-
-    // 验证是否已成功进入编辑页
-    const isEditor = await page.evaluate(() => {
-      const search = window.location.search
-      return search.includes('action=edit') || search.includes('t=media/appmsg_edit')
-    })
-    if (!isEditor) {
-      const shot = await debugScreenshot(page, debugDir, 'editor_entry_failed')
-      throw new Error('未能进入微信图文编辑页，当前 URL: ' + page.url() + '。截图：' + shot)
-    }
-
-    // 等待编辑器主界面就绪
-    await page.waitForSelector('#title, textarea.js_title, .card_appmsg_inner', { timeout: 30000 })
-
-    // 4. 执行批量开启文字原创并保存脚本
+    // 2. 逐个草稿：进入编辑页 → 逐篇开启文字原创 → 保存草稿
     const finalAuthor = authorName || cfg.accounts[accountId]?.author_name || '文映学术win00.cn'
-    const result = await runOriginalScriptInPage(page, finalAuthor)
+    const completed: string[] = []
+    const draftDetails: NonNullable<WechatOriginalResult['drafts']> = []
+    let articlesTotal = 0
+    let draftsOk = 0
+    let draftsFailed = 0
+
+    for (let index = 0; index < allDrafts.length; index += 1) {
+      const draft = allDrafts[index]
+      const label = `[${index + 1}/${allDrafts.length}] ${draft.title || draft.appmsgid}`
+      try {
+        await page.goto(draftEditUrl(token, draft.appmsgid), { waitUntil: 'domcontentloaded', timeout: 60000 })
+        await new Promise((resolve) => setTimeout(resolve, 2500))
+
+        const isEditor = await page.evaluate(() => {
+          const search = window.location.search
+          return search.includes('action=edit') || search.includes('t=media/appmsg_edit')
+        })
+        if (!isEditor) throw new Error('未能进入编辑页，当前 URL: ' + page.url())
+
+        await page.waitForSelector('#title, textarea.js_title, .card_appmsg_inner', { timeout: 30000 })
+        await new Promise((resolve) => setTimeout(resolve, 1200))
+
+        const result = await runOriginalScriptInPage(page, finalAuthor)
+        const enabled = result.completed.filter((line) => line.includes('已开启') && !line.includes('跳过')).length
+        articlesTotal += result.completed.length
+        draftsOk += 1
+        completed.push(...result.completed.map((line) => `${draft.title || draft.appmsgid} → ${line}`))
+        draftDetails.push({
+          appmsgid: draft.appmsgid,
+          title: draft.title,
+          articles: result.completed.length,
+          enabled,
+          skipped: result.completed.length - enabled,
+          status: 'ok',
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        draftsFailed += 1
+        completed.push(`${label}：失败 - ${message}`)
+        draftDetails.push({
+          appmsgid: draft.appmsgid,
+          title: draft.title,
+          articles: 0,
+          enabled: 0,
+          skipped: 0,
+          status: 'failed',
+          error: message,
+        })
+        await debugScreenshot(page, debugDir, 'draft_failed_' + draft.appmsgid).catch(() => undefined)
+      }
+    }
 
     return {
-      success: true,
-      article_count: result.completed.length,
-      completed: result.completed,
+      success: draftsFailed === 0,
+      article_count: articlesTotal,
+      completed,
+      drafts: draftDetails,
+      summary: {
+        drafts_total: allDrafts.length,
+        drafts_ok: draftsOk,
+        drafts_failed: draftsFailed,
+        articles_total: articlesTotal,
+      },
+      note: '已遍历草稿箱全部「文章」草稿（小绿书/图片消息草稿不在 type=77 列表中，按要求跳过）',
+      ...(draftsFailed > 0 ? { error: `${draftsFailed}/${allDrafts.length} 个草稿处理失败，详见 drafts` } : {}),
     }
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error)
@@ -544,11 +579,11 @@ export async function enableWechatDraftOriginal(
 export function enableOriginalTool(cfg: Config) {
   return defineTool<{ titles?: string[]; author?: string; account_id?: string }, WechatOriginalResult>({
     name: 'gzh_enable_original',
-    description: '通过浏览器自动化进入微信公众号后台草稿箱，为草稿逐篇开启文字原创、填入作者并保存草稿（基于油猴自动化脚本）。',
+    description: '遍历微信公众号后台草稿箱中「文章」标签下的全部草稿（新的与历史的都包含），逐个进入编辑页为其中每篇文章开启文字原创、填入作者并保存草稿；草稿箱列表按 type=77 只含图文文章，小绿书/图片消息草稿不在列表中，天然跳过。', 
     parameters: {
       titles: {
         type: 'array',
-        description: '可选：草稿中包含的文章标题列表（用于在草稿箱定位草稿，留空则自动从最近发布记录读取或定位最新草稿）',
+        description: '可选：仅作演练模式回显之用；实际处理范围始终是草稿箱全部「文章」草稿',
         items: { type: 'string' },
       },
       author: {
