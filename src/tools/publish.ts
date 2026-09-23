@@ -449,6 +449,8 @@ async function publishGzh(
     titles: args.titles,
     verify: result.verify ?? { checked: false },
     result_file: resultPath,
-    original_result: originalResult,
+    // 仅在真正执行过「开启原创」时输出该字段：显式 undefined 不是无损 JSON，
+    // 会被宿主工具输出校验拒绝，导致发布成功却报 "value is not lossless JSON"。
+    ...(originalResult ? { original_result: originalResult } : {}),
   }
 }

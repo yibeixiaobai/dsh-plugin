@@ -431,9 +431,9 @@ export async function enableWechatDraftOriginal(
 
     // 2. 在草稿箱中查找刚发布的草稿卡片（根据标题匹配，或默认首条最新草稿）
     const firstTargetTitle = targetTitles[0] || ''
-    const editorLink = await page.evaluate((targetTitle) => {
+    const located = await page.evaluate((targetTitle) => {
       // 遍历草稿卡片
-      const cards = Array.from(document.querySelectorAll('.appmsg_card, .weui-desktop-card, .js_appmsg_item, .appmsg_col'))
+      const cards = Array.from(document.querySelectorAll('.weui-desktop-card, .appmsg_card, .js_appmsg_item, .appmsg_col, .weui-desktop-media'))
       let matchedCard: Element | null = null
 
       if (targetTitle) {
@@ -448,26 +448,56 @@ export async function enableWechatDraftOriginal(
         matchedCard = cards[0]
       }
 
-      const root = matchedCard || document
-      // 优先从匹配的卡片中寻找编辑链接
-      const editAnchor = root.querySelector<HTMLAnchorElement>('a[href*="action=edit"], a[href*="appmsg_edit"]')
-      if (editAnchor && editAnchor.href) return editAnchor.href
+      const root: Element | Document = matchedCard || document
 
-      // 次选：包含“编辑”文字的链接或按钮
-      const allAnchors = Array.from(root.querySelectorAll<HTMLAnchorElement>('a'))
-      const textEdit = allAnchors.find((a) => a.textContent?.trim() === '编辑' || a.title?.trim() === '编辑')
-      return textEdit?.href || null
+      // 优先（旧版后台）：卡片内的静态编辑链接
+      const editAnchor = root.querySelector<HTMLAnchorElement>('a[href*="action=edit"], a[href*="appmsg_edit"]')
+      if (editAnchor && editAnchor.href) return { href: editAnchor.href, how: 'anchor' }
+
+      // 新版后台：卡片带 data-appid（其值即 appmsgid），据此直接构造编辑页 URL。
+      // 新版把“编辑”入口改成了 JS 触发的隐藏 div（无 href、悬停才可见），只能这样定位。
+      const holder = (matchedCard || document.querySelector('.weui-desktop-card')) as HTMLElement | null
+      const appmsgId = holder?.getAttribute('data-appid') || holder?.getAttribute('data-appmsgid')
+      if (appmsgId) {
+        const token = new URL(window.location.href).searchParams.get('token') || ''
+        return {
+          href: 'https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit'
+            + '&type=10&appmsgid=' + encodeURIComponent(appmsgId)
+            + '&token=' + encodeURIComponent(token) + '&lang=zh_CN',
+          how: 'data-appid',
+        }
+      }
+
+      // 兜底 1：直接触发隐藏的“编辑”元素（新版可能挂在 JS 上）
+      const editEl = Array.from(root.querySelectorAll<HTMLElement>('*'))
+        .find((el) => (el.textContent || '').trim() === '编辑')
+      if (editEl) {
+        editEl.click()
+        return { href: null, how: 'click' }
+      }
+
+      // 兜底 2：旧式文字链接
+      const textEdit = Array.from(root.querySelectorAll<HTMLAnchorElement>('a'))
+        .find((a) => a.textContent?.trim() === '编辑' || a.title?.trim() === '编辑')
+      if (textEdit?.href) return { href: textEdit.href, how: 'text-anchor' }
+
+      return { href: null, how: 'not-found' }
     }, firstTargetTitle)
 
-    if (!editorLink) {
+    if (located.how === 'not-found' || (!located.href && located.how !== 'click')) {
       const shot = await debugScreenshot(page, debugDir, 'draft_not_found')
       throw new Error(
-        '在微信公众号草稿箱中未找到目标草稿的“编辑”按钮。请检查草稿是否已成功生成。截图已存：' + shot,
+        '在微信公众号草稿箱中未找到目标草稿的“编辑”入口。请检查草稿是否已成功生成。截图已存：' + shot,
       )
     }
 
     // 3. 打开草稿编辑页
-    await page.goto(editorLink, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    if (located.href) {
+      await page.goto(located.href, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    } else {
+      // 点击式入口由后台自行跳转，等页面完成跳转
+      await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => undefined)
+    }
     await new Promise((resolve) => setTimeout(resolve, 3000))
 
     // 验证是否已成功进入编辑页
