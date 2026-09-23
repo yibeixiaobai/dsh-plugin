@@ -40,18 +40,50 @@ const PLATFORM_KEYWORD_MAP: Record<string, Platform | 'all'> = {
   all: 'all',
   全部: 'all',
   全平台: 'all',
+  全量: 'all',
   社媒: 'all',
 }
 
-/** 识别一个词是否由一个或多个已知 account_id 组成（支持逗号分隔多账号） */
+/**
+ * 识别一个词是否指定了已知账号
+ * 支持：
+ * 1. 账号 ID（如 default, default-copy, baijiahao）
+ * 2. 账号显示名称（如 文映千秋学术网, 文映学术2, 百家号）
+ * 3. 逗号分隔的多个账号 ID 或名称（如 default,default-copy）
+ */
 function matchAccountIds(config: Config, word: string): string[] | null {
-  const cleaned = word.replace(/^[,，、]+|[,，、]+$/g, '')
+  const cleaned = word.replace(/^[,，、]+|[,，、]+$/g, '').trim()
   if (!cleaned) return null
-  const ids = cleaned.split(/[,，、]+/).map((id) => id.trim()).filter(Boolean)
-  if (ids.length > 0 && ids.every((id) => Boolean(config.accounts[id]))) {
-    return ids
+
+  const parts = cleaned.split(/[,，、]+/).map((item) => item.trim()).filter(Boolean)
+  if (parts.length === 0) return null
+
+  const resolvedIds: string[] = []
+  for (const part of parts) {
+    // 1. 按 ID 精确匹配
+    if (config.accounts[part]) {
+      resolvedIds.push(part)
+      continue
+    }
+    // 2. 按 ID 忽略大小写匹配
+    const matchedById = Object.keys(config.accounts).find((id) => id.toLowerCase() === part.toLowerCase())
+    if (matchedById) {
+      resolvedIds.push(matchedById)
+      continue
+    }
+    // 3. 按账号显示名称 profile.name 精确或忽略大小写匹配
+    const matchedByName = Object.entries(config.accounts).find(
+      ([, profile]) => profile.name && (profile.name === part || profile.name.toLowerCase() === part.toLowerCase()),
+    )
+    if (matchedByName) {
+      resolvedIds.push(matchedByName[0])
+      continue
+    }
+    // 只要有一个 token 无法匹配为账号，则判定整体不是账号列表
+    return null
   }
-  return null
+
+  return resolvedIds.length > 0 ? Array.from(new Set(resolvedIds)) : null
 }
 
 export interface ParsedCommand {
@@ -63,21 +95,14 @@ export interface ParsedCommand {
 /**
  * 严格以空格为识别符的命令参数解析器
  *
- * 语法格式：
- *   /publish [平台|all] [账号] [选题与补充要求...]
- *
- * 解析流程：
- * 1. 将输入按连续空白字符切割成 tokens。
- * 2. 若指定了 fixedPlatform（如调用 /zhihu 或 /gzh），锁定该平台；检查首个 token 是否为账号 ID，其余为 request。
- * 3. 未指定 fixedPlatform 时：
- *    - 检查 token[0] 是否为平台词（zhihu / gzh / all 等）：
- *      - 若是，平台锁定；进一步检查 token[1] 是否为账号 ID：
- *        - 若是账号 ID，目标账号即为该账号，token[2...] 组合为补充要求。
- *        - 若不是账号 ID，目标账号取该平台全部启用账号，token[1...] 组合为补充要求。
- *    - 检查 token[0] 是否为账号 ID：
- *      - 若是，目标账号锁定为该账号，token[1...] 组合为补充要求。
- *    - 若既不是平台词也不是账号 ID：
- *      - 目标账号为全平台所有启用账号，全部输入直接作为补充要求。
+ * 核心调度原则：
+ * 1. 默认行为：执行对应范围内的【全部已启用账号】（未指定范围则全平台全部启用，指定了社媒类型则该社媒全部启用）；
+ * 2. 支持灵活指定：
+ *    - 支持指定单独社媒类型（如 /publish zhihu、/publish gzh）：严格仅执行该平台的已启用账号，绝不跨平台执行；
+ *    - 支持指定单独账号（账号名或账号ID，如 /publish 文映学术2、/publish default-copy）：严格仅执行该指定账号；
+ *    - 支持指定社媒类型 + 指定账号（如 /publish gzh 文映学术2）：精确双重限定；
+ *    - 支持指定多个特定账号（逗号分隔，如 /publish default,default-copy）；
+ *    - 平台快捷指令（如 /gzh、/zhihu）：默认执行该平台全部已启用账号；若指定账号则严格仅执行该账号。
  */
 export function parseSpaceSeparatedInput(
   config: Config,
@@ -85,77 +110,123 @@ export function parseSpaceSeparatedInput(
   fixedPlatform?: Platform,
 ): ParsedCommand {
   const input = rawInput.trim()
-  if (!input) {
-    if (fixedPlatform) {
-      const accountIds = enabledAccountIds(config).filter((id) =>
-        config.accounts[id]?.enabled && normalizePlatform(config.accounts[id]) === fixedPlatform)
-      return { accountIds, request: '', platform: fixedPlatform }
-    }
-    return { accountIds: enabledAccountIds(config), request: '', platform: '' }
-  }
 
-  const tokens = input.split(/\s+/)
-
-  // 1. 如果是固定平台命令（如 /zhihu 或 /gzh）
+  // -------------------------------------------------------------
+  // 1. 平台专属快捷命令（如 /zhihu 或 /gzh）
+  // -------------------------------------------------------------
   if (fixedPlatform) {
+    const allInPlatform = enabledAccountIds(config).filter((id) =>
+      config.accounts[id]?.enabled && normalizePlatform(config.accounts[id]) === fixedPlatform)
+
+    if (!input) {
+      // 没输入内容，默认执行该平台全部已启用账号
+      return {
+        accountIds: allInPlatform,
+        request: '',
+        platform: fixedPlatform,
+      }
+    }
+
+    const tokens = input.split(/\s+/)
+    const firstWord = tokens[0].toLowerCase()
+
+    // 显式 all 标识
+    if (firstWord === 'all' || firstWord === '全部' || firstWord === '全量' || firstWord === '--all') {
+      return {
+        accountIds: allInPlatform,
+        request: tokens.slice(1).join(' ').trim(),
+        platform: fixedPlatform,
+      }
+    }
+
+    // 检查首词是否是指定账号（账号 ID 或 中文名称）
     const matchedAccounts = matchAccountIds(config, tokens[0])
     if (matchedAccounts) {
+      // 指定了具体账号，严格仅执行该指定账号！
       return {
         accountIds: matchedAccounts,
         request: tokens.slice(1).join(' ').trim(),
         platform: fixedPlatform,
       }
     }
-    // 首词不是账号，则全部 tokens 都是请求要求，账号取该平台全部已启用账号
-    const accountIds = enabledAccountIds(config).filter((id) =>
-      config.accounts[id]?.enabled && normalizePlatform(config.accounts[id]) === fixedPlatform)
+
+    // 首词不是账号，说明整句都是选题/补充要求！
+    // 默认执行该平台全部已启用的账号！
     return {
-      accountIds,
+      accountIds: allInPlatform,
       request: tokens.join(' ').trim(),
       platform: fixedPlatform,
     }
   }
 
-  // 2. 通用命令（如 /publish、/post）：以空格检查首词
-  const firstWord = tokens[0].toLowerCase()
-  const matchedPlatform = PLATFORM_KEYWORD_MAP[firstWord]
+  // -------------------------------------------------------------
+  // 2. 通用发布命令（如 /publish、/post）
+  // -------------------------------------------------------------
+  const allEnabledAccounts = enabledAccountIds(config)
 
-  if (matchedPlatform) {
-    // 首词是平台词
-    if (matchedPlatform === 'all') {
-      return {
-        accountIds: enabledAccountIds(config),
-        request: tokens.slice(1).join(' ').trim(),
-        platform: 'all',
-      }
+  if (!input) {
+    // 没输入任何参数，默认执行全平台全部已启用账号
+    return {
+      accountIds: allEnabledAccounts,
+      request: '',
+      platform: 'all',
     }
+  }
 
-    // 针对具体平台（zhihu / gzh），检查第二个词是否指定了账号
+  const tokens = input.split(/\s+/)
+  const firstWord = tokens[0].toLowerCase()
+
+  // 2.1 显式要求全平台广播执行：/publish all [选题要求]
+  if (firstWord === 'all' || firstWord === '全部' || firstWord === '全平台' || firstWord === '全量' || firstWord === '--all') {
+    return {
+      accountIds: allEnabledAccounts,
+      request: tokens.slice(1).join(' ').trim(),
+      platform: 'all',
+    }
+  }
+
+  // 2.2 检查首词是否是社媒平台词（如 zhihu / gzh / wechat 等）
+  const matchedPlatform = PLATFORM_KEYWORD_MAP[firstWord]
+  if (matchedPlatform && matchedPlatform !== 'all') {
+    const allInPlatform = enabledAccountIds(config).filter((id) =>
+      config.accounts[id]?.enabled && normalizePlatform(config.accounts[id]) === matchedPlatform)
+
     if (tokens.length > 1) {
-      const secondWordAccounts = matchAccountIds(config, tokens[1])
-      if (secondWordAccounts) {
+      const secondWord = tokens[1].toLowerCase()
+      // 第二词是 all：/publish gzh all [选题要求]
+      if (secondWord === 'all' || secondWord === '全部' || secondWord === '全量' || secondWord === '--all') {
         return {
-          accountIds: secondWordAccounts,
+          accountIds: allInPlatform,
+          request: tokens.slice(2).join(' ').trim(),
+          platform: matchedPlatform,
+        }
+      }
+      // 第二词是指定账号（账号 ID 或 中文名称）：/publish gzh 文映学术2 [选题要求]
+      const secondAccounts = matchAccountIds(config, tokens[1])
+      if (secondAccounts) {
+        // 指定了具体账号，严格仅执行该指定账号！
+        return {
+          accountIds: secondAccounts,
           request: tokens.slice(2).join(' ').trim(),
           platform: matchedPlatform,
         }
       }
     }
 
-    // 第二个词不是账号，取该平台所有启用的账号
-    const accountIds = enabledAccountIds(config).filter((id) =>
-      config.accounts[id]?.enabled && normalizePlatform(config.accounts[id]) === matchedPlatform)
+    // 第二词不是账号，说明已指定单独社媒类型，选题从 token[1...] 开始！
+    // 默认执行该社媒类型下全部已启用的账号（绝不跨平台执行）！
     return {
-      accountIds,
+      accountIds: allInPlatform,
       request: tokens.slice(1).join(' ').trim(),
       platform: matchedPlatform,
     }
   }
 
-  // 3. 首词不是平台词，检查首词是否是账号 ID
+  // 2.3 检查首词是否直接指定了账号（账号 ID 或 中文名称）：/publish 文映学术2 [选题要求]
   const matchedAccounts = matchAccountIds(config, tokens[0])
   if (matchedAccounts) {
     const firstPlatform = normalizePlatform(config.accounts[matchedAccounts[0]])
+    // 指定了具体账号，严格仅执行该指定账号！
     return {
       accountIds: matchedAccounts,
       request: tokens.slice(1).join(' ').trim(),
@@ -163,9 +234,10 @@ export function parseSpaceSeparatedInput(
     }
   }
 
-  // 4. 首词既不是平台也不是账号，整句均为补充要求，广播给所有启用账号
+  // 2.4 首词既不是平台也不是账号，整句均为选题/补充要求！
+  // 默认执行全平台全部已启用账号！
   return {
-    accountIds: enabledAccountIds(config),
+    accountIds: allEnabledAccounts,
     request: tokens.join(' ').trim(),
     platform: '',
   }
@@ -187,10 +259,10 @@ function scopeLabel(config: Config, accountIds: string[], platform: Platform | '
 /** 任务调度提示词：保持高阶流程调度与安全隔离，补充要求为第一最高优先级，排版与校验基础规范由 gzh_get_style_guide 统一提供 */
 export function taskPrompt(config: Config, accountIds: string[], request: string, attachmentCount = 0): string {
   const isMultiAccount = accountIds.length > 1
-  const scope = scopeLabel(config, accountIds, '') + '日常生产与发布任务'
+  const scope = scopeLabel(config, accountIds, '') + '生产与发布任务'
   const lines: string[] = [
     '立即执行' + scope +
-      (isMultiAccount ? '（多账号/多平台任务：支持多 Agent 并行或隔离独立推进）' : '') + '。',
+      (isMultiAccount ? '（多账号批量任务：支持多 Agent 并行或隔离独立推进）' : '（单账号专属执行：严格仅针对目标账号进行查重、撰写、配图与发布，切勿涉及其它无关账号）') + '。',
     '目标账号列表：' + accountIds.map((id) => `${config.accounts[id]?.name || id}（${platformLabel(normalizePlatform(config.accounts[id]))}，account_id: ${id}）`).join('、') + '。',
     '调用所有支持 account_id 的工具时必须显式传入当前账号的 account_id。',
   ]
@@ -213,6 +285,8 @@ export function taskPrompt(config: Config, accountIds: string[], request: string
   lines.push('【调度纪律与执行流程】')
   if (isMultiAccount) {
     lines.push('1. 多账号并行隔离：检测到当前任务包含多个账号，系统已提供 subagent 工具时，主 Agent 必须优先调用 subagent 工具，分别为每个账号独立派生 1 个子 Agent 并行执行完整流水线（查重 → 获取规范 → 写文构建 → 生图 → 校验 → 发布），以保持上下文隔离并大幅提速。主 Agent 负责汇总各账号结果。')
+  } else {
+    lines.push('1. 单账号专属执行：当前为单个指定账号执行任务，流程仅针对本账号推进，严禁擅自切换或涉及其它账号。')
   }
   lines.push(
     '2. 规范驱动与优先级：每个账号必须首先调用 gzh_get_style_guide 获取该账号生效的基础配置与排版规范。注意：若本次任务包含补充要求或用户附件，补充要求与附件具有第一最高优先级，优先覆盖对应配置（例如：用户指定了特定选题或提供了参考材料则必须写对应内容，不再从默认 topics 抽取；用户指定了篇数或形态则按补充要求执行；用户指定了特定主题则按指定主题撰写）；未冲突的基础排版与安全规范（单行HTML、禁词、生图比例等）严格按返回值执行。',
@@ -244,7 +318,7 @@ function handleCommandInvocation(
       .filter((profile) => profile.enabled && normalizePlatform(profile) === p).length
     return {
       kind: 'error',
-      text: '没有启用中的' + platformLabel(parsed.platform) + '账号（当前启用：公众号 ' + enabledCount('gzh') +
+      text: '没有可用的' + platformLabel(parsed.platform) + '账号（当前启用：公众号 ' + enabledCount('gzh') +
         ' 个、知乎 ' + enabledCount('zhihu') + ' 个）。请先在社媒设置中启用对应平台的账号。',
     }
   }
@@ -273,21 +347,34 @@ function handleCommandInvocation(
     ...rawAttachments,
   ]
 
+  const isSingle = accounts.length === 1
+  const modeTag = isSingle ? `[单账号专属]` : `[批量执行(${accounts.length}个账号)]`
   const attachmentNotice = attachmentCount > 0 ? ` [含 ${attachmentCount} 个附件]` : ''
+
   invocation.agent.followup(createUserMessage({
     content: contentBlocks,
     source: {
       kind: 'plugin',
       plugin: PLUGIN_NAME,
       form: 'notice',
-      summary: '已启动' + scope + '任务（' + accounts.map((account) => account.profile.name).join('、') + '）' + attachmentNotice,
+      summary: `${modeTag} 已启动${scope}任务（${accounts.map((account) => account.profile.name).join('、')}）${attachmentNotice}`,
     },
   }))
+
+  const targetListText = accounts
+    .map((account) => `${account.profile.name}（平台: ${platformLabel(normalizePlatform(account.profile))} | 账号ID: ${account.id}）`)
+    .join('\n  • ')
+
+  const hintTip = isSingle
+    ? '\n💡 提示：当前已锁定指定账号执行。如需执行全部启用账号，请直接使用缺省命令（如 /publish [要求] 或 /gzh [要求]）。'
+    : '\n💡 提示：当前默认执行范围内的全部已启用账号。如需指定单独社媒类型或单独账号，可在命令中指定（例如：/publish gzh [要求] 或 /publish ' + accounts[0].profile.name + ' [要求]）。'
+
   return {
     kind: 'success',
-    text: '已启动' + scope + '生产发布任务：' + accounts.map((account) => `${account.profile.name}（${platformLabel(normalizePlatform(account.profile))} / ${account.id}）`).join('、') +
+    text: `已启动${scope}生产发布任务 ${modeTag}：\n  • ${targetListText}` +
       (parsed.request ? `\n补充要求：${parsed.request}` : '') +
       (attachmentCount > 0 ? `\n已接收附件：${attachmentCount} 个文件/图片` : '') +
+      hintTip +
       '\n流水线将在后台自动化执行，请稍候查看产出汇总。',
   }
 }
@@ -297,9 +384,9 @@ export function registerQuickCommand(ctx: Context, config: Config): void {
   // 1. 通用主发布指令：/publish
   ctx.commands.register({
     name: 'publish',
-    description: '启动社媒更新发布任务（以空格分割参数：[平台|all] [账号] [补充要求]，支持上传参考附件）',
+    description: '启动社媒发布任务（默认执行全部已启用；支持指定社媒类型、账号名/ID，空格分割）',
     input: {
-      hint: '[zhihu|gzh|all] [account_id] [补充要求/选题]',
+      hint: '[社媒类型|账号名|账号ID] [选题/补充要求]',
       attachments: true,
     },
     handler(invocation) {
@@ -310,9 +397,9 @@ export function registerQuickCommand(ctx: Context, config: Config): void {
   // 2. 通用发布简写别名：/post
   ctx.commands.register({
     name: 'post',
-    description: '启动社媒更新发布任务（以空格分割参数：[平台|all] [账号] [补充要求]）',
+    description: '启动社媒发布任务（默认执行全部已启用；支持指定社媒类型、账号名/ID，空格分割）',
     input: {
-      hint: '[zhihu|gzh|all] [account_id] [补充要求/选题]',
+      hint: '[社媒类型|账号名|账号ID] [选题/补充要求]',
       attachments: true,
     },
     handler(invocation) {
@@ -323,9 +410,9 @@ export function registerQuickCommand(ctx: Context, config: Config): void {
   // 3. 知乎专属快捷指令：/zhihu
   ctx.commands.register({
     name: 'zhihu',
-    description: '启动知乎专栏内容生成与发布任务（以空格分割参数：[账号ID] [补充要求/选题]）',
+    description: '知乎专栏发布任务（默认执行全部知乎已启用账号；可指定账号名/ID，空格分割）',
     input: {
-      hint: '[account_id] [补充要求/选题]',
+      hint: '[账号名|账号ID] [选题/补充要求]',
       attachments: true,
     },
     handler(invocation) {
@@ -336,9 +423,9 @@ export function registerQuickCommand(ctx: Context, config: Config): void {
   // 4. 微信公众号快捷与兼容指令：/gzh
   ctx.commands.register({
     name: 'gzh',
-    description: '启动微信公众号内容生成与发布任务（以空格分割参数：[账号ID] [补充要求/选题]）',
+    description: '微信公众号发布任务（默认执行全部公众号已启用账号；可指定账号名/ID，空格分割）',
     input: {
-      hint: '[account_id] [补充要求/选题]',
+      hint: '[账号名|账号ID] [选题/补充要求]',
       attachments: true,
     },
     handler(invocation) {

@@ -7,6 +7,7 @@ import { normalizeConfig, applyNormalizedConfig } from './config-runtime.ts'
 import { registerBrandImageRoutes } from './brand-images.ts'
 import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
+import { registerWechatRoutes, enableOriginalTool } from './wechat-browser.ts'
 import { registerPublishHistoryRoutes } from './publish-history.ts'
 import { registerDshModelRoutes } from './dsh-models.ts'
 import { registerConfigRoutes } from './config-routes.ts'
@@ -44,6 +45,7 @@ export function apply(ctx: Context, config: ConfigT) {
   registerBrandImageRoutes(ctx, () => liveConfig)
   registerImageTestRoute(ctx, () => liveConfig)
   registerZhihuRoutes(ctx, () => liveConfig)
+  registerWechatRoutes(ctx, () => liveConfig)
   registerPublishHistoryRoutes(ctx, () => liveConfig)
   registerDshModelRoutes(ctx)
   let source = () => liveConfig
@@ -142,8 +144,9 @@ export function apply(ctx: Context, config: ConfigT) {
   ctx.tools.register(validateHtmlTool(liveConfig))
   ctx.tools.register(publishTool(liveConfig))
   ctx.tools.register(verifyTool(liveConfig))
+  ctx.tools.register(enableOriginalTool(liveConfig))
   registerQuickCommand(ctx, liveConfig)
 
-  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：7 个生产工具与 /publish, /post, /zhihu, /gzh 指令就绪' +
+  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：8 个生产工具与 /publish, /post, /zhihu, /gzh 指令就绪' +
     (config.runtime.dry_run ? '（演练模式：不联网生图、不发布）' : ''))
 }

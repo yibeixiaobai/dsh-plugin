@@ -11,6 +11,9 @@ import {
   writeJobFile, writeTextFile, runtimeResourceDir, writeUploadCache,
 } from './shared.ts'
 
+import type { WechatOriginalResult } from '../wechat-browser.ts'
+import { enableWechatDraftOriginal } from '../wechat-browser.ts'
+
 interface PublishResult {
   dry_run: boolean
   media_id?: string
@@ -41,6 +44,7 @@ export interface PublishOk {
   verify: { checked: boolean; article_count?: number; results?: unknown[] }
   result_file: string
   already_published?: boolean
+  original_result?: WechatOriginalResult
 }
 
 interface PublishArgs {
@@ -50,6 +54,7 @@ interface PublishArgs {
   article_type?: 'news' | 'newspic'
   force?: boolean
   account_id?: string
+  auto_enable_original?: boolean
 }
 
 function stampNow(): string {
@@ -94,6 +99,10 @@ export function publishTool(cfg: Config) {
       account_id: {
         type: 'string',
         description: '账号 ID；缺省使用默认账号',
+      },
+      auto_enable_original: {
+        type: 'boolean',
+        description: '可选：草稿发布成功后，是否自动通过浏览器模拟打开草稿箱批量开启文字原创并保存（缺省采用账号配置 auto_enable_original）',
       },
     },
     output: { schema: { type: 'json' }, render: renderJson },
@@ -372,6 +381,29 @@ async function publishGzh(
   if (!result.media_id) throw new Error('发布成功但未返回 media_id')
   const mediaIds = result.media_ids && result.media_ids.length > 0 ? result.media_ids : [result.media_id]
   writeTextFile(sdir, MEDIA_ID_FILE, mediaIds.join('\n') + '\n')
+
+  let originalResult: WechatOriginalResult | undefined
+  const shouldAutoOriginal = args.auto_enable_original ?? account.profile.auto_enable_original
+  if (shouldAutoOriginal && !isNewspic) {
+    try {
+      console.log(`[social-publisher] 账号 ${accountId} 正在通过浏览器模拟进入草稿箱批量开启文字原创...`)
+      originalResult = await enableWechatDraftOriginal(cfg, accountId, args.titles, account.profile.author_name)
+      if (originalResult.success) {
+        console.log(`[social-publisher] 账号 ${accountId} 批量开启原创成功（共 ${originalResult.article_count} 篇）：\n${originalResult.completed.join('\n')}`)
+      } else {
+        console.warn(`[social-publisher] 账号 ${accountId} 批量开启原创未成功：${originalResult.error}`)
+      }
+    } catch (e) {
+      console.warn(`[social-publisher] 账号 ${accountId} 批量开启原创异常：`, e)
+      originalResult = {
+        success: false,
+        article_count: 0,
+        completed: [],
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
+  }
+
   const now = stampNow()
   const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
     status: 'success',
@@ -384,6 +416,7 @@ async function publishGzh(
     author: account.profile.author_name,
     timestamp: now,
     articles: args.titles,
+    original_result: originalResult,
   }, null, 2) + '\n')
   try {
     appendPublishRecord(cfg, {
@@ -416,5 +449,6 @@ async function publishGzh(
     titles: args.titles,
     verify: result.verify ?? { checked: false },
     result_file: resultPath,
+    original_result: originalResult,
   }
 }

@@ -97,47 +97,46 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 
 | 分组 | 配置项 |
 |---|---|
-| ① 账号 | 多账号新增、一键复制（含凭据克隆配置快速新建）、启停、删除、设为默认；每个账号可选发布平台 `platform`（gzh=公众号 / zhihu=知乎），公众号独立保存 `appid`、`app_secret`，知乎账号扫码登录并有 `publish_immediately` 直发开关；`author_name`、`brand_name` 平台通用 |
+| ① 账号 | 多账号新增、一键复制（含凭据克隆配置快速新建）、启停、删除、设为默认；每个账号可选发布平台 `platform`（gzh=公众号 / zhihu=知乎），公众号独立保存 `appid`、`app_secret` 与 `auto_enable_original`（草稿创建后自动通过浏览器打开并批量开启原创并保存），知乎账号扫码登录并有 `publish_immediately` 直发开关；`author_name`、`brand_name` 平台通用 |
 | ② 内容规则 | 按账号编辑 `articles_per_day`(6)、`min_words`(2000)、`topics`、`forbidden_words`、`ending_guide_required` |
 | ③ 排版 | `headline_theme`（6 主题下拉）、`secondary_theme`（rotate=按篇顺序轮换各主题）、`font_size`(13px)、`line_height`(20px)、`paragraph_margin`(25px)、`text_indent`(2em)；仅公众号账号使用 |
 | ④ 生图接口 | 全局接口池：`base_url`、`api_key`、`model`、`priority`；任何接口级失败（网络/超时/任意 HTTP 错误/返回格式异常）自动切换下一个接口，成功后保持；每个接口可单独测试并预览结果 |
 | ⑤ 头部品牌图 | 按账号上传或拖放 JPEG/PNG/WebP（≤10 MB），即时预览，并配置尺寸、裁切、位置、圆角与边框；仅公众号账号使用 |
 | ⑥ 尾部品牌图 | 同头部字段，可按账号独立上传、预览、启用和变换 |
 | ⑦ AI 配图 | `headline_cover_ratio`（头条封面比例，默认 2.35:1=3520×1498）、`secondary_cover_ratio`（次条，默认 1:1=1920×1920）、`content_images_per_article`(2)、`image_lang_zh_only`(true)；知乎账号封面统一 16:9 |
-| ⑧ 运行 | `project_root`（留空使用插件内 `tasks/default`）、`python_path`、`request_timeout_ms`、`dry_run`、`verify_after_publish`、`use_upload_cache`、`need_open_comment`、`chrome_path`（知乎浏览器自动化用，留空自动探测 Chrome/Edge）、`zhihu_headless`（默认开） |
+| ⑧ 运行 | `project_root`（留空使用插件内 `tasks/default`）、`python_path`、`request_timeout_ms`、`dry_run`、`verify_after_publish`、`use_upload_cache`、`need_open_comment`、`chrome_path`（浏览器自动化用，留空自动探测 Chrome/Edge）、`zhihu_headless`（知乎无头模式）、`gzh_headless`（微信公众号自动化无头模式，默认开） |
 | ⑨ 配置备份 | 支持全量或按范围（账号/接口池/排版规则/运行时）导出为 `.json` 文件或复制到剪贴板，支持密钥一键安全脱敏；支持文件拖拽与文本粘贴导入、实时语法结构预检看板，提供「增量合并（推荐，保护已有有效密码）」与「完全覆盖」双模式 |
 
 旧版 `wechat`、`content`、`brand_images`、`image_api` 配置会自动归入 `default` 账号和默认接口；首次保存后优先使用新模型，同时保留旧字段兼容现有脚本。
 
-## 工具（7 个）
+## 工具（8 个）
 
 ### 快捷指令（基于空格识别符）
 
 插件提供全新的以**空格为唯一参数识别符**的多平台通用发布指令，在任意 dsh 会话中均可直接调用：
 
 ```text
-# 通用主指令格式：/publish [平台|all] [账号] [选题与补充要求...]
-/publish                                           # 遍历全部启用社媒账号执行日常生产
-/publish all 今日前沿科技速递                       # 全平台广播更新
-/publish zhihu 深度解析大语言模型                   # 仅知乎平台（所有启用知乎账号）
-/publish zhihu zhihu_main 强化学习在机器人领域的进展 # 指定知乎平台与具体账号
-/publish gzh acct1 2026年学术期刊发表政策综述       # 指定公众号平台与具体账号
-/publish gzh acct1,acct2 深度学术盘点               # 逗号分隔多账号更新
-/publish 探讨前沿人工智能的发展轨迹                 # 纯补充要求，自动广播给全部启用账号
+# 通用主指令格式：/publish [社媒类型|账号名|账号ID] [账号名/ID] [选题与补充要求...]
+/publish 探讨前沿人工智能的发展轨迹                 # 【默认全量】自动执行全平台全部已启用的社媒账号
+/publish gzh 2026年学术期刊发表政策综述             # 【指定社媒】仅执行公众号下全部已启用账号（知乎不跑）
+/publish zhihu 深度解析大语言模型                   # 【指定社媒】仅执行知乎下全部已启用账号（公众号不跑）
+/publish 文映学术2 今日学术热点盘点                 # 【指定单账号】通过中文账号名称精准锁定单账号
+/publish default-copy 今日学术热点盘点              # 【指定单账号】通过账号 ID 精准锁定单账号
+/publish gzh 文映学术2 深度学术专著指南             # 【指定社媒+账号】指定公众号社媒类型 + 指定账号
 
 # 快捷别名与平台专属直达指令：
-/post zhihu 聚焦多模态大模型                        # /publish 简写别名
-/zhihu [账号ID] [选题与补充要求]                     # 知乎平台专属直达指令
-/gzh [账号ID] [选题与补充要求]                       # 微信公众号专属直达与兼容指令
+/post 深度解析大模型                                # /publish 简写别名（默认执行全部已启用）
+/zhihu [账号名|账号ID] [选题要求]                   # 知乎专栏直达（默认知乎全部已启用，指定账号则跑单账号）
+/gzh [账号名|账号ID] [选题要求]                     # 公众号直达（默认公众号全部已启用，指定账号则跑单账号）
 ```
 
-- **空格分词识别规则**：
-  - 首词为平台词（`zhihu` / `知乎` / `gzh` / `公众号` / `all` / `全平台`）时自动锁定目标平台；
-  - 接着识别账号 ID（或支持逗号分隔多账号）；
-  - 其余空格之后的内容均作为任务的**选题与补充要求**；
-  - 未指定平台与账号时，默认自动调度全平台所有启用的社媒账号。
+- **空格分词与精准调度原则**：
+  - **默认全量执行**：输入 `/publish [选题]` 默认执行全平台全部已启用账号；输入 `/publish gzh [选题]` 或 `/gzh [选题]` 默认执行公众号全部已启用账号；输入 `/publish zhihu [选题]` 或 `/zhihu [选题]` 默认执行知乎全部已启用账号；
+  - **支持指定单独社媒类型**：首词指定平台词（`gzh`、`zhihu` 等）时，严格仅在对应社媒平台下调度执行，绝不跨平台干扰；
+  - **支持指定单独账号**：支持直接输入账号 ID（如 `default-copy`）或账号中文显示名称（如 `文映学术2`、`百家号`），一旦指定账号，系统严格仅针对该单独账号执行生成与发布；
+  - **其余内容为选题要求**：空格之后的全部文字均作为第一最高优先级的任务补充要求；
 - **支持上传参考附件与补充要求第一优先级**：指令开启了 `attachments: true` 附件上传支持，用户在输入指令时可直接拖拽或上传参考文档、大纲材料、指定图片等附件；附件与文字补充要求均享有第一最高优先级，任务提示词将引导 Agent 深度参考附件材料进行选题与撰写。未冲突的基础排版规范与平台限制（单行 HTML 零换行、禁词表、防重复发布、封面比例等）继续由后端强制守护。
-- **调度执行纪律**（内置在任务提示词）：多账号优先派生 subagent 并行提速；`gzh_get_style_guide` 返回值自包含，不再读参考文档、源码或历史文章；构建/校验/发布只走专用工具，禁止 shell 直跑 pipeline 脚本；不在回复中复述文章全文、不回读已构建文件；查重与生图按账号批量一次提交。
+- **调度执行纪律**（内置在任务提示词）：多账号任务自动声明多 Agent 并行或隔离独立推进；指定单账号任务时严格声明单账号隔离、切勿涉及其它无关账号；`gzh_get_style_guide` 返回值自包含；构建/校验/发布只走专用工具，不在回复中复述文章全文、不回读已构建文件；查重与生图按账号批量一次提交。
 
 | 工具 | 作用 |
 |---|---|
@@ -148,6 +147,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | `gzh_validate_html` | 发布前机器校验：公众号=换行/字数/禁词/占位符/图片数/CDN + lint；知乎=字数/禁词/图片占位符 |
 | `gzh_publish_draft` | 公众号：上传素材（缓存续跑）→ 替换占位符 → draft/add 组合 1 个多图文草稿；知乎：浏览器自动化逐篇发布（默认存草稿箱） |
 | `gzh_verify_draft` | 公众号：draft/get（POST）逐篇核验；知乎：打开草稿箱逐条核对标题 |
+| `gzh_enable_original` | 公众号：浏览器自动化进入草稿编辑页，批量开启文字原创并保存草稿（基于油猴脚本） |
 
 除 `gzh_generate_images` 的账号用于读取每日文章数外，全部内容与发布工具都接受可选 `account_id`；未传时使用默认账号，返回结果会标明实际账号 ID。
 

@@ -38,6 +38,8 @@ export function ensureWorkspace(cfg: Config): string {
     fs.mkdirSync(accountScriptsDir(cfg, id), { recursive: true })
     if (cfg.accounts[id].platform === 'zhihu') {
       fs.mkdirSync(zhihuProfileDir(cfg, id), { recursive: true })
+    } else {
+      fs.mkdirSync(wechatProfileDir(cfg, id), { recursive: true })
     }
   }
   const defaults = path.join(runtimeResourceDir(), 'default-brand')
@@ -68,6 +70,11 @@ export function accountScriptsDir(cfg: Config, accountId: string): string {
 /** 知乎账号的浏览器用户数据目录（登录态持久化；扫码一次后长期有效） */
 export function zhihuProfileDir(cfg: Config, accountId: string): string {
   return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'zhihu_profile')
+}
+
+/** 微信公众号账号的浏览器用户数据目录（后台登录态持久化；扫码一次后长期有效） */
+export function wechatProfileDir(cfg: Config, accountId: string): string {
+  return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'wechat_profile')
 }
 
 export function brandDir(cfg: Config): string {
