@@ -22,10 +22,12 @@ export interface WechatOriginalResult {
   completed: string[]
   error?: string
   screenshot?: string
-  /** 逐草稿明细：草稿箱中每个「文章」草稿的处理结果 */
+  /** 逐草稿明细：本次处理的每个「文章」草稿的结果 */
   drafts?: Array<{ appmsgid: string; title: string; articles: number; enabled: number; skipped: number; status: 'ok' | 'failed'; error?: string }>
   /** 汇总：草稿数（总数/成功/失败）与文章数 */
   summary?: { drafts_total: number; drafts_ok: number; drafts_failed: number; articles_total: number }
+  /** 本次实际采用的处理范围：targeted=定向单个草稿，all=草稿箱全部草稿 */
+  scope?: 'targeted' | 'all'
   note?: string
 }
 
@@ -45,23 +47,29 @@ function draftEditUrl(token: string, appmsgid: string): string {
     + '&token=' + encodeURIComponent(token) + '&lang=zh_CN'
 }
 
+/** 读取草稿箱「文章」列表的某一页（type=77 天然不含小绿书/贴图草稿） */
+async function fetchDraftListPage(page: Page, token: string, begin: number): Promise<DraftRef[]> {
+  await page.goto(draftListUrl(token, begin), { waitUntil: 'networkidle2', timeout: 60000 })
+  await new Promise((resolve) => setTimeout(resolve, 2200))
+  return page.evaluate(() => {
+    return Array.from(document.querySelectorAll('.weui-desktop-card')).map((card) => {
+      const id = card.getAttribute('data-appid') || card.getAttribute('data-appmsgid') || ''
+      const titleEl = card.querySelector('.weui-desktop-publish__cover__title span, .weui-desktop-publish__cover__title')
+      return { appmsgid: id, title: (titleEl?.textContent || '').trim() }
+    }).filter((item) => item.appmsgid)
+  })
+}
+
 /**
  * 分页枚举草稿箱中全部「文章」草稿（type=77 不含小绿书贴图草稿）。
+ * 仅在明确要求「处理全部草稿」时调用；定向处理单个草稿请用 resolveTargetDrafts，避免无谓翻页。
  * 上限页数兜底，避免异常页面导致死循环。
  */
-async function listArticleDrafts(page: Page, token: string): Promise<DraftRef[]> {
+async function listArticleDrafts(page: Page, token: string, maxPages = 100): Promise<DraftRef[]> {
   const drafts: DraftRef[] = []
   const seen = new Set<string>()
-  for (let begin = 0; begin < DRAFT_LIST_PAGE_SIZE * 100; begin += DRAFT_LIST_PAGE_SIZE) {
-    await page.goto(draftListUrl(token, begin), { waitUntil: 'networkidle2', timeout: 60000 })
-    await new Promise((resolve) => setTimeout(resolve, 2200))
-    const items = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll('.weui-desktop-card')).map((card) => {
-        const id = card.getAttribute('data-appid') || card.getAttribute('data-appmsgid') || ''
-        const titleEl = card.querySelector('.weui-desktop-publish__cover__title span, .weui-desktop-publish__cover__title')
-        return { appmsgid: id, title: (titleEl?.textContent || '').trim() }
-      }).filter((item) => item.appmsgid)
-    })
+  for (let index = 0; index < maxPages; index += 1) {
+    const items = await fetchDraftListPage(page, token, index * DRAFT_LIST_PAGE_SIZE)
     if (items.length === 0) break
     let added = 0
     for (const item of items) {
@@ -74,6 +82,51 @@ async function listArticleDrafts(page: Page, token: string): Promise<DraftRef[]>
     if (added === 0 || items.length < DRAFT_LIST_PAGE_SIZE) break
   }
   return drafts
+}
+
+/**
+ * 解析本次要处理的草稿集合。
+ * - scope='all'：枚举草稿箱全部「文章」草稿（用户明确要求开启所有草稿时使用）。
+ * - scope='targeted'（默认）：只定位目标草稿，不全量枚举；命中即停，逐页查找直到标题匹配。
+ *   无标题时取最新一条草稿（与发布后自动开启原创的语义一致）。
+ */
+async function resolveTargetDrafts(
+  page: Page,
+  token: string,
+  targetTitles: string[],
+  scope: 'targeted' | 'all',
+): Promise<{ drafts: DraftRef[]; matchedByTitle: boolean }> {
+  if (scope === 'all') {
+    return { drafts: await listArticleDrafts(page, token), matchedByTitle: true }
+  }
+
+  const wanted = targetTitles.map((t) => t.trim()).filter(Boolean)
+  const collected: DraftRef[] = []
+  const seen = new Set<string>()
+  for (let index = 0; index < 100; index += 1) {
+    const items = await fetchDraftListPage(page, token, index * DRAFT_LIST_PAGE_SIZE)
+    if (items.length === 0) break
+    let added = 0
+    for (const item of items) {
+      if (seen.has(item.appmsgid)) continue
+      seen.add(item.appmsgid)
+      collected.push(item)
+      added += 1
+    }
+
+    // 无标题：最新一条即目标（发布流程刚创建的草稿位于首位）
+    if (wanted.length === 0) return { drafts: collected.slice(0, 1), matchedByTitle: false }
+
+    const hit = collected.find((draft) =>
+      draft.title !== '' && wanted.some((t) => draft.title === t || draft.title.includes(t) || t.includes(draft.title)),
+    )
+    if (hit) return { drafts: [hit], matchedByTitle: true }
+
+    if (added === 0 || items.length < DRAFT_LIST_PAGE_SIZE) break
+  }
+
+  // 标题未命中：退回最新一条草稿，保证与原有「发布后自动开启」行为一致
+  return { drafts: collected.slice(0, 1), matchedByTitle: false }
 }
 
 async function debugScreenshot(page: Page, dir: string, label: string): Promise<string> {
@@ -431,19 +484,23 @@ async function runOriginalScriptInPage(
 }
 
 /**
- * 遍历微信公众号草稿箱中「文章」标签下的**全部**草稿（新发布的与历史的都包含），
- * 逐个进入编辑页，为其中每一篇文章开启文字原创声明并保存草稿。
+ * 为微信公众号草稿箱中的草稿开启文字原创声明并保存。
+ *
+ * 处理范围由 scope 决定（默认定向，避免不必要的全量翻页）：
+ * - scope='targeted'（默认）：只定位 targetTitles 命中的那**一个**草稿；无标题时取最新一条。
+ *   发布流程（publish 后自动开启原创）走这一路径，开销最小。
+ * - scope='all'：枚举草稿箱「文章」标签下的**全部**草稿（新的与历史的都包含）逐个处理。
+ *   仅在用户明确要求「开启所有草稿的原创」时使用。
  *
  * 说明：草稿箱列表使用 type=77（图文文章），小绿书/图片消息草稿不会出现在该列表中，
  * 因此天然被跳过，符合「小绿书文章不需要开启原创」的要求。
- *
- * targetTitles 仅用于演练模式下回显，不再是定位条件（历史实现只处理首个匹配草稿，会漏掉其余草稿）。
  */
 export async function enableWechatDraftOriginal(
   cfg: Config,
   accountId: string,
   targetTitles: string[],
   authorName?: string,
+  scope: 'targeted' | 'all' = 'targeted',
 ): Promise<WechatOriginalResult> {
   const sdir = accountScriptsDir(cfg, accountId)
   const debugDir = path.join(sdir, 'wechat_debug')
@@ -482,8 +539,8 @@ export async function enableWechatDraftOriginal(
       )
     }
 
-    // 1. 枚举草稿箱中「文章」标签下的全部草稿（type=77 不含小绿书贴图草稿）
-    const allDrafts = await listArticleDrafts(page, token)
+    // 1. 解析目标草稿：默认只定位命中的那一个；scope='all' 才枚举全部草稿
+    const { drafts: allDrafts, matchedByTitle } = await resolveTargetDrafts(page, token, targetTitles, scope)
     if (allDrafts.length === 0) {
       const shot = await debugScreenshot(page, debugDir, 'draft_not_found')
       throw new Error('微信公众号草稿箱中未找到任何「文章」草稿。截图已存：' + shot)
@@ -547,6 +604,7 @@ export async function enableWechatDraftOriginal(
       success: draftsFailed === 0,
       article_count: articlesTotal,
       completed,
+      scope,
       drafts: draftDetails,
       summary: {
         drafts_total: allDrafts.length,
@@ -554,7 +612,11 @@ export async function enableWechatDraftOriginal(
         drafts_failed: draftsFailed,
         articles_total: articlesTotal,
       },
-      note: '已遍历草稿箱全部「文章」草稿（小绿书/图片消息草稿不在 type=77 列表中，按要求跳过）',
+      note: scope === 'all'
+        ? '已遍历草稿箱全部「文章」草稿（小绿书/图片消息草稿不在 type=77 列表中，按要求跳过）'
+        : matchedByTitle
+          ? `已按标题定向处理 1 个草稿（未全量枚举；如需处理全部草稿请传 scope='all'）`
+          : `未匹配到指定标题，已回退处理最新 1 个草稿（未全量枚举；如需处理全部草稿请传 scope='all'）`,
       ...(draftsFailed > 0 ? { error: `${draftsFailed}/${allDrafts.length} 个草稿处理失败，详见 drafts` } : {}),
     }
   } catch (error) {
@@ -577,14 +639,19 @@ export async function enableWechatDraftOriginal(
 
 /** 供 Agent 随时单独调用的开启草稿原创工具 */
 export function enableOriginalTool(cfg: Config) {
-  return defineTool<{ titles?: string[]; author?: string; account_id?: string }, WechatOriginalResult>({
+  return defineTool<{ titles?: string[]; author?: string; account_id?: string; scope?: 'targeted' | 'all' }, WechatOriginalResult>({
     name: 'gzh_enable_original',
-    description: '遍历微信公众号后台草稿箱中「文章」标签下的全部草稿（新的与历史的都包含），逐个进入编辑页为其中每篇文章开启文字原创、填入作者并保存草稿；草稿箱列表按 type=77 只含图文文章，小绿书/图片消息草稿不在列表中，天然跳过。', 
+    description: '为微信公众号草稿箱中的草稿开启文字原创声明并保存。默认只定位处理指定标题（或最新）的那 1 个草稿，开销小；仅当明确需要「开启所有草稿的原创」时传 scope="all"，才会枚举草稿箱「文章」标签下的全部草稿（含历史草稿）逐个处理。草稿箱列表按 type=77 只含图文文章，小绿书/图片消息草稿不在列表中，天然跳过。',
     parameters: {
       titles: {
         type: 'array',
-        description: '可选：仅作演练模式回显之用；实际处理范围始终是草稿箱全部「文章」草稿',
+        description: '可选：目标草稿的标题（草稿内首篇标题，支持精确或包含匹配）；留空则取最新 1 个草稿。仅在 scope="all" 时忽略',
         items: { type: 'string' },
+      },
+      scope: {
+        type: 'string',
+        description: '可选处理范围：targeted（默认）只处理命中的 1 个草稿，不枚举全部；all 枚举草稿箱全部「文章」草稿逐个开启原创',
+        enum: ['targeted', 'all'],
       },
       author: {
         type: 'string',
@@ -598,8 +665,9 @@ export function enableOriginalTool(cfg: Config) {
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
+      const scope: 'targeted' | 'all' = args.scope === 'all' ? 'all' : 'targeted'
       let titles = args.titles || []
-      if (titles.length === 0) {
+      if (titles.length === 0 && scope === 'targeted') {
         const sdir = accountScriptsDir(cfg, account.id)
         const resultFile = path.resolve(sdir, RESULT_FILE)
         if (fs.existsSync(resultFile)) {
@@ -610,7 +678,7 @@ export function enableOriginalTool(cfg: Config) {
         }
       }
       const author = args.author || account.profile.author_name
-      return await enableWechatDraftOriginal(cfg, account.id, titles, author)
+      return await enableWechatDraftOriginal(cfg, account.id, titles, author, scope)
     },
   })
 }
