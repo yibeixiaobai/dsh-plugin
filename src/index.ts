@@ -9,6 +9,7 @@ import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
 import { registerPublishHistoryRoutes } from './publish-history.ts'
 import { registerDshModelRoutes } from './dsh-models.ts'
+import { registerConfigRoutes } from './config-routes.ts'
 import { registerQuickCommand, PLUGIN_NAME } from './command.ts'
 import { ensureWorkspace, hydrateConfigFromWx, syncConfig, workspaceDir } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
@@ -46,9 +47,27 @@ export function apply(ctx: Context, config: ConfigT) {
   registerPublishHistoryRoutes(ctx, () => liveConfig)
   registerDshModelRoutes(ctx)
   let source = () => liveConfig
+  let settingsService: any = null
+
+  registerConfigRoutes(ctx, {
+    getConfig: () => liveConfig,
+    async onConfigImported(newConfig) {
+      applyNormalizedConfig(liveConfig, newConfig)
+      ensureWorkspace(liveConfig)
+      syncConfig(liveConfig)
+      if (settingsService && typeof settingsService.update === 'function') {
+        try {
+          await settingsService.update(SETTINGS_NAMESPACE, liveConfig)
+        } catch (e) {
+          ctx.logger.warn('[social-publisher] 导入配置同步更新至 settings 异常：', e)
+        }
+      }
+    },
+  })
 
   ctx.inject(['settings'], (settingsCtx) => {
     if (!settingsCtx.settings) return
+    settingsService = settingsCtx.settings
     settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, compositionEntry, {
       setSource(next) {
         source = () => next() as ConfigT
@@ -65,10 +84,26 @@ export function apply(ctx: Context, config: ConfigT) {
     const legacyResolved = settingsCtx.settings.get(LEGACY_SETTINGS_NAMESPACE) as ConfigT | undefined
     const resolved = settingsCtx.settings.get(SETTINGS_NAMESPACE) as ConfigT | undefined
 
-    // 若新命名空间尚未写入配置但存在旧命名空间配置，进行无缝数据平滑迁移
-    if (legacyResolved && (!resolved || Object.keys(resolved.accounts ?? {}).length === 0)) {
-      ctx.logger.info('[social-publisher] 检测到旧版 gzh-publisher 配置，自动迁移至新版 social-publisher...')
-      void settingsCtx.settings.update(SETTINGS_NAMESPACE, legacyResolved).catch((error) => {
+    const legacyAccountCount = Object.keys(legacyResolved?.accounts ?? {}).length
+    const resolvedAccountCount = Object.keys(resolved?.accounts ?? {}).length
+
+    // 若新命名空间尚未写入配置，或新命名空间账号数少于旧命名空间（处于初始状态），自动完整继承旧配置
+    if (legacyResolved && legacyAccountCount > 0 && (resolvedAccountCount === 0 || legacyAccountCount > resolvedAccountCount)) {
+      ctx.logger.info('[social-publisher] 检测到旧版 gzh-publisher 配置，自动继承迁移至 social-publisher...')
+      const merged: ConfigT = {
+        ...legacyResolved,
+        ...(resolved ?? {}),
+        accounts: {
+          ...(legacyResolved.accounts ?? {}),
+          ...(resolved?.accounts ?? {}),
+        },
+        image_providers: {
+          ...(legacyResolved.image_providers ?? {}),
+          ...(resolved?.image_providers ?? {}),
+        },
+      }
+      applyNormalizedConfig(liveConfig, merged)
+      void settingsCtx.settings.update(SETTINGS_NAMESPACE, merged).catch((error) => {
         ctx.logger.warn('[social-publisher] 旧配置自动平滑迁移失败：', error)
       })
     }

@@ -90,7 +90,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 （Desktop 版重启 DeepSeek Harness Desktop；CLI 版重启 `dsh web`）。
 
 安装后打开 dsh web 工作台 → 设置 → **社媒发布**，
-即可通过 8 个 Tab 配置多平台社媒账号、账号绑定内容规则、全局 AI 生图接口池、头尾品牌图、排版、封面配图与运行参数；
+即可通过 9 个 Tab 配置多平台社媒账号、账号绑定内容规则、全局 AI 生图接口池、头尾品牌图、排版、封面配图、运行参数以及配置备份导入导出；
 修改后热重载自动生效。
 
 ## 快捷设置（Config schema）
@@ -105,6 +105,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 | ⑥ 尾部品牌图 | 同头部字段，可按账号独立上传、预览、启用和变换 |
 | ⑦ AI 配图 | `headline_cover_ratio`（头条封面比例，默认 2.35:1=3520×1498）、`secondary_cover_ratio`（次条，默认 1:1=1920×1920）、`content_images_per_article`(2)、`image_lang_zh_only`(true)；知乎账号封面统一 16:9 |
 | ⑧ 运行 | `project_root`（留空使用插件内 `tasks/default`）、`python_path`、`request_timeout_ms`、`dry_run`、`verify_after_publish`、`use_upload_cache`、`need_open_comment`、`chrome_path`（知乎浏览器自动化用，留空自动探测 Chrome/Edge）、`zhihu_headless`（默认开） |
+| ⑨ 配置备份 | 支持全量或按范围（账号/接口池/排版规则/运行时）导出为 `.json` 文件或复制到剪贴板，支持密钥一键安全脱敏；支持文件拖拽与文本粘贴导入、实时语法结构预检看板，提供「增量合并（推荐，保护已有有效密码）」与「完全覆盖」双模式 |
 
 旧版 `wechat`、`content`、`brand_images`、`image_api` 配置会自动归入 `default` 账号和默认接口；首次保存后优先使用新模型，同时保留旧字段兼容现有脚本。
 

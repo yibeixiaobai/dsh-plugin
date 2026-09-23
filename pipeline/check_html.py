@@ -77,6 +77,10 @@ def check_file_md(path, min_words, forbidden, brand_name, img_count, require_bra
     """知乎 Markdown 文章校验：读文件后走 check_md_text，与 zhihu_components.plain_text 同口径。"""
     md = open(path, encoding="utf-8").read()
     r = check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders)
+    r["file"] = path
+    return r
+
+
 def check_file_newspic(path, min_words, forbidden, brand_name, img_count, require_brand, scripts_dir, allow_placeholders):
     """小绿书图片消息校验：读取 JSON，校验标题/文字/禁词/品牌/卡片图片。"""
     try:
