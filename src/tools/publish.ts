@@ -383,7 +383,7 @@ async function publishGzh(
   writeTextFile(sdir, MEDIA_ID_FILE, mediaIds.join('\n') + '\n')
 
   let originalResult: WechatOriginalResult | undefined
-  const shouldAutoOriginal = args.auto_enable_original ?? account.profile.auto_enable_original
+  const shouldAutoOriginal = Boolean(args.auto_enable_original ?? account.profile.auto_enable_original ?? cfg.wechat?.auto_enable_original ?? false)
   if (shouldAutoOriginal && !isNewspic) {
     try {
       console.log(`[social-publisher] 账号 ${accountId} 正在通过浏览器模拟进入草稿箱批量开启文字原创...`)

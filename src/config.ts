@@ -8,6 +8,7 @@ export interface WechatConfig {
   app_secret: string
   author_name: string
   brand_name: string
+  auto_enable_original?: boolean
 }
 
 export type ArticleType = 'news' | 'newspic' | 'both'
@@ -24,6 +25,20 @@ export interface ContentConfig {
   newspic_images_per_article?: number
   newspic_image_ratio?: CoverRatio
   newspic_min_words?: number
+
+  // 融合：正文排版设计（实现一号一配置）
+  headline_theme?: ThemeKey | 'rotate'
+  secondary_theme?: ThemeKey | 'rotate'
+  font_size?: string
+  line_height?: string
+  paragraph_margin?: string
+  text_indent?: string
+
+  // 融合：封面与配图规格（实现一号一配置）
+  headline_cover_ratio?: CoverRatio
+  secondary_cover_ratio?: CoverRatio
+  content_images_per_article?: number
+  image_lang_zh_only?: boolean
 }
 
 export interface TypographyConfig {
@@ -203,6 +218,16 @@ export const DEFAULT_CONTENT: ContentConfig = {
   newspic_images_per_article: 4,
   newspic_image_ratio: '3:4',
   newspic_min_words: 100,
+  headline_theme: 'wenying',
+  secondary_theme: 'rotate',
+  font_size: '13px',
+  line_height: '20px',
+  paragraph_margin: '25px',
+  text_indent: '2em',
+  headline_cover_ratio: '2.35:1',
+  secondary_cover_ratio: '1:1',
+  content_images_per_article: 2,
+  image_lang_zh_only: true,
 }
 
 const ContentSchema = Schema.object({
@@ -217,6 +242,18 @@ const ContentSchema = Schema.object({
   newspic_images_per_article: Schema.number().min(1).max(20).step(1).default(4).description('小绿书：每篇轮播图片张数（1-20，默认4）'),
   newspic_image_ratio: Schema.union(['3:4', '1:1', '16:9']).default('3:4').description('小绿书卡片比例（默认 3:4 竖版）'),
   newspic_min_words: Schema.number().min(30).max(1000).step(10).default(100).description('小绿书：纯文字文案下限（字，推荐 80~300）'),
+  // 融合排版设计（一号一配置）
+  headline_theme: Schema.union([...THEME_KEYS]).default('wenying').description('头条主题（wenying=文映学术品牌专属）'),
+  secondary_theme: Schema.union([...THEME_KEYS, 'rotate']).default('rotate').description('次条主题：rotate=按篇顺序轮换各主题'),
+  font_size: Schema.string().default('13px').description('正文字号铁律'),
+  line_height: Schema.string().default('20px').description('正文行高铁律'),
+  paragraph_margin: Schema.string().default('25px').description('段落间距'),
+  text_indent: Schema.string().default('2em').description('首行缩进'),
+  // 融合封面与配图规格（一号一配置）
+  headline_cover_ratio: Schema.union(['2.35:1', '21:9', '16:9', '1:1']).default('2.35:1').description('头条封面比例'),
+  secondary_cover_ratio: Schema.union(['21:9', '16:9', '1:1']).default('1:1').description('次条封面比例'),
+  content_images_per_article: Schema.number().min(0).max(4).step(1).default(2).description('每篇正文配图数（0~4张）'),
+  image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
 })
 
 const BrandImageSchema = Schema.object({
@@ -267,19 +304,9 @@ export const Config: Schema<Config> = Schema.object({
     app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（留空则沿用现有 wx_config.json）'),
     author_name: Schema.string().default('文映学术win00.cn').description('固定作者名（硬性规则）'),
     brand_name: Schema.string().default('文映千秋学术网').description('品牌名（结尾引导语必须包含）'),
+    auto_enable_original: Schema.boolean().default(false).description('公众号：草稿创建后自动通过浏览器模拟打开草稿箱批量开启原创并保存草稿'),
   }).description('① 公众号凭据'),
-  content: Schema.object({
-    article_type: Schema.union(['news', 'newspic', 'both']).default('news').description('文章形态：news=仅长文，newspic=仅小绿书图片消息，both=长文与小绿书同步更新发布'),
-    sync_newspic: Schema.boolean().default(false).description('公众号更新时长文与小绿书同步执行（一文双发：长文草稿 + 对应提炼的小绿书卡片草稿）'),
-    articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('长文每日篇数（长文组合为 1 个草稿包）'),
-    newspic_articles_per_day: Schema.number().min(1).max(20).step(1).default(1).description('小绿书每日篇数（每篇独立为1个草稿，不组合发布；默认1篇）'),
-    min_words: Schema.number().min(50).max(10000).step(50).default(2000).description('长文纯文字下限（字）'),
-    topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('核心业务关键词（用于检索关联选题，严禁直接作为标题开头词）'),
-    forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),
-    ending_guide_required: Schema.boolean().default(true).description('结尾必须自然引导关注品牌'),
-    newspic_images_per_article: Schema.number().min(1).max(20).step(1).default(4).description('小绿书：每篇轮播卡片图片张数（1-20，默认4）'),
-    newspic_min_words: Schema.number().min(30).max(1000).step(10).default(100).description('小绿书：纯文字文案下限（字，推荐 80~300）'),
-  }).description('② 内容规则（含小绿书同步配置）'),
+  content: ContentSchema.description('② 内容规则（含小绿书同步配置与排版配图）'),
   typography: Schema.object({
     headline_theme: Schema.union([...THEME_KEYS]).default('wenying').description('头条主题（wenying=文映学术品牌专属）'),
     secondary_theme: Schema.union([...THEME_KEYS, 'rotate']).default('rotate').description('次条主题：rotate=按篇顺序轮换各主题'),

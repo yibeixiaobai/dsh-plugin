@@ -3,7 +3,9 @@ import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, ZHIHU_COVER_RATIO, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveTheme, runtimeResourceDir } from './shared.ts'
+import {
+  contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveCoverRatio, resolveTheme, resolveTypography, runtimeResourceDir,
+} from './shared.ts'
 
 // 与 gzh_components.py THEMES 一致的色板
 const THEME_PALETTES: Record<ThemeKey, Record<string, string>> = {
@@ -150,7 +152,7 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const account = resolveAccount(cfg, accountId)
   const content = account.profile.content
   const n = content.articles_per_day
-  const contentImgs = contentImagesPerArticle(cfg)
+  const contentImgs = contentImagesPerArticle(cfg, account.profile)
   return {
     account_id: account.id,
     account_name: account.profile.name,
@@ -230,10 +232,10 @@ export function styleGuideTool(cfg: Config) {
       const content = account.profile.content
       const isBoth = content.article_type === 'both' || content.sync_newspic === true
       const n = content.articles_per_day
-      const contentImgs = contentImagesPerArticle(cfg)
-      const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : resolveTheme(cfg, 1)) as ThemeKey
+      const contentImgs = contentImagesPerArticle(cfg, account.profile)
+      const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : resolveTheme(cfg, 1, account.profile)) as ThemeKey
       const themePlan: Record<string, ThemeKey> = {}
-      for (let i = 1; i <= n; i++) themePlan[String(i)] = resolveTheme(cfg, i)
+      for (let i = 1; i <= n; i++) themePlan[String(i)] = resolveTheme(cfg, i, account.profile)
       const refsDir = path.join(runtimeResourceDir(), 'references')
       const references: string[] = []
       // 主题文件：按 hints 模糊匹配 theme-*.md
@@ -252,6 +254,9 @@ export function styleGuideTool(cfg: Config) {
       for (const p of [themeDoc, path.join(refsDir, 'theme-index.md'), path.join(refsDir, 'common-components.md'), path.join(refsDir, 'format-normalize.md')].filter(Boolean) as string[]) {
         if (fs.existsSync(p)) references.push(p)
       }
+      const typo = resolveTypography(cfg, account.profile)
+      const headlineRatio = resolveCoverRatio(cfg, 1, account.profile)
+      const secondaryRatio = resolveCoverRatio(cfg, 2, account.profile)
       return {
         account_id: account.id,
         account_name: account.profile.name,
@@ -259,10 +264,10 @@ export function styleGuideTool(cfg: Config) {
         theme,
         palette: THEME_PALETTES[theme],
         typography_rules: {
-          font_size: cfg.typography.font_size,
-          line_height: cfg.typography.line_height,
-          paragraph_margin: cfg.typography.paragraph_margin,
-          text_indent: cfg.typography.text_indent,
+          font_size: typo.font_size,
+          line_height: typo.line_height,
+          paragraph_margin: typo.paragraph_margin,
+          text_indent: typo.text_indent,
           no_blank_line: '纯单行 HTML，组件自动保证零换行符',
         },
         doc_spec: DOC_SPEC_EXAMPLE,
@@ -285,7 +290,7 @@ export function styleGuideTool(cfg: Config) {
             (account.profile.brand_images.header.enabled ? '，含头部品牌图' : '') +
             (account.profile.brand_images.footer.enabled ? '，含尾部品牌图' : ''),
           '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（纯单行 HTML 去标签及空格后统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 400, Math.ceil(content.min_words * 1.2)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/card_ul，确保纯汉字充实达标，杜绝断言失败重写浪费 token（构建工具设有容差底线）',
-          '封面：第 1 篇头条 ' + cfg.image_api.headline_cover_ratio + '，其余 ' + cfg.image_api.secondary_cover_ratio + '；封面图提示词应强调横版开阔宏大、留白充裕、中心明确，禁止边缘堆积重要文字元素，适配不同设备裁剪',
+          '封面：第 1 篇头条 ' + headlineRatio + '，其余 ' + secondaryRatio + '；封面图提示词应强调横版开阔宏大、留白充裕、中心明确，禁止边缘堆积重要文字元素，适配不同设备裁剪',
           '正文配图：提示词应强调学术信息图表或概念结构呈现，清晰现代设计，结构分明，干净背景，极简信息美学',
           '生图铁律：画面中文字必须全部是中文，禁止出现任何英文单词、英文字母，禁止二维码、乱码字符与水印；系统已内置多线程并发与本地优雅保底',
           content.ending_guide_required ? '结尾引导语为硬性要求' : '结尾引导语可选',

@@ -4,7 +4,7 @@ import { COVER_SIZES, type Config, ZHIHU_COVER_RATIO, type CoverRatio } from '..
 import { providerPool, resolveAccount } from '../config-runtime.ts'
 import { discoverDshImageModels } from '../dsh-models.ts'
 import { syncConfig } from '../sync.ts'
-import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, removeJobFile, renderJson, runPipeline, writeJobFile } from './shared.ts'
+import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, removeJobFile, renderJson, resolveCoverRatio, runPipeline, writeJobFile } from './shared.ts'
 
 interface GenItem {
   kind: 'cover' | 'content' | 'pic'
@@ -105,10 +105,10 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         }
         const isCover = rawKind === 'cover' || (!it.sub && rawKind !== 'content')
         if (isCover) {
-          // 知乎封面统一 16:9（机器强制）；公众号按设置的头条/次条比例
+          // 知乎封面统一 16:9（机器强制）；公众号按设置的头条/次条比例（优先账号内容规则）
           const ratio = account.profile.platform === 'zhihu'
             ? ZHIHU_COVER_RATIO
-            : (index === 1 ? cfg.image_api.headline_cover_ratio : cfg.image_api.secondary_cover_ratio)
+            : resolveCoverRatio(cfg, index, account.profile)
           return {
             kind: 'cover', index, prompt,
             out: 'cover_' + index + '.png', size: [...COVER_SIZES[ratio]] as [number, number],
@@ -116,7 +116,7 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         }
         // content 正文图
         const sub = Number(it.sub ?? 1)
-        const limit = contentImagesPerArticle(cfg)
+        const limit = contentImagesPerArticle(cfg, account.profile)
         if (limit === 0) throw new Error('设置的每篇正文配图数为 0，不生成正文配图（IMG_A*）')
         if (!Number.isInteger(sub) || sub < 1 || sub > limit) {
           throw new Error('content 图 sub 必须是 1~' + limit + '（按设置的每篇正文配图数）')
@@ -166,7 +166,7 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         providers: providers.map(({ id, provider }) => ({ id, ...provider })),
         model: providers[0]?.provider.model ?? cfg.image_api.model,
         dry_run: dryRun,
-        zh_only: cfg.image_api.image_lang_zh_only,
+        zh_only: account.profile.content.image_lang_zh_only ?? cfg.image_api.image_lang_zh_only,
         concurrency,
         enable_local_fallback: enableFallback,
         timeout_sec: timeoutSecPerItem,

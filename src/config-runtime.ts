@@ -35,7 +35,21 @@ function legacyAccount(config: Config): AccountProfile {
     author_name: config.wechat.author_name,
     brand_name: config.wechat.brand_name,
     publish_immediately: false,
-    content: clone(config.content ?? DEFAULT_CONTENT),
+    auto_enable_original: config.wechat.auto_enable_original ?? false,
+    content: {
+      ...clone(DEFAULT_CONTENT),
+      ...(config.content ?? {}),
+      headline_theme: config.content?.headline_theme ?? config.typography?.headline_theme ?? 'wenying',
+      secondary_theme: config.content?.secondary_theme ?? config.typography?.secondary_theme ?? 'rotate',
+      font_size: config.content?.font_size ?? config.typography?.font_size ?? '13px',
+      line_height: config.content?.line_height ?? config.typography?.line_height ?? '20px',
+      paragraph_margin: config.content?.paragraph_margin ?? config.typography?.paragraph_margin ?? '25px',
+      text_indent: config.content?.text_indent ?? config.typography?.text_indent ?? '2em',
+      headline_cover_ratio: config.content?.headline_cover_ratio ?? config.image_api?.headline_cover_ratio ?? '2.35:1',
+      secondary_cover_ratio: config.content?.secondary_cover_ratio ?? config.image_api?.secondary_cover_ratio ?? '1:1',
+      content_images_per_article: config.content?.content_images_per_article ?? config.image_api?.content_images_per_article ?? 2,
+      image_lang_zh_only: config.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? true,
+    },
     brand_images: {
       header: normalizeBrandImage(config.brand_images?.header, DEFAULT_BRAND_IMAGES.header),
       footer: normalizeBrandImage(config.brand_images?.footer, DEFAULT_BRAND_IMAGES.footer),
@@ -73,7 +87,24 @@ export function normalizeConfig(config: Config): Config {
     profile.author_name = profile.author_name || config.wechat.author_name
     profile.brand_name = profile.brand_name || config.wechat.brand_name
     profile.publish_immediately = profile.publish_immediately === true
-    profile.content = { ...clone(DEFAULT_CONTENT), ...(profile.content ?? {}) }
+    profile.auto_enable_original = profile.auto_enable_original === true || (profile.auto_enable_original === undefined && config.wechat?.auto_enable_original === true)
+    profile.content = {
+      ...clone(DEFAULT_CONTENT),
+      ...(config.content ?? {}),
+      ...(profile.content ?? {}),
+      headline_theme: profile.content?.headline_theme ?? config.typography?.headline_theme ?? DEFAULT_CONTENT.headline_theme ?? 'wenying',
+      secondary_theme: profile.content?.secondary_theme ?? config.typography?.secondary_theme ?? DEFAULT_CONTENT.secondary_theme ?? 'rotate',
+      font_size: profile.content?.font_size ?? config.typography?.font_size ?? DEFAULT_CONTENT.font_size ?? '13px',
+      line_height: profile.content?.line_height ?? config.typography?.line_height ?? DEFAULT_CONTENT.line_height ?? '20px',
+      paragraph_margin: profile.content?.paragraph_margin ?? config.typography?.paragraph_margin ?? DEFAULT_CONTENT.paragraph_margin ?? '25px',
+      text_indent: profile.content?.text_indent ?? config.typography?.text_indent ?? DEFAULT_CONTENT.text_indent ?? '2em',
+      headline_cover_ratio: profile.content?.headline_cover_ratio ?? config.image_api?.headline_cover_ratio ?? DEFAULT_CONTENT.headline_cover_ratio ?? '2.35:1',
+      secondary_cover_ratio: profile.content?.secondary_cover_ratio ?? config.image_api?.secondary_cover_ratio ?? DEFAULT_CONTENT.secondary_cover_ratio ?? '1:1',
+      content_images_per_article: Number.isFinite(profile.content?.content_images_per_article)
+        ? Number(profile.content!.content_images_per_article)
+        : (Number.isFinite(config.image_api?.content_images_per_article) ? Number(config.image_api.content_images_per_article) : 2),
+      image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
+    }
     profile.brand_images = {
       header: normalizeBrandImage(profile.brand_images?.header, DEFAULT_BRAND_IMAGES.header),
       footer: normalizeBrandImage(profile.brand_images?.footer, DEFAULT_BRAND_IMAGES.footer),

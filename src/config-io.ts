@@ -214,6 +214,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
           author_name: String(accObj.author_name ?? '文映学术win00.cn').trim(),
           brand_name: String(accObj.brand_name ?? '文映千秋学术网').trim(),
           publish_immediately: accObj.publish_immediately === true,
+          auto_enable_original: accObj.auto_enable_original === true,
           content: (accObj.content && typeof accObj.content === 'object' ? accObj.content : {}) as any,
           brand_images: (accObj.brand_images && typeof accObj.brand_images === 'object' ? accObj.brand_images : {
             header: { enabled: true, file: 'brand_top.jpg', width: 100, height: 0, fit: 'contain', position: 'center', radius: 0, margin_top: 0, margin_bottom: 0, frame: false },

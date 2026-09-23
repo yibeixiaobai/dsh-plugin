@@ -121,26 +121,47 @@ export function expectedBrandImageCount(account: AccountProfile): number {
   return (account.brand_images.header.enabled ? 1 : 0) + (account.brand_images.footer.enabled ? 1 : 0)
 }
 
-/** 每篇正文配图数：以设置为准（0-4），不再硬编码 2 */
-export function contentImagesPerArticle(cfg: Config): number {
-  const raw = Number(cfg.image_api.content_images_per_article)
+/** 每篇正文配图数：优先按账号专属配置，缺省取全局设置（0-4） */
+export function contentImagesPerArticle(cfg: Config, account?: AccountProfile): number {
+  const accountVal = account?.content?.content_images_per_article
+  const raw = Number.isFinite(accountVal) ? Number(accountVal) : Number(cfg.image_api?.content_images_per_article)
   return Number.isFinite(raw) ? Math.max(0, Math.min(4, Math.floor(raw))) : 2
 }
 
 export function expectedArticleImageCount(cfg: Config, account: AccountProfile): number {
-  return contentImagesPerArticle(cfg) + expectedBrandImageCount(account)
+  return contentImagesPerArticle(cfg, account) + expectedBrandImageCount(account)
 }
 
-/** 按篇解析主题：第 1 篇用头条主题，次条用设置的次条主题，rotate 时从头条主题的下一个起按篇轮换（避免与第 1 篇相邻重复） */
-export function resolveTheme(cfg: Config, index: number): ThemeKey {
-  const headline = cfg.typography.headline_theme
+/** 按篇解析主题：优先读取账号专属排版规则（第 1 篇头条主题，次条指定主题或按篇轮换） */
+export function resolveTheme(cfg: Config, index: number, account?: AccountProfile): ThemeKey {
+  const headline = account?.content?.headline_theme || cfg.typography?.headline_theme
   if (index <= 1) {
     return THEME_KEYS.includes(headline as ThemeKey) ? (headline as ThemeKey) : 'wenying'
   }
-  const secondary = cfg.typography.secondary_theme
-  if (secondary !== 'rotate') return secondary
+  const secondary = account?.content?.secondary_theme || cfg.typography?.secondary_theme || 'rotate'
+  if (secondary !== 'rotate' && THEME_KEYS.includes(secondary as ThemeKey)) {
+    return secondary as ThemeKey
+  }
   const pool = THEME_KEYS
   return pool[(((index - 1) % pool.length) + pool.length) % pool.length]
+}
+
+/** 解析封面比例：优先按账号专属配图规则，缺省取全局设置 */
+export function resolveCoverRatio(cfg: Config, index: number, account?: AccountProfile): import('../config.ts').CoverRatio {
+  if (index <= 1) {
+    return account?.content?.headline_cover_ratio || cfg.image_api?.headline_cover_ratio || '2.35:1'
+  }
+  return account?.content?.secondary_cover_ratio || cfg.image_api?.secondary_cover_ratio || '1:1'
+}
+
+/** 解析正文排版样式：优先按账号专属配置，缺省取全局设置 */
+export function resolveTypography(cfg: Config, account?: AccountProfile) {
+  return {
+    font_size: account?.content?.font_size || cfg.typography?.font_size || '13px',
+    line_height: account?.content?.line_height || cfg.typography?.line_height || '20px',
+    paragraph_margin: account?.content?.paragraph_margin || cfg.typography?.paragraph_margin || '25px',
+    text_indent: account?.content?.text_indent || cfg.typography?.text_indent || '2em',
+  }
 }
 
 // 宿主调用约定是 render(args, value)：第一参数是入参、第二参数才是工具结果。

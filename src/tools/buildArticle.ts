@@ -2,7 +2,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveTheme, runPipeline,
+  accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveTheme, resolveTypography, runPipeline,
   runtimeResourceDir, writeTextFile,
 } from './shared.ts'
 
@@ -68,7 +68,7 @@ export function buildArticleTool(cfg: Config) {
       const sdir = accountScriptsDir(cfg, account.id)
       // 主题优先支持 doc.theme（用户补充要求指定时生效）；未指定或非法时回退到默认设置轮换 resolveTheme
       const docTheme = typeof doc.theme === 'string' && doc.theme in THEME_NAMES ? (doc.theme as ThemeKey) : undefined
-      const theme = platform === 'zhihu' ? 'markdown' : isNewspic ? 'newspic' : (docTheme ?? resolveTheme(cfg, idx))
+      const theme = platform === 'zhihu' ? 'markdown' : isNewspic ? 'newspic' : (docTheme ?? resolveTheme(cfg, idx, account.profile))
 
       // 字数与正文配图数：支持 doc spec 中用户补充要求自定义，缺省采用账号配置
       const docMinWords = typeof doc.min_words === 'number' && doc.min_words > 0 ? doc.min_words : undefined
@@ -78,7 +78,7 @@ export function buildArticleTool(cfg: Config) {
       const docImgCount = typeof doc.content_img_count === 'number' && doc.content_img_count >= 0
         ? Math.min(4, Math.max(0, doc.content_img_count))
         : undefined
-      const contentImgCount = docImgCount ?? contentImagesPerArticle(cfg)
+      const contentImgCount = docImgCount ?? contentImagesPerArticle(cfg, account.profile)
 
       const built = await runPipeline<BuiltArticle>(
         cfg,
@@ -106,12 +106,7 @@ export function buildArticleTool(cfg: Config) {
                 '--content-img-count', String(contentImgCount),
                 '--brand-name', account.profile.brand_name,
                 '--brand-images', JSON.stringify(account.profile.brand_images),
-                '--typography', JSON.stringify({
-                  font_size: cfg.typography.font_size,
-                  line_height: cfg.typography.line_height,
-                  paragraph_margin: cfg.typography.paragraph_margin,
-                  text_indent: cfg.typography.text_indent,
-                }),
+                '--typography', JSON.stringify(resolveTypography(cfg, account.profile)),
               ]),
         ],
         180000,
@@ -132,7 +127,7 @@ export function buildArticleTool(cfg: Config) {
       const expectedImgs = isNewspic
         ? built.img_count
         : platform === 'zhihu'
-          ? contentImagesPerArticle(cfg)
+          ? contentImagesPerArticle(cfg, account.profile)
           : expectedArticleImageCount(cfg, account.profile)
       const check = await runPipeline<CheckReport>(
         cfg,
