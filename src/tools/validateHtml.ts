@@ -16,12 +16,19 @@ export interface ValidateReport {
 }
 
 export function validateHtmlTool(cfg: Config) {
-  return defineTool<{ files?: string[]; allow_placeholders?: boolean; article_type?: 'news' | 'newspic'; account_id?: string }, ValidateReport>({
+  return defineTool<{
+    files?: string[]
+    allow_placeholders?: boolean
+    article_type?: 'news' | 'newspic'
+    account_id?: string
+    min_words?: number
+    img_count?: number
+  }, ValidateReport>({
     name: 'gzh_validate_html',
     description:
       '发布前机器校验：公众号校验换行/unicode 转义/占位符/纯文字字数/禁词/品牌引导语/图片数量/CDN 域名，' +
       '可选叠加 gzh-design 合规 lint（ERROR 清零才能交付）；知乎账号校验 Markdown 文章的字数/禁词/图片占位符。' +
-      '发布前对全部文章跑一遍。',
+      '支持通过 min_words / img_count 自定义校验阈值（优先支持用户补充要求的特殊设置）。发布前对全部文章跑一遍。',
     parameters: {
       files: {
         type: 'array',
@@ -40,6 +47,14 @@ export function validateHtmlTool(cfg: Config) {
       account_id: {
         type: 'string',
         description: '账号 ID；缺省使用默认账号',
+      },
+      min_words: {
+        type: 'number',
+        description: '可选：自定义纯文字下限（优先支持补充要求指定的字数）',
+      },
+      img_count: {
+        type: 'number',
+        description: '可选：自定义正文配图/卡片总数（优先支持补充要求指定的配图数）',
       },
     },
     output: { schema: { type: 'json' }, render: renderJson },
@@ -70,16 +85,25 @@ export function validateHtmlTool(cfg: Config) {
           throw new Error('files 不能包含路径分隔符: ' + String(f))
         }
       }
-      const expectedImgs = filesAreNewspic
+      const defaultExpectedImgs = filesAreNewspic
         ? (content.newspic_images_per_article || 4)
         : platform === 'zhihu'
           ? contentImagesPerArticle(cfg)
           : expectedArticleImageCount(cfg, account.profile)
+      const expectedImgs = typeof args.img_count === 'number' && args.img_count >= 0
+        ? args.img_count
+        : defaultExpectedImgs
+
+      const defaultMinWords = filesAreNewspic ? Math.min(content.min_words, 100) : content.min_words
+      const minWords = typeof args.min_words === 'number' && args.min_words > 0
+        ? args.min_words
+        : defaultMinWords
+
       const cmd = [
         '--files', JSON.stringify(files),
         '--scripts-dir', accountScriptsDir(cfg, account.id),
         '--resource-dir', runtimeResourceDir(),
-        '--min-words', String(filesAreNewspic ? Math.min(content.min_words, 100) : content.min_words),
+        '--min-words', String(minWords),
         '--forbidden', JSON.stringify(content.forbidden_words),
         '--brand-name', account.profile.brand_name,
         '--img-count', String(expectedImgs),

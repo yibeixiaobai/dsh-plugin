@@ -256,8 +256,8 @@ const ImageProviderSchema = Schema.object({
 })
 
 export const Config: Schema<Config> = Schema.object({
-  accounts: Schema.dict(AccountSchema).default({}).description('公众号账号档案'),
-  default_account: Schema.string().default('default').description('默认公众号账号 ID'),
+  accounts: Schema.dict(AccountSchema).default({}).description('社媒多平台账号档案'),
+  default_account: Schema.string().default('default').description('默认社媒账号 ID'),
   image_providers: Schema.dict(ImageProviderSchema).default({}).description('AI 生图接口池'),
   wechat: Schema.object({
     appid: Schema.string().default('').description('公众号 AppID（wx 开头，留空则沿用 scripts/wx_config.json）'),

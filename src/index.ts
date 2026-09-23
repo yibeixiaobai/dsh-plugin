@@ -1,6 +1,6 @@
-// dsh-gzh-publisher：文映千秋学术网公众号自动化流水线插件。
+// dsh-social-publisher：通用社媒自动化内容生产与发布插件（公众号/知乎等多平台）。
 // Cordis 约定：导出 name / inject / Config（接口 + 同名 Schemastery schema）/ apply。
-// apply 在加载与每次配置热重载时执行：同步凭据到 wx_config.json 并注册全部工具。
+// apply 在加载与每次配置热重载时执行：同步凭据到 wx_config.json 并注册全部工具与社媒命令。
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigT } from './config.ts'
 import { normalizeConfig, applyNormalizedConfig } from './config-runtime.ts'
@@ -9,7 +9,7 @@ import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
 import { registerPublishHistoryRoutes } from './publish-history.ts'
 import { registerDshModelRoutes } from './dsh-models.ts'
-import { registerQuickCommand } from './command.ts'
+import { registerQuickCommand, PLUGIN_NAME } from './command.ts'
 import { ensureWorkspace, hydrateConfigFromWx, syncConfig, workspaceDir } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
 import { checkTopicsTool } from './tools/checkTopics.ts'
@@ -19,14 +19,15 @@ import { styleGuideTool } from './tools/styleGuide.ts'
 import { validateHtmlTool } from './tools/validateHtml.ts'
 import { verifyTool } from './tools/verify.ts'
 
-export const name = 'dsh-gzh-publisher'
+export const name = PLUGIN_NAME
 export const inject = ['tools', 'commands']
 export { Config }
 export type { ConfigT }
 
-export const SETTINGS_NAMESPACE = 'gzh-publisher'
+export const SETTINGS_NAMESPACE = 'social-publisher'
+export const LEGACY_SETTINGS_NAMESPACE = 'gzh-publisher'
 
-const VERSION = '0.1.0'
+const VERSION = '0.2.0'
 
 export function apply(ctx: Context, config: ConfigT) {
   const hydrated = hydrateConfigFromWx(config)
@@ -59,12 +60,23 @@ export function apply(ctx: Context, config: ConfigT) {
         syncConfig(liveConfig)
       },
     })
-    // 迁移判定必须看解析后的设置值：组合层的 accounts / image_providers 恒为空，
-    // 按它判断会在每次加载时把默认账号/接口 merge 回用户层，同样会复活被删除的条目。
+
+    // 检查是否有历史配置（来自旧命名空间 gzh-publisher）
+    const legacyResolved = settingsCtx.settings.get(LEGACY_SETTINGS_NAMESPACE) as ConfigT | undefined
     const resolved = settingsCtx.settings.get(SETTINGS_NAMESPACE) as ConfigT | undefined
-    if (!resolved) return
-    const needAccounts = hydrated || Object.keys(resolved.accounts ?? {}).length === 0
-    const needProviders = hydrated || Object.keys(resolved.image_providers ?? {}).length === 0
+
+    // 若新命名空间尚未写入配置但存在旧命名空间配置，进行无缝数据平滑迁移
+    if (legacyResolved && (!resolved || Object.keys(resolved.accounts ?? {}).length === 0)) {
+      ctx.logger.info('[social-publisher] 检测到旧版 gzh-publisher 配置，自动迁移至新版 social-publisher...')
+      void settingsCtx.settings.update(SETTINGS_NAMESPACE, legacyResolved).catch((error) => {
+        ctx.logger.warn('[social-publisher] 旧配置自动平滑迁移失败：', error)
+      })
+    }
+
+    const currentResolved = resolved || legacyResolved
+    if (!currentResolved) return
+    const needAccounts = hydrated || Object.keys(currentResolved.accounts ?? {}).length === 0
+    const needProviders = hydrated || Object.keys(currentResolved.image_providers ?? {}).length === 0
     if (needAccounts || needProviders) {
       const patch: Record<string, unknown> = {}
       if (needAccounts) {
@@ -73,7 +85,7 @@ export function apply(ctx: Context, config: ConfigT) {
       }
       if (needProviders) patch.image_providers = liveConfig.image_providers
       void settingsCtx.settings.update(SETTINGS_NAMESPACE, patch).catch((error) => {
-        ctx.logger.warn('[gzh] 旧配置自动迁移失败：', error)
+        ctx.logger.warn('[social-publisher] 默认配置自动初始化失败：', error)
       })
     }
   })
@@ -81,12 +93,12 @@ export function apply(ctx: Context, config: ConfigT) {
   // 凭据同步：留空的设置项沿用既有 wx_config.json，不覆盖
   try {
     const report = syncConfig(liveConfig)
-    ctx.logger.info('[gzh] 凭据已同步 →', report.wx_config_path,
+    ctx.logger.info('[social-publisher] 凭据已同步 →', report.wx_config_path,
       '(appid 来源:', report.appid_source + ', api_key 来源:', report.api_key_source + ')')
   } catch (err) {
-    ctx.logger.warn('[gzh] wx_config.json 同步失败，请检查设置中的 runtime.project_root：', err)
+    ctx.logger.warn('[social-publisher] wx_config.json 同步失败，请检查设置中的 runtime.project_root：', err)
   }
-  ctx.logger.info('[gzh] 当前任务工作区 →', workspaceDir(liveConfig))
+  ctx.logger.info('[social-publisher] 当前任务工作区 →', workspaceDir(liveConfig))
 
   ctx.tools.register(checkTopicsTool(liveConfig))
   ctx.tools.register(styleGuideTool(liveConfig))
@@ -97,6 +109,6 @@ export function apply(ctx: Context, config: ConfigT) {
   ctx.tools.register(verifyTool(liveConfig))
   registerQuickCommand(ctx, liveConfig)
 
-  ctx.logger.info('[gzh] dsh-gzh-publisher v' + VERSION + ' 已加载：7 个工具与 /gzh 快捷指令就绪' +
+  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：7 个生产工具与 /publish, /post, /zhihu, /gzh 指令就绪' +
     (config.runtime.dry_run ? '（演练模式：不联网生图、不发布）' : ''))
 }

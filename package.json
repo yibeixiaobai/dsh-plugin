@@ -1,7 +1,7 @@
 {
-  "name": "dsh-gzh-publisher",
-  "version": "0.1.0",
-  "description": "文映千秋学术网公众号自动化流水线插件：选题查重 → 写文排版 → AI 配图 → 草稿发布 → 核验，全部参数走插件快捷设置",
+  "name": "dsh-social-publisher",
+  "version": "0.2.0",
+  "description": "通用社媒自动化内容生产与发布插件（公众号/知乎等多平台）：选题查重 → 智能撰写排版 → AI 配图 → 草稿发布 → 自动核验",
   "type": "module",
   "main": "src/index.ts",
   "exports": {
@@ -24,9 +24,12 @@
   "keywords": [
     "dsh-plugin",
     "dsh",
+    "social",
+    "publisher",
+    "media",
     "wechat",
     "gzh",
-    "publisher"
+    "zhihu"
   ],
   "dsh": {
     "bundle": {

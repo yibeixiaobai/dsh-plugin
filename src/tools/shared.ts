@@ -1,4 +1,5 @@
 // 工具层公共设施：Python 调用、job 文件写入、路径守卫、输出渲染。
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ToolContentBlock } from '@deepseek-ai/dsh-tools'
@@ -41,6 +42,32 @@ export async function runPipeline<T>(
     throw new Error(String(r.error ?? 'Python 未返回结果') + logs + detail)
   }
   return r.data
+}
+
+/**
+ * 把 job JSON 落到临时文件，返回可直接交给 Python 的 `--job` 参数。
+ *
+ * 为什么不再走 `--job-json` 内联：Windows 命令行总长上限 32767 字符，而发布 job 里带着
+ * 整个上传缓存（uploaded_urls.json，随发布次数单调增长），长文分支还要加上全部封面/正文图
+ * 绝对路径，越界后 spawn 直接抛 ENAMETOOLONG。落盘后 argv 只剩一个短路径，彻底消除上限。
+ * Python 侧 `--job` 已有目录边界守卫（normpath + startswith），文件写在 baseDir 内。
+ */
+export function writeJobFile(baseDir: string, job: unknown, tag: string): { dir: string; name: string; file: string } {
+  const dir = path.resolve(baseDir)
+  fs.mkdirSync(dir, { recursive: true })
+  const name = `.job_${tag}_${randomUUID()}.json`
+  const file = path.join(dir, name)
+  fs.writeFileSync(file, JSON.stringify(job), 'utf-8')
+  return { dir, name, file }
+}
+
+/** 删除 writeJobFile 产生的临时 job 文件（best-effort，不影响主流程） */
+export function removeJobFile(dir: string, name: string): void {
+  try {
+    fs.rmSync(path.join(dir, name), { force: true })
+  } catch {
+    /* 临时文件清理失败不阻断发布 */
+  }
 }
 
 /** 在 baseDir 内写入白名单文件名的文本文件（目录边界守卫） */

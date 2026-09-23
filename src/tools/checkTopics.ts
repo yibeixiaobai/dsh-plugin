@@ -32,15 +32,14 @@ export function checkTopicsTool(cfg: Config) {
   return defineTool<{ topics: string[]; account_id?: string }, TopicReport>({
     name: 'gzh_check_topics',
     description:
-      '选题查重：把围绕核心业务关键词深度检索关联拟定出的候选选题/标题，与该账号历史发布标题（publish_history.json / publish_result.json 与历史发布脚本）' +
-      '以及同批次候选选题做相似度比对，返回 high/medium/low 风险。' +
-      '不同账号之间选题支持重复，但相同账号的历史文章与同批配置的选题严禁重复。' +
-      '选题必须围绕业务关键词关联拓展，严禁直接将关键词作为标题开头词语。每日写文选题前必调，high 风险选题应更换。每账号一次提交全部候选选题（topics 数组批量），不要一项一调。',
+      '选题查重：把候选选题/标题与该账号历史发布标题以及同批次候选选题做相似度比对，返回 high/medium/low 风险。' +
+      '不同账号之间选题支持重复，但相同账号的历史文章与同批选题严禁完全重复。' +
+      '【补充要求第一优先级】：若用户在任务补充要求中已明确指定了选题，以用户指定的选题为准，查重主要用于排查历史是否已发布过（避免完全重复建稿）；未指定具体选题时，必须围绕业务关键词关联拓展且 high 风险选题须更换。每账号一次提交全部候选选题（topics 数组批量），不要一项一调。',
     parameters: {
       topics: {
         type: 'array',
         required: true,
-        description: '围绕核心业务关键词检索关联拟定出的候选选题/标题列表（严禁将关键词直接作为开头词语或前缀）',
+        description: '候选选题/标题列表（若用户有补充要求指定选题则传指定选题，未指定时围绕业务关键词拓展）',
         items: { type: 'string' },
       },
       account_id: {

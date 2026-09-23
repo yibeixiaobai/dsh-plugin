@@ -5,7 +5,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Config } from './config.ts'
 import { scriptsDir, syncConfig, workspaceDir } from './sync.ts'
-import { runPipeline } from './tools/shared.ts'
+import { removeJobFile, runPipeline, writeJobFile } from './tools/shared.ts'
 
 export const IMAGE_TEST_ROUTE = '/api/gzh-publisher/test-image'
 const REQUEST_HEADER = 'x-dsh-gzh-test'
@@ -136,12 +136,18 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
       zh_only: false,
       timeout_sec: timeoutSec,
     }
-    const report = await runPipeline<Record<string, unknown>>(
-      config,
-      'gen_images_pipeline.py',
-      ['--job-json', JSON.stringify(job), '--scripts-dir', scripts, '--output-dir', testDir],
-      Math.max(180000, timeoutSec * 2 * 1000 + 30000),
-    )
+    const jobFile = writeJobFile(scripts, job, 'imgtest')
+    let report: Record<string, unknown>
+    try {
+      report = await runPipeline<Record<string, unknown>>(
+        config,
+        'gen_images_pipeline.py',
+        ['--job', jobFile.name, '--scripts-dir', scripts, '--output-dir', testDir],
+        Math.max(180000, timeoutSec * 2 * 1000 + 30000),
+      )
+    } finally {
+      removeJobFile(jobFile.dir, jobFile.name)
+    }
     if (Array.isArray(report.failed) && report.failed.length > 0) {
       throw new Error(String((report.failed[0] as Record<string, unknown>).error ?? '接口测试失败'))
     }

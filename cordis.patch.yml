@@ -1,9 +1,9 @@
-# dsh bundle patch for dsh-gzh-publisher.
+# dsh bundle patch for dsh-social-publisher.
 # Declared by package.json's "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
 # so the package activates as a profile composition layer:
 #   dsh plugin --profile desktop add link:D:/666/gzh/dsh-plugin
-# Settings live in dsh web 设置 → 公众号（不改这一行即可用 schema 默认值）。
+# Settings live in dsh web 设置 → 社媒发布（不改这一行即可用 schema 默认值）。
 # 若要在开发中用 --patch 挂载，见同目录 cordis.yml（等价内容 + 绝对路径 name）。
 - insert:
-    - id: gzh-publisher
-      name: dsh-gzh-publisher
+    - id: social-publisher
+      name: dsh-social-publisher

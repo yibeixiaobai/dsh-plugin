@@ -4,7 +4,7 @@ import { COVER_SIZES, type Config, ZHIHU_COVER_RATIO, type CoverRatio } from '..
 import { providerPool, resolveAccount } from '../config-runtime.ts'
 import { discoverDshImageModels } from '../dsh-models.ts'
 import { syncConfig } from '../sync.ts'
-import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, renderJson, runPipeline } from './shared.ts'
+import { accountScriptsDir, assertImageCreds, contentImagesPerArticle, removeJobFile, renderJson, runPipeline, writeJobFile } from './shared.ts'
 
 interface GenItem {
   kind: 'cover' | 'content' | 'pic'
@@ -87,9 +87,8 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         const prompt = String(it.prompt || it.description || it.text || '').trim()
         if (!prompt) throw new Error('prompt 提示词不能为空')
         const rawKind = String(it.kind || it.type || '').trim().toLowerCase()
-        const maxIdx = rawKind === 'pic' ? newspicCount : count
-        if (!Number.isInteger(index) || index < 1 || index > maxIdx) {
-          throw new Error('index 必须是 1~' + maxIdx)
+        if (!Number.isInteger(index) || index < 1 || index > 20) {
+          throw new Error('index 必须是 1~20')
         }
         if (rawKind === 'pic') {
           const sub = Number(it.sub ?? 1)
@@ -172,12 +171,20 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         enable_local_fallback: enableFallback,
         timeout_sec: timeoutSecPerItem,
       }
-      const report = await runPipeline<Omit<GenReport, 'account_id'>>(
-        cfg,
-        'gen_images_pipeline.py',
-        ['--job-json', JSON.stringify(job), '--scripts-dir', accountScriptsDir(cfg, account.id)],
-        Math.max(180000, Math.ceil(items.length / concurrency) * (timeoutSecPerItem * 2 + 10) * 1000),
-      )
+      // job 落临时文件而非 --job-json 内联：批量图片（25+ 项，含 providers 配置与绝对路径）内联会逼近 Windows argv 上限
+      const genDir = accountScriptsDir(cfg, account.id)
+      const jobFile = writeJobFile(genDir, job, 'genimg')
+      let report: Omit<GenReport, 'account_id'>
+      try {
+        report = await runPipeline<Omit<GenReport, 'account_id'>>(
+          cfg,
+          'gen_images_pipeline.py',
+          ['--job', jobFile.name, '--scripts-dir', genDir],
+          Math.max(180000, Math.ceil(items.length / concurrency) * (timeoutSecPerItem * 2 + 10) * 1000),
+        )
+      } finally {
+        removeJobFile(jobFile.dir, jobFile.name)
+      }
       return { account_id: account.id, ...report }
     },
   })

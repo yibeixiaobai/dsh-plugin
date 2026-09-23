@@ -1,4 +1,4 @@
-# launch-dsh.ps1 — 启动 / 重启 DeepSeek Harness 公众号工作台
+# launch-dsh.ps1 — 启动 / 重启 DeepSeek Harness 社媒发布工作台
 #
 # 每次双击都先关掉正在运行的 dsh web 实例（$port 上的监听者及其 npx/cmd 包装
 # 进程），再拉起一个全新的实例并打开浏览器。所以重复启动 = 重启，永远不会出现
@@ -8,9 +8,9 @@ $ErrorActionPreference = 'Stop'
 
 $root = 'D:\666\gzh\dsh-plugin'
 $port = 3080
-$stateDir = Join-Path $env:LOCALAPPDATA 'dsh-gzh-publisher'
+$stateDir = Join-Path $env:LOCALAPPDATA 'dsh-social-publisher'
 $stateFile = Join-Path $stateDir 'web-url.txt'
-$log = Join-Path $env:TEMP 'dsh-gzh-launch.log'
+$log = Join-Path $env:TEMP 'dsh-social-launch.log'
 $waitForExitSeconds = 20
 
 New-Item -ItemType Directory -Path $stateDir -Force | Out-Null

@@ -1,5 +1,5 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { Config } from '../config.ts'
+import { THEME_NAMES, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
   accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveTheme, runPipeline,
@@ -36,9 +36,8 @@ export function buildArticleTool(cfg: Config) {
     name: 'gzh_build_article',
     description:
       '把文章内容按 doc spec 构建为平台合规产物并落盘：公众号账号产出单行 HTML（gzh_components 融合版组件），' +
-      '知乎账号产出标准 Markdown（article_v2_{index}.md）。自动断言字数/图片数/品牌引导语/禁词，' +
-      '随后跑平台对应的机器校验。doc spec 格式先调 gzh_get_style_guide 获取（按账号平台返回）；' +
-      '公众号主题按设置的头条/次条/rotate 规则按篇强制解析，doc 内 theme 字段被忽略。',
+      '知乎账号产出标准 Markdown（article_v2_{index}.md）。优先支持补充要求在 doc spec 中指定的 theme/min_words/content_img_count；' +
+      '未指定时采用账号设置与轮换规则。自动断言字数/图片数/品牌引导语/禁词，随后跑平台对应的机器校验。',
     parameters: {
       doc_json: {
         type: 'string',
@@ -62,14 +61,24 @@ export function buildArticleTool(cfg: Config) {
         throw new Error('doc_json 不是合法 JSON：' + String(args.doc_json).slice(0, 120))
       }
       const isNewspic = platform !== 'zhihu' && (doc.article_type === 'newspic' || content.article_type === 'newspic')
-      const maxIdx = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
       const idx = Number(doc.index)
-      if (!Number.isInteger(idx) || idx < 1 || idx > maxIdx) {
-        throw new Error('index 必须是 1~' + maxIdx)
+      if (!Number.isInteger(idx) || idx < 1 || idx > 99) {
+        throw new Error('index 必须是 1~99')
       }
       const sdir = accountScriptsDir(cfg, account.id)
-      // 主题严格按设置解析（头条/次条/rotate 按篇轮换），doc 内自带 theme 一律忽略，防止自由发挥
-      const theme = platform === 'zhihu' ? 'markdown' : isNewspic ? 'newspic' : resolveTheme(cfg, idx)
+      // 主题优先支持 doc.theme（用户补充要求指定时生效）；未指定或非法时回退到默认设置轮换 resolveTheme
+      const docTheme = typeof doc.theme === 'string' && doc.theme in THEME_NAMES ? (doc.theme as ThemeKey) : undefined
+      const theme = platform === 'zhihu' ? 'markdown' : isNewspic ? 'newspic' : (docTheme ?? resolveTheme(cfg, idx))
+
+      // 字数与正文配图数：支持 doc spec 中用户补充要求自定义，缺省采用账号配置
+      const docMinWords = typeof doc.min_words === 'number' && doc.min_words > 0 ? doc.min_words : undefined
+      const minWords = isNewspic
+        ? (docMinWords ?? content.newspic_min_words ?? 100)
+        : (docMinWords ?? content.min_words)
+      const docImgCount = typeof doc.content_img_count === 'number' && doc.content_img_count >= 0
+        ? Math.min(4, Math.max(0, doc.content_img_count))
+        : undefined
+      const contentImgCount = docImgCount ?? contentImagesPerArticle(cfg)
 
       const built = await runPipeline<BuiltArticle>(
         cfg,
@@ -78,7 +87,7 @@ export function buildArticleTool(cfg: Config) {
           '--doc-json', JSON.stringify({ ...doc, index: idx, theme: platform === 'zhihu' ? 'wenying' : theme }),
           '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
-          '--min-words', String(isNewspic ? (content.newspic_min_words ?? 100) : content.min_words),
+          '--min-words', String(minWords),
           '--forbidden', JSON.stringify(content.forbidden_words),
           '--platform', platform,
           '--article-type', isNewspic ? 'newspic' : 'news',
@@ -89,12 +98,12 @@ export function buildArticleTool(cfg: Config) {
             ]
             : platform === 'zhihu'
               ? [
-                '--content-img-count', String(contentImagesPerArticle(cfg)),
+                '--content-img-count', String(contentImgCount),
                 ...(content.ending_guide_required ? ['--require-brand'] : []),
                 '--brand-name', account.profile.brand_name,
               ]
               : [
-                '--content-img-count', String(contentImagesPerArticle(cfg)),
+                '--content-img-count', String(contentImgCount),
                 '--brand-name', account.profile.brand_name,
                 '--brand-images', JSON.stringify(account.profile.brand_images),
                 '--typography', JSON.stringify({

@@ -3,11 +3,11 @@
 # 正式安装请改用 profile 依赖（本包已声明 dsh.bundle）：
 #   dsh plugin --profile desktop add link:D:/666/gzh/dsh-plugin
 # 注意：安装为 profile 依赖后不要再叠加本 overlay —— 两个层用同一个 id 会报 duplicate loader entry id，
-# 所以这里用 id gzh-publisher-dev 与 bundle 层的 gzh-publisher 区分。
+# 所以这里用 id social-publisher-dev 与 bundle 层的 social-publisher 区分。
 # 加载器按 URL 解析 name，Windows 绝对路径必须写成 file:/// URL（'D:/...' 会被 ESM 拒绝）。
 # 凭据留空 = 沿用 scripts/wx_config.json 现状；在 dsh web 设置界面可随时修改并热重载。
 - insert:
-  - id: gzh-publisher-dev
+  - id: social-publisher-dev
     name: 'file:///D:/666/gzh/dsh-plugin/src/index.ts'
     config:
       wechat:

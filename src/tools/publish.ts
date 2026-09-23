@@ -7,8 +7,8 @@ import { appendPublishRecord, readAccountPublishRecords } from '../publish-histo
 import { runZhihuPublish } from '../zhihu.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, accountScriptsDir, assertWechatCreds, brandDir,
-  brandImagePath, contentImagesPerArticle, findImage, readUploadCache, renderJson, runPipeline, writeTextFile,
-  runtimeResourceDir, writeUploadCache,
+  brandImagePath, contentImagesPerArticle, findImage, readUploadCache, removeJobFile, renderJson, runPipeline,
+  writeJobFile, writeTextFile, runtimeResourceDir, writeUploadCache,
 } from './shared.ts'
 
 interface PublishResult {
@@ -68,13 +68,13 @@ export function publishTool(cfg: Config) {
       titles: {
         type: 'array',
         required: true,
-        description: '每篇标题（长文 ≤64 字，小绿书 ≤32 字，知乎 ≤100 字），数量须等于设置的对应篇数',
+        description: '每篇标题（长文 ≤64 字，小绿书 ≤32 字，知乎 ≤100 字），数量须与 digests 一致（支持补充要求自定义篇数 1~20 篇）',
         items: { type: 'string' },
       },
       digests: {
         type: 'array',
         required: true,
-        description: '每篇摘要（≤120 字）；知乎/小绿书无摘要字段但数量仍须一致（保持调用契约统一）',
+        description: '每篇摘要（≤120 字）；数量必须与 titles 数量一致',
         items: { type: 'string' },
       },
       article_files: {
@@ -106,13 +106,16 @@ export function publishTool(cfg: Config) {
         (!args.article_type && content.article_type === 'newspic') ||
         Boolean(args.article_files && args.article_files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
       )
-      const n = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
-      if (!Array.isArray(args.titles) || args.titles.length !== n) {
-        throw new Error('titles 必须是 ' + n + ' 个')
+      if (!Array.isArray(args.titles) || args.titles.length === 0 || args.titles.length > 20) {
+        throw new Error('titles 必须包含 1~20 个标题')
       }
-      if (!Array.isArray(args.digests) || args.digests.length !== n) {
-        throw new Error('digests 必须是 ' + n + ' 个')
+      if (!Array.isArray(args.digests) || args.digests.length !== args.titles.length) {
+        throw new Error('digests 数量（' + (args.digests?.length ?? 0) + '）必须与 titles 数量（' + args.titles.length + '）一致')
       }
+      if (args.article_files && args.article_files.length !== args.titles.length) {
+        throw new Error('article_files 数量（' + args.article_files.length + '）必须与 titles 数量（' + args.titles.length + '）一致')
+      }
+      const n = args.titles.length
       const maxTitle = platform === 'zhihu' ? 100 : isNewspic ? 32 : 64
       for (const t of args.titles) {
         if (typeof t !== 'string' || t.length > maxTitle) throw new Error('标题超 ' + maxTitle + ' 字: ' + String(t).slice(0, 40))
@@ -343,13 +346,20 @@ async function publishGzh(
     forbidden: account.profile.content.forbidden_words,
     verify: cfg.runtime.verify_after_publish,
   }
-  const result = await runPipeline<PublishResult>(
-    cfg,
-    'publish_pipeline.py',
-    ['--job-json', JSON.stringify(job), '--scripts-dir', sdir, '--brand-dir', bdir,
-      '--resource-dir', runtimeResourceDir()],
-    Math.max(600000, n * 120000),
-  )
+  // job 落临时文件而非 --job-json 内联：job.cache 随发布次数增长，内联会触发 Windows argv 上限（spawn ENAMETOOLONG）
+  const jobFile = writeJobFile(sdir, job, 'publish')
+  let result: PublishResult
+  try {
+    result = await runPipeline<PublishResult>(
+      cfg,
+      'publish_pipeline.py',
+      ['--job', jobFile.name, '--scripts-dir', sdir, '--brand-dir', bdir,
+        '--resource-dir', runtimeResourceDir()],
+      Math.max(600000, n * 120000),
+    )
+  } finally {
+    removeJobFile(jobFile.dir, jobFile.name)
+  }
 
   // 结果落盘：上传缓存续跑 + 发布记录（与项目既有文件兼容）
   writeUploadCache(cfg, accountId, result.cache ?? {})

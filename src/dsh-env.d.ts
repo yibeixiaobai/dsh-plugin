@@ -21,6 +21,7 @@ declare module '@deepseek-ai/cordis' {
           rawInput: string
           agent: { followup(message: unknown): void }
           signal: AbortSignal
+          attachments?: readonly unknown[]
         }): { kind: 'success'; text?: string } | { kind: 'error'; text: string }
       }): () => void
     }
@@ -54,9 +55,19 @@ declare module '@deepseek-ai/cordis' {
 }
 
 declare module '@deepseek-ai/dsh-llm' {
+  export type MessageSource =
+    | { kind: 'user' }
+    | {
+        kind: 'plugin'
+        plugin: string
+        form?: 'notice' | 'instructions' | 'catalog' | 'snapshot' | 'relay' | 'recall'
+        summary?: string
+      }
+    | { kind: string; [key: string]: unknown }
+
   export function createUserMessage(input: {
-    content: Array<{ type: 'text'; text: string }>
-    source: { kind: 'user' }
+    content: Array<{ type: string; [key: string]: unknown }>
+    source?: MessageSource
   }): unknown
 }
 
