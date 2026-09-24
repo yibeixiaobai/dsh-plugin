@@ -432,4 +432,22 @@ export function registerQuickCommand(ctx: Context, config: Config): void {
       return handleCommandInvocation(config, invocation, { fixedPlatform: 'gzh', commandName: 'gzh' })
     },
   })
+
+  // 5. 社媒发布工作台卡片入口指令：/publish-config
+  ctx.commands.register({
+    name: 'publish-config',
+    description: '打开社媒发布工作台独立卡片指引',
+    handler() {
+      return {
+        kind: 'success',
+        text: '📰 **社媒发布工作台卡片已就绪**\n\n' +
+          '当前项目已脱离 DSH 全局设置页，升级为独立的页面卡片。\n\n' +
+          '**打开方式：**\n' +
+          '- **左侧边栏底部**：直接点击「📰 社媒发布」常驻按钮；\n' +
+          '- **会话窗口顶部**：直接点击顶部工具栏的「📰 社媒发布」按钮；\n' +
+          '- **侧边栏插件页**：点击「插件」→ 选择本插件即可进入完整独立卡片。\n\n' +
+          '卡片内含：发表批次记录、微信/知乎多账号管理、排版风格一号一配、AI 生图接口池及配置备份导入导出。',
+      }
+    },
+  })
 }

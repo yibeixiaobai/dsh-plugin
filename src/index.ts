@@ -147,6 +147,6 @@ export function apply(ctx: Context, config: ConfigT) {
   ctx.tools.register(enableOriginalTool(liveConfig))
   registerQuickCommand(ctx, liveConfig)
 
-  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：8 个生产工具与 /publish, /post, /zhihu, /gzh 指令就绪' +
+  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：8 个生产工具与 /publish, /post, /zhihu, /gzh, /publish-config 指令就绪' +
     (config.runtime.dry_run ? '（演练模式：不联网生图、不发布）' : ''))
 }
