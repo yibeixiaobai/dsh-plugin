@@ -11,8 +11,8 @@ import {
   writeJobFile, writeTextFile, runtimeResourceDir, writeUploadCache,
 } from './shared.ts'
 
-import type { WechatOriginalResult } from '../wechat-browser.ts'
-import { enableWechatDraftOriginal } from '../wechat-browser.ts'
+import type { WechatOriginalResult, WechatBrowserPublishJob } from '../wechat-browser.ts'
+import { enableWechatDraftOriginal, publishWechatDraftByBrowser } from '../wechat-browser.ts'
 
 interface PublishResult {
   dry_run: boolean
@@ -35,10 +35,12 @@ export interface ZhihuDraftInfo {
 export interface PublishOk {
   account_id: string
   platform: string
+  publish_mode?: 'api' | 'browser'
   dry_run: boolean
   media_id?: string
   media_ids?: string[]
   drafts?: ZhihuDraftInfo[]
+  draft_url?: string
   article_count: number
   titles: string[]
   verify: { checked: boolean; article_count?: number; results?: unknown[] }
@@ -55,6 +57,7 @@ interface PublishArgs {
   force?: boolean
   account_id?: string
   auto_enable_original?: boolean
+  publish_mode?: 'api' | 'browser'
 }
 
 function stampNow(): string {
@@ -65,8 +68,7 @@ export function publishTool(cfg: Config) {
   return defineTool<PublishArgs, PublishOk>({
     name: 'gzh_publish_draft',
     description:
-      '发布草稿：公众号账号走 上传素材（缓存断点续跑）→ 替换占位符 → 机器校验 → draft/add' +
-      '（长文组合为 1 个多图文草稿；小绿书每篇单独生成独立草稿，不组合发布），可选 draft/get 核验；' +
+      '发布草稿：公众号账号支持 官方 API 接口模式（需 AppID/Secret/IP 白名单）或 免 API 浏览器自动化模式（扫码登录，后台自动创建草稿）；' +
       '知乎账号走 浏览器自动化（登录态发布，N 篇 = N 个独立草稿，默认只存知乎草稿箱）。' +
       '发布前请先对全部文章跑 gzh_validate_html。演练模式（设置中 dry_run）只校验不联网。',
     parameters: {
@@ -92,6 +94,11 @@ export function publishTool(cfg: Config) {
         description: '可选：指定发布的文章形态（news=长图文草稿，newspic=小绿书图片消息草稿）；缺省按账号设置',
         enum: ['news', 'newspic'],
       },
+      publish_mode: {
+        type: 'string',
+        description: '可选：指定发布方案（api=官方 API 接口，browser=免 API 浏览器自动化）；缺省按账号配置 publish_mode（默认 api）',
+        enum: ['api', 'browser'],
+      },
       force: {
         type: 'boolean',
         description: '可选：强制发布，跳过防重复创建检查（默认 false 自动拦截相同标题或超出篇数配额的重复调用）',
@@ -110,6 +117,7 @@ export function publishTool(cfg: Config) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
       const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
+      const publishMode = args.publish_mode || account.profile.publish_mode || 'api'
       const isNewspic = platform !== 'zhihu' && (
         (args.article_type === 'newspic') ||
         (!args.article_type && content.article_type === 'newspic') ||
@@ -200,6 +208,9 @@ export function publishTool(cfg: Config) {
       if (platform === 'zhihu') {
         return publishZhihu(cfg, account.id, sdir, args, n)
       }
+      if (publishMode === 'browser') {
+        return publishGzhBrowser(cfg, account.id, sdir, args, n, isNewspic)
+      }
       return publishGzh(cfg, account.id, sdir, args, n, isNewspic)
     },
   })
@@ -214,7 +225,7 @@ function defaultArticleFiles(sdir: string, n: number, ext: string, custom?: stri
 async function publishZhihu(
   cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number,
 ): Promise<PublishOk> {
-  const contentImgs = contentImagesPerArticle(cfg)
+  const contentImgs = contentImagesPerArticle(cfg, resolveAccount(cfg, accountId).profile)
   const articlePaths = defaultArticleFiles(sdir, n, '.md', args.article_files)
   const contentFiles: Record<string, string> = {}
   for (let i = 1; i <= n; i++) {
@@ -292,7 +303,7 @@ async function publishGzh(
   cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number, isNewspic: boolean,
 ): Promise<PublishOk> {
   const account = resolveAccount(cfg, accountId)
-  const contentImgs = contentImagesPerArticle(cfg)
+  const contentImgs = contentImagesPerArticle(cfg, account.profile)
   const ext = isNewspic ? '_pic.json' : '.html'
   const articlePaths = defaultArticleFiles(sdir, n, ext, args.article_files)
 
@@ -452,5 +463,132 @@ async function publishGzh(
     // 仅在真正执行过「开启原创」时输出该字段：显式 undefined 不是无损 JSON，
     // 会被宿主工具输出校验拒绝，导致发布成功却报 "value is not lossless JSON"。
     ...(originalResult ? { original_result: originalResult } : {}),
+  }
+}
+
+/** 公众号免 API 浏览器发布分支：通过本机无头/有头浏览器登录态直接在公众号后台创建草稿并保存 */
+async function publishGzhBrowser(
+  cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number, isNewspic: boolean,
+): Promise<PublishOk> {
+  const account = resolveAccount(cfg, accountId)
+  const contentImgs = contentImagesPerArticle(cfg, account.profile)
+  const ext = isNewspic ? '_pic.json' : '.html'
+  const articlePaths = defaultArticleFiles(sdir, n, ext, args.article_files)
+
+  const coverPaths: string[] = []
+  const contentFiles: Record<string, string> = {}
+  if (!isNewspic) {
+    for (let i = 1; i <= n; i++) {
+      if (cfg.runtime.dry_run) {
+        coverPaths.push(path.resolve(sdir, 'cover_' + i + '.png'))
+      } else {
+        coverPaths.push(findImage(sdir, 'cover_' + i))
+      }
+      for (let j = 1; j <= contentImgs; j++) {
+        const key = 'IMG_A' + i + '_' + j
+        contentFiles[key] = cfg.runtime.dry_run
+          ? path.resolve(sdir, 'content_' + i + '_' + j + '.png')
+          : findImage(sdir, 'content_' + i + '_' + j)
+      }
+    }
+  }
+
+  const bdir = brandDir(cfg)
+  const brandTop = brandImagePath(cfg, account.profile.brand_images.header.file, 'brand_top.jpg')
+  const brandBot = brandImagePath(cfg, account.profile.brand_images.footer.file, 'brand_bot.jpg')
+
+  const job: WechatBrowserPublishJob = {
+    account_id: accountId,
+    article_type: isNewspic ? 'newspic' : 'news',
+    titles: args.titles,
+    digests: args.digests,
+    article_files: articlePaths,
+    cover_files: coverPaths,
+    content_files: contentFiles,
+    brand_top: brandTop,
+    brand_bot: brandBot,
+    brand_top_enabled: isNewspic ? false : account.profile.brand_images.header.enabled,
+    brand_bot_enabled: isNewspic ? false : account.profile.brand_images.footer.enabled,
+    author: account.profile.author_name,
+    brand_name: account.profile.brand_name,
+    auto_enable_original: Boolean(args.auto_enable_original ?? account.profile.auto_enable_original ?? cfg.wechat?.auto_enable_original ?? false),
+    dry_run: Boolean(cfg.runtime.dry_run),
+    min_words: isNewspic ? (account.profile.content.newspic_min_words ?? 100) : account.profile.content.min_words,
+    forbidden: account.profile.content.forbidden_words,
+  }
+
+  const result = await publishWechatDraftByBrowser(cfg, accountId, job)
+  if (result.dry_run) {
+    return {
+      account_id: accountId,
+      platform: 'gzh',
+      publish_mode: 'browser',
+      dry_run: true,
+      article_count: n,
+      titles: args.titles,
+      verify: { checked: false },
+      result_file: '',
+    }
+  }
+
+  const now = stampNow()
+  const authorName = account.profile.author_name || '文映学术win00.cn'
+  const resultData = {
+    status: 'success',
+    account_id: accountId,
+    platform: 'gzh',
+    publish_mode: 'browser',
+    article_count: n,
+    author: authorName,
+    timestamp: now,
+    media_id: result.media_id,
+    media_ids: result.media_ids,
+    articles: args.titles,
+    draft_url: result.draft_url,
+    original_result: result.original_result,
+  }
+  const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify(resultData, null, 2) + '\n')
+  writeTextFile(sdir, MEDIA_ID_FILE, result.media_ids.join('\n') + '\n')
+
+  try {
+    appendPublishRecord(cfg, {
+      id: `batch_${now.replace(/[^0-9]/g, '').slice(0, 14)}_${Math.random().toString(36).slice(2, 6)}`,
+      account_id: accountId,
+      account_name: account.profile.name,
+      platform: 'gzh',
+      publish_mode: 'browser',
+      article_type: isNewspic ? 'newspic' : 'news',
+      article_count: n,
+      author: authorName,
+      timestamp: now,
+      draft_media_id: result.media_id,
+      draft_media_ids: result.media_ids,
+      articles: args.titles,
+      digests: args.digests,
+      items: args.titles.map((t, i) => ({
+        index: i + 1,
+        title: t,
+        digest: args.digests[i] || '',
+        draft_id: result.media_ids[i] || result.media_id,
+        url: result.draft_url,
+      })),
+    })
+  } catch {
+    // best-effort history append
+  }
+
+  return {
+    account_id: accountId,
+    platform: 'gzh',
+    publish_mode: 'browser',
+    dry_run: false,
+    media_id: result.media_id,
+    media_ids: result.media_ids,
+    article_count: n,
+    titles: args.titles,
+    draft_url: result.draft_url,
+    verify: result.verify || { checked: true, article_count: n },
+    result_file: resultPath,
+    ...(result.original_result ? { original_result: result.original_result } : {}),
   }
 }

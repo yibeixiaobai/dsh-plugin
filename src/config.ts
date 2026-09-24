@@ -90,10 +90,15 @@ export const PLATFORMS: Platform[] = ['gzh', 'zhihu']
 /** 知乎文章封面比例（编辑器按内容图自动取封面，生成尺寸用 16:9） */
 export const ZHIHU_COVER_RATIO: CoverRatio = '16:9'
 
+// 发布模式：api=官方接口（需 AppID/Secret/IP 白名单）；browser=浏览器自动化（免 API/免 IP 白名单，扫码登录后台自动创建草稿）
+export type PublishMode = 'api' | 'browser'
+export const PUBLISH_MODES: PublishMode[] = ['api', 'browser']
+
 export interface AccountProfile {
   platform: Platform
   name: string
   enabled: boolean
+  publish_mode?: PublishMode
   appid: string
   app_secret: string
   author_name: string
@@ -270,11 +275,12 @@ const BrandImageSchema = Schema.object({
 })
 
 const AccountSchema = Schema.object({
-  platform: Schema.string().default('gzh').description('平台：gzh=公众号（appid 登录），zhihu=知乎专栏（扫码登录）'),
+  platform: Schema.string().default('gzh').description('平台：gzh=公众号（凭据或扫码登录），zhihu=知乎专栏（扫码登录）'),
   name: Schema.string().default('默认账号').description('账号显示名称'),
   enabled: Schema.boolean().default(true).description('是否启用'),
-  appid: Schema.string().default('').description('公众号 AppID（知乎账号留空）'),
-  app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（知乎账号留空）'),
+  publish_mode: Schema.union(['api', 'browser']).default('api').description('公众号发布模式：api=官方 API 接口（需 AppID/Secret/IP 白名单）；browser=免 API 浏览器自动化（扫码登录，后台自动创建草稿）'),
+  appid: Schema.string().default('').description('公众号 AppID（知乎账号或免 API 模式留空）'),
+  app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（知乎账号或免 API 模式留空）'),
   author_name: Schema.string().default('文映学术win00.cn').description('文章作者名'),
   brand_name: Schema.string().default('文映千秋学术网').description('品牌名（结尾引导语必须包含）'),
   publish_immediately: Schema.boolean().default(false).description('知乎：保存后直接发布（默认只存草稿箱，公众号不受影响）'),

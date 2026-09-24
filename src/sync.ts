@@ -4,7 +4,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { Config } from './config.ts'
-import { providerPool, resolveAccount } from './config-runtime.ts'
+import { providerPool, resolveAccount, type ResolvedAccount } from './config-runtime.ts'
 import { pluginDir, runtimeResourceDir } from './py.ts'
 
 const LEGACY_DEFAULT_WORKSPACE = 'd:/666/gzh/文映千秋学术网'
@@ -131,6 +131,21 @@ export function hydrateConfigFromWx(cfg: Config): boolean {
   return changed
 }
 
+/**
+ * 宽松解析同步用的「主账号」：默认账号被停用（或缺失）时退回第一个启用账号，再退回首账号。
+ * syncConfig 需要为所有账号下发凭据，不能因为默认账号停用而整体失败。
+ */
+function resolveSyncPrimaryAccount(cfg: Config): ResolvedAccount {
+  try {
+    return resolveAccount(cfg)
+  } catch {
+    const ids = Object.keys(cfg.accounts)
+    const pick = ids.find((id) => cfg.accounts[id].enabled !== false) ?? ids[0]
+    if (!pick) throw new Error('配置中没有任何账号，无法同步凭据')
+    return { id: pick, profile: JSON.parse(JSON.stringify(cfg.accounts[pick])) as ResolvedAccount['profile'] }
+  }
+}
+
 export function syncConfig(cfg: Config): SyncReport {
   const dir = scriptsDir(cfg)
   const wxPath = path.join(dir, 'wx_config.json')
@@ -140,7 +155,7 @@ export function syncConfig(cfg: Config): SyncReport {
   } catch {
     existing = {}
   }
-  const defaultAccount = resolveAccount(cfg)
+  const defaultAccount = resolveSyncPrimaryAccount(cfg)
   const accountRecords = Object.entries(cfg.accounts).map(([id, account]) => {
     const previous = Array.isArray(existing.accounts)
       ? (existing.accounts as Array<Record<string, unknown>>).find((item) => item.id === id)
@@ -212,6 +227,7 @@ export function syncConfig(cfg: Config): SyncReport {
 export function assertWechatCreds(cfg: Config, accountId?: string): void {
   const account = resolveAccount(cfg, accountId)
   if (account.profile.platform !== 'gzh') return
+  if (account.profile.publish_mode === 'browser') return
   if (account.profile.appid.trim() && account.profile.app_secret.trim()) return
   const wxPath = path.join(scriptsDir(cfg), 'wx_config.json')
   let ok = false

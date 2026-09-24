@@ -22,6 +22,7 @@ export interface PublishBatchRecord {
   account_id: string
   account_name?: string
   platform: 'gzh' | 'zhihu'
+  publish_mode?: 'api' | 'browser'
   article_type?: 'news' | 'newspic' | 'both'
   article_count: number
   author: string

@@ -30,6 +30,7 @@ function legacyAccount(config: Config): AccountProfile {
     platform: 'gzh',
     name: '默认账号',
     enabled: true,
+    publish_mode: 'api',
     appid: config.wechat.appid,
     app_secret: config.wechat.app_secret,
     author_name: config.wechat.author_name,
@@ -82,6 +83,7 @@ export function normalizeConfig(config: Config): Config {
     profile.enabled = profile.enabled !== false
     // 老配置无 platform 字段：一律视为公众号，知乎需在设置中显式切换
     profile.platform = profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
+    profile.publish_mode = profile.publish_mode === 'browser' ? 'browser' : 'api'
     profile.appid = profile.appid || ''
     profile.app_secret = profile.app_secret || ''
     profile.author_name = profile.author_name || config.wechat.author_name

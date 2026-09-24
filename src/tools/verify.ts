@@ -4,6 +4,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import { zhihuVerifyDrafts } from '../zhihu.ts'
+import { wechatVerifyDrafts } from '../wechat-browser.ts'
 import {
   RESULT_FILE, accountScriptsDir, assertWechatCreds, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir,
 } from './shared.ts'
@@ -61,6 +62,9 @@ export function verifyTool(cfg: Config) {
       )
       const expectedCount = args.expected_count ?? (isNewspic ? 1 : content.articles_per_day)
       if (platform === 'zhihu') return verifyZhihu(cfg, account.id, expectedCount)
+      if (account.profile.publish_mode === 'browser') {
+        return verifyWechatBrowser(cfg, account.id, expectedCount)
+      }
       if (!args.media_id || typeof args.media_id !== 'string') {
         if (cfg.runtime.dry_run) {
           return {
@@ -142,6 +146,42 @@ async function verifyZhihu(cfg: Config, accountId: string, expectedCount: number
     articles: report.articles.map((a) => ({
       ...a,
       problems: a.found ? [] : ['发布记录缺少 draft id（保存响应未捕获），无法远程核验；请在知乎草稿箱人工确认'],
+    })),
+  }
+}
+
+/** 公众号免 API 浏览器分支核验：读取本地发布记录，通过无头浏览器进入草稿箱核对标题匹配状态 */
+async function verifyWechatBrowser(cfg: Config, accountId: string, expectedCount: number): Promise<VerifyReport> {
+  const sdir = accountScriptsDir(cfg, accountId)
+  const base = path.resolve(sdir)
+  const resultPath = path.resolve(base, RESULT_FILE)
+  let titles: string[] = []
+  try {
+    if (fs.existsSync(resultPath)) {
+      const record = JSON.parse(fs.readFileSync(resultPath, 'utf-8'))
+      titles = Array.isArray(record.articles) ? record.articles : []
+    }
+  } catch {}
+
+  if (titles.length === 0) {
+    return {
+      account_id: accountId,
+      article_count: 0,
+      expected: expectedCount,
+      articles: [{ title: '未找到发布记录', found: false, problems: ['本地缺少 publish_result.json 或无有效文章标题'] }],
+    }
+  }
+
+  const verifyRes = await wechatVerifyDrafts(cfg, accountId, titles)
+  return {
+    account_id: accountId,
+    article_count: verifyRes.found,
+    expected: expectedCount,
+    articles: verifyRes.details.map((d) => ({
+      title: d.title,
+      found: d.found,
+      url: d.appmsgid ? `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit&type=10&appmsgid=${d.appmsgid}&lang=zh_CN` : undefined,
+      problems: d.found ? [] : ['公众号草稿箱中未匹配到该文章标题'],
     })),
   }
 }

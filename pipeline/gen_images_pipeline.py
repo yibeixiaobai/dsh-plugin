@@ -35,6 +35,26 @@ from PIL import Image, ImageDraw
 
 MARKER = "###RESULT### "
 
+# 直连用会话：忽略 HTTP(S)_PROXY 环境变量。部分环境下系统级本地代理会重置到
+# 生图接口与图床的连接（ConnectionReset 10054），而直连正常；反过来在必须走代理的
+# 环境里直连会失败。因此 http_request 先直连、失败再回退到环境代理，两者都试。
+_DIRECT_SESSION = requests.Session()
+_DIRECT_SESSION.trust_env = False
+
+
+def http_request(method, url, **kwargs):
+    """先直连（忽略环境代理）请求，失败时回退到环境代理；两条路径都失败才抛错。"""
+    direct_err = None
+    try:
+        return _DIRECT_SESSION.request(method, url, **kwargs)
+    except requests.RequestException as e:
+        direct_err = e
+    try:
+        return requests.request(method, url, **kwargs)
+    except requests.RequestException as e:
+        raise requests.ConnectionError(
+            "直连失败: " + str(direct_err)[:160] + "；经环境代理失败: " + str(e)[:160])
+
 ZH_SUFFIX = "画面中所有文字必须全部是中文，禁止出现任何英文单词、英文字母，禁止二维码、乱码字符与水印。"
 MAX_REDIRECTS = 2
 RETRYABLE_STATUS = {401, 403, 408, 429}
@@ -72,11 +92,28 @@ def assert_public_http_url(u):
 
 
 def fetch_bytes(u, timeout):
-    """手动跟随重定向（最多 MAX_REDIRECTS 次），每一跳都重新做公网校验。"""
+    """手动跟随重定向（最多 MAX_REDIRECTS 次），每一跳都重新做公网校验。
+
+    图床连接偶发被重置（ConnectionReset / 读超时），因此每一跳都做多次重试，
+    避免一次瞬时抖动就让整张图退化成本地保底图。
+    """
     current = u
     for _ in range(MAX_REDIRECTS + 1):
         assert_public_http_url(current)
-        resp = requests.get(current, timeout=max(30, int(timeout)), allow_redirects=False)
+        resp = None
+        last_err = None
+        for attempt in range(3):
+            try:
+                resp = http_request("GET", current, timeout=max(30, int(timeout)), allow_redirects=False)
+                break
+            except requests.RequestException as e:
+                last_err = e
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise requests.ConnectionError("图片下载失败(重试3次): " + str(e)[:240])
+        if resp is None:
+            raise requests.ConnectionError("图片下载失败: " + str(last_err)[:240])
         if resp.status_code in (301, 302, 303, 307, 308):
             current = resp.headers.get("Location", "")
             if not current:
@@ -189,7 +226,8 @@ def generate_raw(base_url, api_key, model, prompt, timeout, size=None):
         body["model"] = curr_model
         for attempt in range(2):
             try:
-                resp = requests.post(
+                resp = http_request(
+                    "POST",
                     url,
                     json=body,
                     headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"},
