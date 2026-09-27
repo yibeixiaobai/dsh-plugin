@@ -219,7 +219,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
           content: (accObj.content && typeof accObj.content === 'object' ? accObj.content : {}) as any,
           brand_images: (accObj.brand_images && typeof accObj.brand_images === 'object' ? accObj.brand_images : {
             header: { enabled: true, file: 'brand_top.jpg', width: 100, height: 0, fit: 'contain', position: 'center', radius: 0, margin_top: 0, margin_bottom: 0, frame: false },
-            footer: { enabled: true, file: 'brand_bot.jpg', width: 60, height: 0, fit: 'contain', position: 'center', radius: 0, margin_top: 20, margin_bottom: 0, frame: false },
+            footer: { enabled: true, file: 'brand_bot.jpg', width: 0, height: 0, fit: 'contain', position: 'center', radius: 0, margin_top: 20, margin_bottom: 0, frame: false },
           }) as any,
         }
       }

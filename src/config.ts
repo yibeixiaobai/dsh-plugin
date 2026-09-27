@@ -182,7 +182,7 @@ export const DEFAULT_BRAND_IMAGES: BrandImagesConfig = {
   footer: {
     enabled: true,
     file: 'brand_bot.jpg',
-    width: 60,
+    width: 0,
     height: 0,
     fit: 'contain',
     position: 'center',

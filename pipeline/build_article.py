@@ -67,7 +67,7 @@ BRAND_IMAGE_DEFAULTS = {
         "margin_top": 0, "margin_bottom": 0, "frame": False,
     },
     "footer": {
-        "enabled": True, "file": "brand_bot.jpg", "width": 60, "height": 0,
+        "enabled": True, "file": "brand_bot.jpg", "width": 0, "height": 0,
         "fit": "contain", "position": "center", "radius": 0,
         "margin_top": 20, "margin_bottom": 0, "frame": False,
     },
@@ -81,7 +81,7 @@ def resolve_brand_spec(raw, kind):
     spec["enabled"] = bool(spec.get("enabled", True))
     spec["file"] = str(spec.get("file") or BRAND_IMAGE_DEFAULTS[kind]["file"])
     for key, lower, upper in (
-        ("width", 10, 100), ("height", 0, 2000), ("radius", 0, 100),
+        ("width", 0, 100), ("height", 0, 2000), ("radius", 0, 100),
         ("margin_top", 0, 200), ("margin_bottom", 0, 200),
     ):
         try:
@@ -101,24 +101,29 @@ def brand_image_html(kind, spec):
     src = "__BRAND_TOP__" if kind == "header" else "__BRAND_BOT__"
     height = str(spec["height"]) + "px" if spec["height"] > 0 else "auto"
     margin = str(spec["margin_top"]) + "px auto " + str(spec["margin_bottom"]) + "px"
+    # width==0 表示自适应：不设百分比宽度，按原始尺寸呈现且不超过容器宽度
+    adaptive = int(spec["width"]) <= 0
+    size_style = "width:auto;max-width:100%;" if adaptive else (
+        "width:" + str(spec["width"]) + "%;max-width:" + str(spec["width"]) + "%;")
     image_style = (
-        "width:100%;max-width:100%;height:" + height + ";object-fit:" + spec["fit"] +
+        size_style + "height:" + height + ";object-fit:" + spec["fit"] +
         ";object-position:" + spec["position"] + ";display:block;margin:0 auto;border-radius:" +
         str(spec["radius"]) + "px;"
     )
     if spec["frame"]:
+        frame_size = ("width:auto;max-width:100%;" if adaptive else
+                      "width:" + str(spec["width"]) + "%;max-width:" + str(spec["width"]) + "%;")
         return (
             '<section style="text-align:center;margin:' + margin + ';padding:0;">'
-            '<section style="display:inline-block;box-sizing:border-box;width:' + str(spec["width"]) +
-            '%;max-width:' + str(spec["width"]) + '%;background:#FFFFFF;border:1px solid #E5E7EB;' +
+            '<section style="display:inline-block;box-sizing:border-box;' + frame_size +
+            'background:#FFFFFF;border:1px solid #E5E7EB;' +
             'border-radius:' + str(spec["radius"] + 6) + 'px;padding:6px;box-shadow:0 4px 12px -2px rgba(0,0,0,0.06);">'
             '<img src="' + src + '" style="' + image_style + '">'
             '</section></section>'
         )
     return (
         '<p style="text-align:center;margin:' + margin + ';padding:0;">'
-        '<img src="' + src + '" style="width:' + str(spec["width"]) + '%;max-width:' +
-        str(spec["width"]) + '%;height:' + height + ';object-fit:' + spec["fit"] +
+        '<img src="' + src + '" style="' + size_style + 'height:' + height + ';object-fit:' + spec["fit"] +
         ';object-position:' + spec["position"] + ';display:block;margin:0 auto;border-radius:' +
         str(spec["radius"]) + 'px;"></p>'
     )

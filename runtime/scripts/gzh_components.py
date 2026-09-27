@@ -25,7 +25,7 @@ def brand_top():
     return '<p style="text-align:center;margin:0;padding:0;"><img src="__BRAND_TOP__" style="width:100%;max-width:100%;display:block;margin:0 auto;" /></p>'
 
 def brand_bot():
-    return '<p style="text-align:center;margin:20px 0 0 0;padding:0;"><img src="__BRAND_BOT__" style="max-width:60%;height:auto;display:block;margin:0 auto;" /></p>'
+    return '<p style="text-align:center;margin:20px 0 0 0;padding:0;"><img src="__BRAND_BOT__" style="width:auto;max-width:100%;height:auto;object-fit:contain;object-position:center;display:block;margin:0 auto;border-radius:0px;" /></p>'
 
 # ========== 组件：引言卡（金句+主题色高亮词+署名） ==========
 def intro_card(pre, hl, post, t):
