@@ -87,6 +87,7 @@ declare module '@deepseek-ai/schemastery' {
     max(n: number): Schema<T>
     step(n: number): Schema<T>
     description(text: string): Schema<T>
+    volatile(): Schema<T>
   }
   export const Schema: {
     object<T>(dict: { [K in keyof T]: Schema<T[K]> }): Schema<T>

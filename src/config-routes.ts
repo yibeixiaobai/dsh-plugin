@@ -12,6 +12,7 @@ import {
 export const CONFIG_EXPORT_ROUTE = '/api/gzh-publisher/config/export'
 export const CONFIG_VALIDATE_ROUTE = '/api/gzh-publisher/config/validate'
 export const CONFIG_IMPORT_ROUTE = '/api/gzh-publisher/config/import'
+export const CONFIG_SAVE_ROUTE = '/api/gzh-publisher/config/save'
 
 const MAX_JSON_BODY_BYTES = 5 * 1024 * 1024 // 5 MB
 
@@ -175,12 +176,104 @@ export function registerConfigRoutes(
           sendJson(res, 200, {
             ok: true,
             mode,
+            config: merged,
             message: mode === 'merge' ? '已成功增量合并导入配置' : '已成功全量覆盖导入配置',
             summary: validation.summary,
             warnings: validation.warnings,
           })
         } catch (error) {
           sendJson(res, 500, { ok: false, error: '导入配置失败：' + (error instanceof Error ? error.message : String(error)) })
+        }
+      },
+    })
+
+    // 4. POST /api/gzh-publisher/config/save
+    serverCtx.webServer.register({
+      kind: 'exact',
+      path: CONFIG_SAVE_ROUTE,
+      async handler(req, res) {
+        if (!sameOrigin(req)) {
+          sendJson(res, 403, { error: '仅允许同源请求' })
+          return
+        }
+        if (req.method !== 'POST') {
+          sendJson(res, 405, { error: '仅支持 POST 请求' })
+          return
+        }
+
+        try {
+          const text = await readBodyText(req)
+          let payload: unknown
+          try {
+            payload = JSON.parse(text)
+          } catch {
+            sendJson(res, 400, { ok: false, error: '请求内容非有效 JSON 格式' })
+            return
+          }
+
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+            sendJson(res, 400, { ok: false, error: '配置数据格式错误，必须为 JSON 对象' })
+            return
+          }
+
+          const current = getConfig()
+          const incomingObj = payload as Record<string, any>
+
+          // 凭据安全保留机制：空密码或脱敏值时不覆盖已有凭据
+          if (incomingObj.wechat && typeof incomingObj.wechat === 'object') {
+            const secret = String(incomingObj.wechat.app_secret ?? '').trim()
+            if (!secret && current.wechat.app_secret) incomingObj.wechat.app_secret = current.wechat.app_secret
+          }
+          if (incomingObj.image_api && typeof incomingObj.image_api === 'object') {
+            const key = String(incomingObj.image_api.api_key ?? '').trim()
+            if (!key && current.image_api.api_key) incomingObj.image_api.api_key = current.image_api.api_key
+          }
+          if (incomingObj.accounts && typeof incomingObj.accounts === 'object') {
+            for (const [id, acc] of Object.entries(incomingObj.accounts as Record<string, any>)) {
+              if (acc && typeof acc === 'object') {
+                const secret = String(acc.app_secret ?? '').trim()
+                if (!secret && current.accounts[id]?.app_secret) {
+                  acc.app_secret = current.accounts[id].app_secret
+                }
+              }
+            }
+          }
+          if (incomingObj.image_providers && typeof incomingObj.image_providers === 'object') {
+            for (const [id, prov] of Object.entries(incomingObj.image_providers as Record<string, any>)) {
+              if (prov && typeof prov === 'object') {
+                const key = String(prov.api_key ?? '').trim()
+                if (!key && current.image_providers[id]?.api_key) {
+                  prov.api_key = current.image_providers[id].api_key
+                }
+              }
+            }
+          }
+
+          const validation = validateImportConfig(incomingObj)
+          if (!validation.valid || !validation.data) {
+            sendJson(res, 400, {
+              ok: false,
+              error: '配置校验未通过',
+              errors: validation.errors,
+              warnings: validation.warnings,
+            })
+            return
+          }
+
+          const merged = mergeConfigData(current, validation.data, 'overwrite')
+          if (onConfigImported) {
+            await onConfigImported(merged)
+          }
+
+          sendJson(res, 200, {
+            ok: true,
+            config: merged,
+            message: '配置已成功保存并同步落盘',
+            summary: validation.summary,
+            warnings: validation.warnings,
+          })
+        } catch (error) {
+          sendJson(res, 500, { ok: false, error: '保存配置失败：' + (error instanceof Error ? error.message : String(error)) })
         }
       },
     })

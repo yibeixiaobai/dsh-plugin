@@ -70,17 +70,34 @@ export function apply(ctx: Context, config: ConfigT) {
   ctx.inject(['settings'], (settingsCtx) => {
     if (!settingsCtx.settings) return
     settingsService = settingsCtx.settings
-    settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, compositionEntry, {
-      setSource(next) {
-        source = () => next() as ConfigT
-      },
-      onChange() {
-        const next = source()
-        applyNormalizedConfig(liveConfig, next)
-        ensureWorkspace(liveConfig)
-        syncConfig(liveConfig)
-      },
-    })
+    if (typeof (settingsCtx.settings as any).configure === 'function') {
+      try {
+        (settingsCtx.settings as any).configure({ auto: false }, (ctx as any).fiber)
+      } catch {}
+    }
+    if (typeof settingsCtx.settings.installSection === 'function') {
+      settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, compositionEntry, {
+        setSource(next) {
+          source = () => next() as ConfigT
+        },
+        onChange() {
+          const next = source()
+          // 绝不用空账号字典覆盖已有账号！
+          const nextAccounts = (next?.accounts && typeof next.accounts === 'object') ? next.accounts : {}
+          if (Object.keys(nextAccounts).length === 0 && Object.keys(liveConfig.accounts || {}).length > 0) {
+            next.accounts = { ...liveConfig.accounts }
+            next.default_account = liveConfig.default_account
+          }
+          const nextProviders = (next?.image_providers && typeof next.image_providers === 'object') ? next.image_providers : {}
+          if (Object.keys(nextProviders).length === 0 && Object.keys(liveConfig.image_providers || {}).length > 0) {
+            next.image_providers = { ...liveConfig.image_providers }
+          }
+          applyNormalizedConfig(liveConfig, next)
+          ensureWorkspace(liveConfig)
+          syncConfig(liveConfig)
+        },
+      })
+    }
 
     // 检查是否有历史配置（来自旧命名空间 gzh-publisher）
     const legacyResolved = settingsCtx.settings.get(LEGACY_SETTINGS_NAMESPACE) as ConfigT | undefined
@@ -126,6 +143,31 @@ export function apply(ctx: Context, config: ConfigT) {
       })
     }
   })
+
+  // 监听 DSH 0.1.7 loader/volatile-update 事件，响应配置变更并热重载落盘
+  if (typeof (ctx as any).on === 'function') {
+    (ctx as any).on('loader/volatile-update', (targetCtx: any, patch: any) => {
+      try {
+        if (targetCtx === ctx || targetCtx?.name === PLUGIN_NAME || patch?.ns === SETTINGS_NAMESPACE) {
+          if (patch?.config) {
+            const next = patch.config
+            if ((!next.accounts || Object.keys(next.accounts).length === 0) && Object.keys(liveConfig.accounts || {}).length > 0) {
+              next.accounts = { ...liveConfig.accounts }
+              next.default_account = liveConfig.default_account
+            }
+            if ((!next.image_providers || Object.keys(next.image_providers).length === 0) && Object.keys(liveConfig.image_providers || {}).length > 0) {
+              next.image_providers = { ...liveConfig.image_providers }
+            }
+            applyNormalizedConfig(liveConfig, next)
+            ensureWorkspace(liveConfig)
+            syncConfig(liveConfig)
+          }
+        }
+      } catch (e) {
+        ctx.logger.warn('[social-publisher] 处理 volatile-update 异常：', e)
+      }
+    })
+  }
 
   // 凭据同步：留空的设置项沿用既有 wx_config.json，不覆盖
   try {

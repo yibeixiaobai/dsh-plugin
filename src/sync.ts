@@ -102,16 +102,101 @@ export function hydrateConfigFromWx(cfg: Config): boolean {
   } catch {
     return false
   }
+  if (!cfg.accounts || typeof cfg.accounts !== 'object') (cfg as any).accounts = {}
+  if (!cfg.image_providers || typeof cfg.image_providers !== 'object') (cfg as any).image_providers = {}
   let changed = false
   const legacyAppid = String(existing.appid ?? '')
   const legacySecret = String(existing.app_secret ?? '')
   const legacyImageBase = String(existing.image_api_base ?? '')
   const legacyImageKey = String(existing.image_api_key ?? '')
 
+  // 容灾自愈：若根 wx_config.json 账号少于等于 1，自动扫描各账号子目录中的完整备份
+  const accountsDir = path.join(workspaceDir(cfg), 'accounts')
+  if ((!Array.isArray(existing.accounts) || existing.accounts.length <= 1) && fs.existsSync(accountsDir)) {
+    try {
+      for (const sub of fs.readdirSync(accountsDir)) {
+        const subWx = path.join(accountsDir, sub, 'scripts', 'wx_config.json')
+        if (fs.existsSync(subWx)) {
+          const subData = JSON.parse(fs.readFileSync(subWx, 'utf-8')) as Record<string, unknown>
+          if (Array.isArray(subData.accounts) && subData.accounts.length > (Array.isArray(existing.accounts) ? existing.accounts.length : 0)) {
+            existing.accounts = subData.accounts
+            if (Array.isArray(subData.image_api_providers) && (!Array.isArray(existing.image_api_providers) || existing.image_api_providers.length < subData.image_api_providers.length)) {
+              existing.image_api_providers = subData.image_api_providers
+            }
+            changed = true
+            break
+          }
+        }
+      }
+    } catch {}
+  }
+
   if (!cfg.wechat.appid && legacyAppid) { cfg.wechat.appid = legacyAppid; changed = true }
   if (!cfg.wechat.app_secret && legacySecret) { cfg.wechat.app_secret = legacySecret; changed = true }
   if (!cfg.image_api.base_url && legacyImageBase) { cfg.image_api.base_url = legacyImageBase; changed = true }
   if (!cfg.image_api.api_key && legacyImageKey) { cfg.image_api.api_key = legacyImageKey; changed = true }
+
+  // 恢复 wx_config.json 中已有但当前 cfg.accounts 缺失的账号档案（防止重启或热重载时丢失新增账号）
+  if (Array.isArray(existing.accounts)) {
+    for (const item of existing.accounts as Array<Record<string, any>>) {
+      if (item && typeof item.id === 'string' && item.id.trim()) {
+        const id = item.id.trim()
+        if (!cfg.accounts[id]) {
+          cfg.accounts[id] = {
+            platform: item.platform === 'zhihu' ? 'zhihu' : 'gzh',
+            name: String(item.name || id),
+            enabled: item.enabled !== false,
+            publish_mode: item.publish_mode === 'browser' ? 'browser' : 'api',
+            appid: String(item.appid ?? ''),
+            app_secret: String(item.app_secret ?? ''),
+            author_name: String(item.author_name ?? cfg.wechat.author_name ?? ''),
+            brand_name: String(item.brand_name ?? cfg.wechat.brand_name ?? ''),
+            publish_immediately: Boolean(item.publish_immediately),
+            auto_enable_original: Boolean(item.auto_enable_original),
+            content: (item.content && typeof item.content === 'object') ? { ...cfg.content, ...item.content } : { ...cfg.content },
+            brand_images: (item.brand_images && typeof item.brand_images === 'object') ? { ...cfg.brand_images, ...item.brand_images } : { ...cfg.brand_images },
+          }
+          changed = true
+        } else {
+          const acc = cfg.accounts[id]
+          if (!acc.app_secret && item.app_secret) {
+            acc.app_secret = String(item.app_secret)
+            changed = true
+          }
+          if (!acc.appid && item.appid) {
+            acc.appid = String(item.appid)
+            changed = true
+          }
+        }
+      }
+    }
+  }
+
+  // 恢复 wx_config.json 中已有但当前 cfg.image_providers 缺失的接口（防止重启或热重载时丢失新增接口）
+  if (Array.isArray(existing.image_api_providers)) {
+    for (const item of existing.image_api_providers as Array<Record<string, any>>) {
+      if (item && typeof item.id === 'string' && item.id.trim()) {
+        const id = item.id.trim()
+        if (!cfg.image_providers[id]) {
+          cfg.image_providers[id] = {
+            enabled: item.enabled !== false,
+            name: String(item.name || id),
+            base_url: String(item.base_url ?? cfg.image_api.base_url ?? ''),
+            api_key: String(item.api_key ?? ''),
+            model: String(item.model ?? cfg.image_api.model ?? 'gpt-image-2'),
+            priority: Number.isFinite(item.priority) ? Number(item.priority) : 0,
+          }
+          changed = true
+        } else {
+          const prov = cfg.image_providers[id]
+          if (!prov.api_key && item.api_key) {
+            prov.api_key = String(item.api_key)
+            changed = true
+          }
+        }
+      }
+    }
+  }
 
   const defaultAccount = cfg.accounts[cfg.default_account]
   if (defaultAccount) {
@@ -155,6 +240,56 @@ export function syncConfig(cfg: Config): SyncReport {
   } catch {
     existing = {}
   }
+  if (!cfg.accounts || typeof cfg.accounts !== 'object') (cfg as any).accounts = {}
+  if (!cfg.image_providers || typeof cfg.image_providers !== 'object') (cfg as any).image_providers = {}
+
+  // 永久防丢失保护：仅当 cfg 账号为空或仅有初始未配置的默认账号，且磁盘已有账号时才从磁盘合入，绝不被宿主空字典抹除，亦不影响合法删除/覆盖
+  const cfgAccounts = cfg.accounts && typeof cfg.accounts === 'object' ? Object.values(cfg.accounts) : []
+  const hasRealAccount = cfgAccounts.length > 1 || (cfgAccounts.length === 1 && Boolean(cfgAccounts[0].appid || cfgAccounts[0].app_secret || (cfgAccounts[0].name && cfgAccounts[0].name !== '默认账号') || cfgAccounts[0].platform === 'zhihu'))
+  if (!hasRealAccount && Array.isArray(existing.accounts) && existing.accounts.length > 0) {
+    for (const item of existing.accounts as Array<Record<string, any>>) {
+      if (item && typeof item.id === 'string' && item.id.trim()) {
+        const id = item.id.trim()
+        if (!cfg.accounts[id]) {
+          cfg.accounts[id] = {
+            platform: item.platform === 'zhihu' ? 'zhihu' : 'gzh',
+            name: String(item.name || id),
+            enabled: item.enabled !== false,
+            publish_mode: item.publish_mode === 'browser' ? 'browser' : 'api',
+            appid: String(item.appid ?? ''),
+            app_secret: String(item.app_secret ?? ''),
+            author_name: String(item.author_name ?? cfg.wechat?.author_name ?? ''),
+            brand_name: String(item.brand_name ?? cfg.wechat?.brand_name ?? ''),
+            publish_immediately: Boolean(item.publish_immediately),
+            auto_enable_original: Boolean(item.auto_enable_original),
+            content: (item.content && typeof item.content === 'object') ? { ...cfg.content, ...item.content } : { ...cfg.content },
+            brand_images: (item.brand_images && typeof item.brand_images === 'object') ? { ...cfg.brand_images, ...item.brand_images } : { ...cfg.brand_images },
+          }
+        }
+      }
+    }
+  }
+
+  const cfgProviders = cfg.image_providers && typeof cfg.image_providers === 'object' ? Object.values(cfg.image_providers) : []
+  const hasRealProvider = cfgProviders.length > 1 || (cfgProviders.length === 1 && Boolean(cfgProviders[0].api_key || (cfgProviders[0].base_url && cfgProviders[0].base_url !== 'https://api.a6api.com')))
+  if (!hasRealProvider && Array.isArray(existing.image_api_providers) && existing.image_api_providers.length > 0) {
+    for (const item of existing.image_api_providers as Array<Record<string, any>>) {
+      if (item && typeof item.id === 'string' && item.id.trim()) {
+        const id = item.id.trim()
+        if (!cfg.image_providers[id]) {
+          cfg.image_providers[id] = {
+            enabled: item.enabled !== false,
+            name: String(item.name || id),
+            base_url: String(item.base_url ?? cfg.image_api?.base_url ?? ''),
+            api_key: String(item.api_key ?? ''),
+            model: String(item.model ?? cfg.image_api?.model ?? 'gpt-image-2'),
+            priority: Number.isFinite(item.priority) ? Number(item.priority) : 0,
+          }
+        }
+      }
+    }
+  }
+
   const defaultAccount = resolveSyncPrimaryAccount(cfg)
   const accountRecords = Object.entries(cfg.accounts).map(([id, account]) => {
     const previous = Array.isArray(existing.accounts)
