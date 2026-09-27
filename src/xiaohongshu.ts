@@ -83,9 +83,152 @@ async function launchXhsBrowser(cfg: Config, accountId: string, headless: boolea
   }
 }
 
+export interface XhsSessionData {
+  account_id: string
+  platform: 'xiaohongshu'
+  user_id?: string
+  user_name?: string
+  red_id?: string
+  cookies: Array<any>
+  updated_at: string
+}
+
+export function xhsSessionPath(cfg: Config, accountId: string): string {
+  return path.join(xhsProfileDir(cfg, accountId), 'xhs_session.json')
+}
+
+export function xhsBackupSessionPath(cfg: Config, accountId: string): string {
+  return path.join(accountScriptsDir(cfg, accountId), 'xhs_session.json')
+}
+
+export function saveXhsSession(cfg: Config, accountId: string, data: XhsSessionData): void {
+  try {
+    const raw = JSON.stringify(data, null, 2) + '\n'
+    const p1 = xhsSessionPath(cfg, accountId)
+    fs.mkdirSync(path.dirname(p1), { recursive: true })
+    fs.writeFileSync(p1, raw, 'utf-8')
+    const p2 = xhsBackupSessionPath(cfg, accountId)
+    fs.mkdirSync(path.dirname(p2), { recursive: true })
+    fs.writeFileSync(p2, raw, 'utf-8')
+  } catch (err) {
+    console.error('[xhs] 保存小红书登录凭据失败:', err)
+  }
+}
+
+export function loadXhsSession(cfg: Config, accountId: string): XhsSessionData | null {
+  const p1 = xhsSessionPath(cfg, accountId)
+  const p2 = xhsBackupSessionPath(cfg, accountId)
+  const candidate = fs.existsSync(p1) ? p1 : (fs.existsSync(p2) ? p2 : null)
+  if (!candidate) return null
+  try {
+    return JSON.parse(fs.readFileSync(candidate, 'utf-8')) as XhsSessionData
+  } catch {
+    return null
+  }
+}
+
+export async function restoreXhsCookies(page: Page, cfg: Config, accountId: string): Promise<boolean> {
+  const session = loadXhsSession(cfg, accountId)
+  if (session && Array.isArray(session.cookies) && session.cookies.length > 0) {
+    try {
+      await page.setCookie(...session.cookies)
+      return true
+    } catch {}
+  }
+  return false
+}
+
+export interface XhsLoginStatus {
+  logged_in: boolean
+  user_id?: string
+  user_name?: string
+  red_id?: string
+}
+
+export async function checkXhsLoginStatus(page: Page): Promise<XhsLoginStatus> {
+  const cookies = await page.cookies().catch(() => [])
+  const hasSessionCookie = cookies.some((c) =>
+    (c.name === 'galaxy_creator_session_id' ||
+     c.name === 'access-token-creator.xiaohongshu.com' ||
+     c.name === 'customer-sso-sid' ||
+     c.name === 'x-user-id-creator.xiaohongshu.com' ||
+     c.name === 'galaxy.creator.beaker.session.id' ||
+     c.name === 'web_session') &&
+    Boolean(c.value && c.value.trim()),
+  )
+
+  const url = page.url()
+  const isLoginPage = url.includes('/login') || url.includes('/signin')
+
+  const pageState = await page.evaluate(() => {
+    try {
+      const qrcode = document.querySelector('.qrcode, [class*="qrcode"], [class*="login-box"], [class*="login-container"]')
+      const hasQrcode = Boolean(qrcode && (qrcode as HTMLElement).offsetParent !== null)
+
+      const publishBtn = document.querySelector('[class*="publish"], a[href*="publish"]')
+      const avatar = document.querySelector('[class*="avatar"], img[src*="avatar"], img[src*="sns-avatar"]')
+      const hasCreatorElements = Boolean(publishBtn || avatar)
+
+      let userId = ''
+      try {
+        const userInfoRaw = localStorage.getItem('USER_INFO')
+        if (userInfoRaw) {
+          const parsed = JSON.parse(userInfoRaw)
+          userId = parsed?.user?.value?.userId || parsed?.userId || ''
+        }
+      } catch {}
+      if (!userId) {
+        userId = localStorage.getItem('snsWebPublishCurrentUser') || ''
+      }
+
+      let userName = ''
+      let redId = ''
+      const bodyText = document.body?.innerText || ''
+      const redIdMatch = bodyText.match(/小红书(?:号|账号)\s*[:：]\s*([A-Za-z0-9_-]+)/)
+      if (redIdMatch) redId = redIdMatch[1]
+
+      const nameEl = document.querySelector('[class*="user-name"], [class*="name-box"], [class*="author-name"], [class*="user-info"]')
+      if (nameEl) {
+        userName = nameEl.textContent?.trim() || ''
+      }
+      if (!userName && bodyText.includes('创作服务平台')) {
+        const lines = bodyText.split('\n').map((l) => l.trim()).filter(Boolean)
+        const idx = lines.indexOf('创作服务平台')
+        if (idx !== -1 && lines[idx + 1] && lines[idx + 1] !== '发布笔记') {
+          userName = lines[idx + 1]
+        }
+      }
+      if (userName) {
+        userName = userName.replace(/退出登录/g, '').trim()
+      }
+
+      return {
+        hasQrcode,
+        hasCreatorElements,
+        userId,
+        userName,
+        redId,
+      }
+    } catch {
+      return { hasQrcode: false, hasCreatorElements: false, userId: '', userName: '', redId: '' }
+    }
+  }).catch(() => ({ hasQrcode: false, hasCreatorElements: false, userId: '', userName: '', redId: '' }))
+
+  const logged = (hasSessionCookie && (!isLoginPage || !pageState.hasQrcode)) ||
+                 (hasSessionCookie && !isLoginPage) ||
+                 (Boolean(pageState.userId || pageState.hasCreatorElements) && !pageState.hasQrcode && !isLoginPage)
+
+  return {
+    logged_in: logged,
+    user_id: pageState.userId || undefined,
+    user_name: pageState.userName || undefined,
+    red_id: pageState.redId || undefined,
+  }
+}
+
 async function isLoggedIn(page: Page): Promise<boolean> {
-  const cookies = await page.cookies(CREATOR_URL)
-  return cookies.some((c) => c.name === 'web_session' && Boolean(c.value))
+  const status = await checkXhsLoginStatus(page)
+  return status.logged_in
 }
 
 async function debugScreenshot(page: Page, dir: string, label: string): Promise<string> {
@@ -271,11 +414,12 @@ export async function runXhsPublish(cfg: Config, accountId: string, job: XhsPubl
   const browser = await launchXhsBrowser(cfg, accountId, cfg.runtime.xhs_headless !== false)
   try {
     const page = await browser.newPage()
+    await restoreXhsCookies(page, cfg, accountId)
     await page.goto(CREATOR_URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
     await new Promise((resolve) => setTimeout(resolve, 2000))
     if (!(await isLoggedIn(page))) {
       await debugScreenshot(page, debugDir, 'not_login')
-      throw new Error('小红书未登录：请在设置「公众号账号」中该账号卡片点击「扫码登录小红书」后重试')
+      throw new Error('小红书未登录：请在设置中该账号卡片点击「扫码登录小红书」后重试')
     }
     await assertNoRiskPage(page, debugDir, 'entry')
 
@@ -289,56 +433,125 @@ export async function runXhsPublish(cfg: Config, accountId: string, job: XhsPubl
   }
 }
 
-export async function xhsCheckLogin(cfg: Config, accountId: string): Promise<boolean> {
+export async function xhsCheckLogin(
+  cfg: Config,
+  accountId: string,
+): Promise<{ logged_in: boolean; user_id?: string; user_name?: string; red_id?: string }> {
   const cached = getCachedLoginState('xiaohongshu', accountId)
-  if (cached !== null) return cached
+  const savedSession = loadXhsSession(cfg, accountId)
+  if (cached === true && savedSession) {
+    return {
+      logged_in: true,
+      user_id: savedSession.user_id,
+      user_name: savedSession.user_name,
+      red_id: savedSession.red_id,
+    }
+  }
+
   const browser = await launchXhsBrowser(cfg, accountId, true)
   try {
     const pages = await browser.pages()
     const page = pages.length > 0 ? pages[0] : await browser.newPage()
+    await restoreXhsCookies(page, cfg, accountId)
     await page.goto(CREATOR_URL, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => undefined)
     await new Promise((resolve) => setTimeout(resolve, 2500))
-    const currentUrl = page.url()
-    const notOnLogin = !currentUrl.includes('/login')
-    const logged = notOnLogin && (await isLoggedIn(page))
-    setCachedLoginState('xiaohongshu', accountId, logged)
-    return logged
+    const status = await checkXhsLoginStatus(page)
+    if (status.logged_in) {
+      const cookies = await page.cookies().catch(() => [])
+      saveXhsSession(cfg, accountId, {
+        account_id: accountId,
+        platform: 'xiaohongshu',
+        user_id: status.user_id || savedSession?.user_id,
+        user_name: status.user_name || savedSession?.user_name,
+        red_id: status.red_id || savedSession?.red_id,
+        cookies: cookies.length > 0 ? cookies : (savedSession?.cookies || []),
+        updated_at: new Date().toISOString(),
+      })
+      setCachedLoginState('xiaohongshu', accountId, true)
+    } else {
+      setCachedLoginState('xiaohongshu', accountId, false)
+    }
+    return status
   } finally {
     await browser.close().catch(() => undefined)
   }
 }
 
-export async function xhsLogin(cfg: Config, accountId: string, timeoutMs = 240000): Promise<boolean> {
+export async function xhsLogin(
+  cfg: Config,
+  accountId: string,
+  timeoutMs = 240000,
+): Promise<{ logged_in: boolean; user_id?: string; user_name?: string; red_id?: string; error?: string }> {
   const browser = await launchXhsBrowser(cfg, accountId, false)
   try {
     const pages = await browser.pages()
     const page = pages.length > 0 ? pages[0] : await browser.newPage()
     await page.bringToFront().catch(() => undefined)
+
+    // 尝试先恢复已有备份凭据
+    await restoreXhsCookies(page, cfg, accountId)
+
     await page.goto(CREATOR_URL + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 })
     
     // 给页面 3 秒让其在已有登录态时自动重定向
     await new Promise((resolve) => setTimeout(resolve, 3000))
-    const initialUrl = page.url()
-    if (!initialUrl.includes('/login') && (await isLoggedIn(page))) {
+    let status = await checkXhsLoginStatus(page)
+    if (status.logged_in) {
+      const cookies = await page.cookies().catch(() => [])
+      saveXhsSession(cfg, accountId, {
+        account_id: accountId,
+        platform: 'xiaohongshu',
+        user_id: status.user_id,
+        user_name: status.user_name,
+        red_id: status.red_id,
+        cookies,
+        updated_at: new Date().toISOString(),
+      })
       setCachedLoginState('xiaohongshu', accountId, true)
-      return true
+      // 留 1.5s 给浏览器写入 SQLite 并自动关闭浏览器
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      await browser.close().catch(() => undefined)
+      return status
     }
 
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       if (!browser.connected || page.isClosed()) {
-        return false
+        // 窗口被关闭时，查验是否有已存凭据
+        const saved = loadXhsSession(cfg, accountId)
+        if (saved && saved.cookies?.length > 0) {
+          setCachedLoginState('xiaohongshu', accountId, true)
+          return { logged_in: true, user_id: saved.user_id, user_name: saved.user_name, red_id: saved.red_id }
+        }
+        return { logged_in: false, error: '登录窗口已被关闭' }
       }
-      const currentUrl = page.url()
-      if (!currentUrl.includes('/login') && (await isLoggedIn(page))) {
-        await new Promise((resolve) => setTimeout(resolve, 3000))
+
+      status = await checkXhsLoginStatus(page)
+      if (status.logged_in) {
+        // 扫码成功！等待 2.5s 让鉴权 Cookie 和 LocalStorage 充分沉淀
+        await new Promise((resolve) => setTimeout(resolve, 2500))
+        status = await checkXhsLoginStatus(page)
+        const cookies = await page.cookies().catch(() => [])
+        saveXhsSession(cfg, accountId, {
+          account_id: accountId,
+          platform: 'xiaohongshu',
+          user_id: status.user_id,
+          user_name: status.user_name,
+          red_id: status.red_id,
+          cookies,
+          updated_at: new Date().toISOString(),
+        })
         setCachedLoginState('xiaohongshu', accountId, true)
-        return true
+        // 留 2s 确保 Chrome 自身 SQLite 写入 profile，然后自动关闭浏览器窗口！
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await browser.close().catch(() => undefined)
+        return status
       }
       await new Promise((resolve) => setTimeout(resolve, 1500))
     }
     setCachedLoginState('xiaohongshu', accountId, false)
-    return false
+    await browser.close().catch(() => undefined)
+    return { logged_in: false, error: '登录超时（4 分钟内未完成扫码登录）' }
   } finally {
     await browser.close().catch(() => undefined)
   }
@@ -427,8 +640,15 @@ export async function handleXhsLoginRoute(
   } catch {}
   if (action === 'check') {
     try {
-      const logged = await xhsCheckLogin(cfg, accountId)
-      sendJson(res, 200, { ok: true, action, logged_in: logged })
+      const status = await xhsCheckLogin(cfg, accountId)
+      sendJson(res, 200, {
+        ok: true,
+        action,
+        logged_in: status.logged_in,
+        user_id: status.user_id,
+        user_name: status.user_name,
+        red_id: status.red_id,
+      })
     } catch (error) {
       sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
     }
@@ -444,10 +664,17 @@ export async function handleXhsLoginRoute(
   }
   setLoginInFlight('xiaohongshu', accountId, true)
   try {
-    const logged = await xhsLogin(cfg, accountId)
-    sendJson(res, 200, logged
-      ? { ok: true, action, logged_in: true }
-      : { ok: false, action, error: '登录未完成或登录窗口已关闭，请重新点击扫码登录' })
+    const resData = await xhsLogin(cfg, accountId)
+    sendJson(res, 200, resData.logged_in
+      ? {
+          ok: true,
+          action,
+          logged_in: true,
+          user_id: resData.user_id,
+          user_name: resData.user_name,
+          red_id: resData.red_id,
+        }
+      : { ok: false, action, error: resData.error || '登录未完成或登录窗口已关闭，请重新点击扫码登录' })
   } catch (error) {
     sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
   } finally {

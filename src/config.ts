@@ -267,8 +267,8 @@ const ContentSchema = Schema.object({
   paragraph_margin: Schema.string().default('25px').description('段落间距'),
   text_indent: Schema.string().default('2em').description('首行缩进'),
   // 融合封面与配图规格（一号一配置）
-  headline_cover_ratio: Schema.union(['2.35:1', '21:9', '16:9', '1:1']).default('2.35:1').description('头条封面比例'),
-  secondary_cover_ratio: Schema.union(['21:9', '16:9', '1:1']).default('1:1').description('次条封面比例'),
+  headline_cover_ratio: Schema.union(['2.35:1', '21:9', '16:9', '1:1', '3:4']).default('2.35:1').description('头条封面比例'),
+  secondary_cover_ratio: Schema.union(['21:9', '16:9', '1:1', '3:4']).default('1:1').description('次条封面比例'),
   content_images_per_article: Schema.number().min(0).max(4).step(1).default(2).description('每篇正文配图数（0~4张）'),
   image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
   // 小红书专属配置

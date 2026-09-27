@@ -216,7 +216,7 @@ export function fallbackPublisherConfigPath(): string {
 }
 
 /** Fill empty new-model fields from the existing disk configs without overriding plugin values. */
-export function hydrateConfigFromWx(cfg: Config): { config: Config; changed: boolean } {
+export function hydrateConfigFromWx(cfg?: Partial<Config>): { config: Config; changed: boolean } {
   const result = JSON.parse(JSON.stringify(cfg || {})) as Config
   if (!result.accounts || typeof result.accounts !== 'object') (result as any).accounts = {}
   if (!result.image_providers || typeof result.image_providers !== 'object') (result as any).image_providers = {}

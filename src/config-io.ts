@@ -28,6 +28,7 @@ export interface ConfigSummary {
   account_count: number
   gzh_accounts: number
   zhihu_accounts: number
+  xhs_accounts: number
   account_ids: string[]
   provider_count: number
   provider_ids: string[]
@@ -195,7 +196,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
           continue
         }
         const accObj = acc as Record<string, unknown>
-        const platform: Platform = accObj.platform === 'zhihu' ? 'zhihu' : 'gzh'
+        const platform: Platform = accObj.platform === 'zhihu' ? 'zhihu' : accObj.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
         const name = String(accObj.name || id).trim()
         const enabled = accObj.enabled !== false
 
@@ -210,13 +211,13 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
           platform,
           name,
           enabled,
-          publish_mode: accObj.publish_mode === 'browser' ? 'browser' : 'api',
+          publish_mode: accObj.publish_mode === 'browser' ? 'browser' : (platform === 'xiaohongshu' || platform === 'zhihu' ? 'browser' : 'api'),
           appid: String(accObj.appid ?? '').trim(),
           app_secret: String(accObj.app_secret ?? '').trim(),
           author_name: String(accObj.author_name ?? '文映学术win00.cn').trim(),
           brand_name: String(accObj.brand_name ?? '文映千秋学术网').trim(),
           publish_immediately: accObj.publish_immediately === true,
-          auto_enable_original: accObj.auto_enable_original === true,
+          auto_enable_original: platform === 'gzh' ? accObj.auto_enable_original === true : false,
           content: (accObj.content && typeof accObj.content === 'object' ? accObj.content : {}) as any,
           brand_images: (accObj.brand_images && typeof accObj.brand_images === 'object' ? accObj.brand_images : {
             header: { enabled: true, file: 'brand_top.jpg', width: 100, height: 0, fit: 'contain', position: 'center', radius: 0, margin_top: 0, margin_bottom: 0, frame: false },
@@ -303,8 +304,10 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
 
   let gzhCount = 0
   let zhihuCount = 0
+  let xhsCount = 0
   for (const acc of Object.values(resultData.accounts ?? {})) {
     if (acc.platform === 'zhihu') zhihuCount++
+    else if (acc.platform === 'xiaohongshu') xhsCount++
     else gzhCount++
   }
 
@@ -312,6 +315,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
     account_count: accountKeys.length,
     gzh_accounts: gzhCount,
     zhihu_accounts: zhihuCount,
+    xhs_accounts: xhsCount,
     account_ids: accountKeys,
     provider_count: providerKeys.length,
     provider_ids: providerKeys,
@@ -371,7 +375,7 @@ export function mergeConfigData(
       const existing = next.accounts[id]
       if (existing) {
         // 合并已有账号：若导入的密钥为空且本地已有密钥，保留本地真实密钥！
-        const preservedSecret = acc.app_secret.trim() ? acc.app_secret : existing.app_secret
+        const preservedSecret = (acc.app_secret ?? '').trim() ? acc.app_secret : existing.app_secret
         next.accounts[id] = {
           ...existing,
           ...clone(acc),
@@ -408,7 +412,7 @@ export function mergeConfigData(
       const existing = next.image_providers[id]
       if (existing) {
         // 合并已有接口：若导入的 API Key 为空且本地已有，保留本地 API Key
-        const preservedKey = prov.api_key.trim() ? prov.api_key : existing.api_key
+        const preservedKey = (prov.api_key ?? '').trim() ? prov.api_key : existing.api_key
         next.image_providers[id] = {
           ...existing,
           ...clone(prov),

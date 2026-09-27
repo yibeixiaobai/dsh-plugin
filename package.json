@@ -11,7 +11,8 @@
   },
   "scripts": {
     "start": "node src/standalone-server.ts",
-    "serve": "node src/standalone-server.ts"
+    "serve": "node src/standalone-server.ts",
+    "test": "npx tsx tests/test_xhs_config.ts"
   },
   "files": [
     "src",

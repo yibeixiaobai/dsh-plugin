@@ -4,7 +4,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, XHS_COVER_RATIO, XHS_CONTENT_MAX, XHS_IMAGES_MAX, XHS_TITLE_MAX, ZHIHU_COVER_RATIO, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveCoverRatio, resolveTheme, resolveTypography, runtimeResourceDir,
+  accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveCoverRatio, resolveTheme, resolveTypography, runtimeResourceDir,
 } from './shared.ts'
 
 // 与 gzh_components.py THEMES 一致的色板
@@ -66,6 +66,38 @@ export interface StyleGuide {
   references: string[]
   sync_newspic?: boolean
   newspic_spec?: unknown
+  recent_titles?: string[]
+}
+
+function getRecentTitles(cfg: Config, accountId: string, limit = 20): string[] {
+  const dir = accountScriptsDir(cfg, accountId)
+  const titles: string[] = []
+  const historyPath = path.join(dir, 'publish_history.json')
+  if (fs.existsSync(historyPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(historyPath, 'utf-8'))
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          const t = item?.title || item?.topic
+          if (typeof t === 'string' && t.trim()) titles.push(t.trim())
+        }
+      }
+    } catch {}
+  }
+  const resultPath = path.join(dir, 'publish_result.json')
+  if (fs.existsSync(resultPath)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(resultPath, 'utf-8'))
+      const articles = data?.articles || data?.items || []
+      if (Array.isArray(articles)) {
+        for (const a of articles) {
+          const t = a?.title
+          if (typeof t === 'string' && t.trim()) titles.push(t.trim())
+        }
+      }
+    } catch {}
+  }
+  return Array.from(new Set(titles)).slice(-limit)
 }
 
 // 知乎 doc spec：与公众号同一骨架（intro/toc/sections/blocks/sign_off），theme 字段被忽略

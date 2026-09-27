@@ -34,12 +34,12 @@ function legacyAccount(config: Config): AccountProfile {
     name: '默认账号',
     enabled: true,
     publish_mode: 'api',
-    appid: config.wechat.appid,
-    app_secret: config.wechat.app_secret,
-    author_name: config.wechat.author_name,
-    brand_name: config.wechat.brand_name,
+    appid: config.wechat?.appid ?? '',
+    app_secret: config.wechat?.app_secret ?? '',
+    author_name: config.wechat?.author_name ?? '文映学术win00.cn',
+    brand_name: config.wechat?.brand_name ?? '文映千秋学术网',
     publish_immediately: false,
-    auto_enable_original: config.wechat.auto_enable_original ?? false,
+    auto_enable_original: config.wechat?.auto_enable_original ?? false,
     content: {
       ...clone(DEFAULT_CONTENT),
       ...(config.content ?? {}),
@@ -86,29 +86,50 @@ export function normalizeConfig(config: Config): Config {
     profile.enabled = profile.enabled !== false
     // 老配置无 platform 字段：一律视为公众号，知乎/小红书需在设置中显式切换
     profile.platform = profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
-    profile.publish_mode = profile.publish_mode === 'browser' ? 'browser' : 'api'
+    profile.publish_mode = profile.publish_mode === 'browser' ? 'browser' : (profile.platform === 'xiaohongshu' || profile.platform === 'zhihu' ? 'browser' : 'api')
     profile.appid = profile.appid || ''
     profile.app_secret = profile.app_secret || ''
-    profile.author_name = profile.author_name || config.wechat.author_name
-    profile.brand_name = profile.brand_name || config.wechat.brand_name
+    profile.author_name = profile.author_name || config.wechat?.author_name || '文映学术win00.cn'
+    profile.brand_name = profile.brand_name || config.wechat?.brand_name || '文映千秋学术网'
     profile.publish_immediately = profile.publish_immediately === true
-    profile.auto_enable_original = profile.auto_enable_original === true || (profile.auto_enable_original === undefined && config.wechat?.auto_enable_original === true)
-    profile.content = {
-      ...clone(DEFAULT_CONTENT),
-      ...(config.content ?? {}),
-      ...(profile.content ?? {}),
-      headline_theme: profile.content?.headline_theme ?? config.typography?.headline_theme ?? DEFAULT_CONTENT.headline_theme ?? 'wenying',
-      secondary_theme: profile.content?.secondary_theme ?? config.typography?.secondary_theme ?? DEFAULT_CONTENT.secondary_theme ?? 'rotate',
-      font_size: profile.content?.font_size ?? config.typography?.font_size ?? DEFAULT_CONTENT.font_size ?? '13px',
-      line_height: profile.content?.line_height ?? config.typography?.line_height ?? DEFAULT_CONTENT.line_height ?? '20px',
-      paragraph_margin: profile.content?.paragraph_margin ?? config.typography?.paragraph_margin ?? DEFAULT_CONTENT.paragraph_margin ?? '25px',
-      text_indent: profile.content?.text_indent ?? config.typography?.text_indent ?? DEFAULT_CONTENT.text_indent ?? '2em',
-      headline_cover_ratio: profile.content?.headline_cover_ratio ?? config.image_api?.headline_cover_ratio ?? DEFAULT_CONTENT.headline_cover_ratio ?? '2.35:1',
-      secondary_cover_ratio: profile.content?.secondary_cover_ratio ?? config.image_api?.secondary_cover_ratio ?? DEFAULT_CONTENT.secondary_cover_ratio ?? '1:1',
-      content_images_per_article: Number.isFinite(profile.content?.content_images_per_article)
-        ? Number(profile.content!.content_images_per_article)
-        : (Number.isFinite(config.image_api?.content_images_per_article) ? Number(config.image_api.content_images_per_article) : 2),
-      image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
+    profile.auto_enable_original = profile.platform === 'gzh' && (profile.auto_enable_original === true || (profile.auto_enable_original === undefined && config.wechat?.auto_enable_original === true))
+    if (profile.platform === 'xiaohongshu') {
+      profile.publish_mode = 'browser'
+      profile.auto_enable_original = false
+      profile.content = {
+        ...clone(DEFAULT_CONTENT),
+        ...(config.content ?? {}),
+        ...(profile.content ?? {}),
+        articles_per_day: Number.isFinite(profile.content?.articles_per_day) ? Number(profile.content.articles_per_day) : 1,
+        headline_cover_ratio: profile.content?.headline_cover_ratio || '3:4',
+        secondary_cover_ratio: profile.content?.secondary_cover_ratio || '3:4',
+        xhs_images_per_note: Number.isFinite(profile.content?.xhs_images_per_note) ? Number(profile.content.xhs_images_per_note) : 4,
+        xhs_min_words: Number.isFinite(profile.content?.xhs_min_words) ? Number(profile.content.xhs_min_words) : 200,
+        xhs_tags: Array.isArray(profile.content?.xhs_tags)
+          ? profile.content.xhs_tags
+          : (typeof profile.content?.xhs_tags === 'string' && profile.content.xhs_tags
+            ? (profile.content.xhs_tags as string).split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean)
+            : []),
+        image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
+      }
+    } else {
+      profile.content = {
+        ...clone(DEFAULT_CONTENT),
+        ...(config.content ?? {}),
+        ...(profile.content ?? {}),
+        headline_theme: profile.content?.headline_theme ?? config.typography?.headline_theme ?? DEFAULT_CONTENT.headline_theme ?? 'wenying',
+        secondary_theme: profile.content?.secondary_theme ?? config.typography?.secondary_theme ?? DEFAULT_CONTENT.secondary_theme ?? 'rotate',
+        font_size: profile.content?.font_size ?? config.typography?.font_size ?? DEFAULT_CONTENT.font_size ?? '13px',
+        line_height: profile.content?.line_height ?? config.typography?.line_height ?? DEFAULT_CONTENT.line_height ?? '20px',
+        paragraph_margin: profile.content?.paragraph_margin ?? config.typography?.paragraph_margin ?? DEFAULT_CONTENT.paragraph_margin ?? '25px',
+        text_indent: profile.content?.text_indent ?? config.typography?.text_indent ?? DEFAULT_CONTENT.text_indent ?? '2em',
+        headline_cover_ratio: profile.content?.headline_cover_ratio ?? config.image_api?.headline_cover_ratio ?? DEFAULT_CONTENT.headline_cover_ratio ?? (profile.platform === 'zhihu' ? '16:9' : '2.35:1'),
+        secondary_cover_ratio: profile.content?.secondary_cover_ratio ?? config.image_api?.secondary_cover_ratio ?? DEFAULT_CONTENT.secondary_cover_ratio ?? (profile.platform === 'zhihu' ? '16:9' : '1:1'),
+        content_images_per_article: Number.isFinite(profile.content?.content_images_per_article)
+          ? Number(profile.content!.content_images_per_article)
+          : (Number.isFinite(config.image_api?.content_images_per_article) ? Number(config.image_api.content_images_per_article) : 2),
+        image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
+      }
     }
     profile.brand_images = {
       header: normalizeBrandImage(profile.brand_images?.header, DEFAULT_BRAND_IMAGES.header),
