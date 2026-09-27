@@ -99,7 +99,7 @@ def check_file_newspic(path, min_words, forbidden, brand_name, img_count, requir
     if "<" in content and ">" in content:
         problems.append("正文含有非法 HTML 标签")
     plain = re.sub(r"\s", "", content)
-    limit = 80 if min_words > 500 else max(10, int(min_words * 0.80))
+    limit = max(50, int(min_words * 0.90))
     if len(plain) < limit:
         problems.append("纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (len(plain), limit, min_words))
 

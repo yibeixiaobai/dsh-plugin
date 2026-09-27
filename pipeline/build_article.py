@@ -167,7 +167,7 @@ def main_newspic(args, doc, forbidden):
     if "<" in content and ">" in content:
         content = re.sub(r"<[^>]+>", "", content)
     plain = re.sub(r"\s", "", content)
-    limit = 80 if args.min_words > 500 else max(10, int(args.min_words * 0.80))
+    limit = max(50, int(args.min_words * 0.90))
     if len(plain) < limit:
         raise SystemExit("小绿书纯文字不足：%d < %d（设定下限 %d 字）" % (len(plain), limit, args.min_words))
     if args.require_brand and args.brand_name:

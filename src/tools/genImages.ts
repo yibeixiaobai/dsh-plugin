@@ -104,8 +104,13 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
           }
           const ratio = (account.profile.content.newspic_image_ratio || '3:4') as CoverRatio
           const picSize = COVER_SIZES[ratio] || COVER_SIZES['3:4']
+          const titleForPic = titles[index - 1]
+          let picPrompt = prompt
+          if (titleForPic && sub <= 1) {
+            picPrompt = prompt + '；封面卡片需体现标题「' + titleForPic + '」的主题意象，画面中心预留标题文字排版空间'
+          }
           return {
-            kind: 'pic', index, sub, prompt,
+            kind: 'pic', index, sub, prompt: picPrompt,
             out: 'pic_' + index + '_' + sub + '.png',
             size: [...picSize] as [number, number],
           }

@@ -89,14 +89,17 @@ const ZHIHU_DOC_SPEC_EXAMPLE = {
 }
 
 // 小绿书（图片消息 newspic）doc spec 紧凑骨架：
+// 卡片按角色分工：cover（封面吸睛）→ overview（核心速览）→ key_points（干货要点）→ cta（引导关注）
 const NEWSPIC_DOC_SPEC_EXAMPLE = {
   index: 1,
   article_type: 'newspic',
-  title: '爆款小绿书标题（严格≤32字）',
-  content: '📌 核心速览：\n提炼核心干货，分段清晰并搭配 emoji 导读。\n\n关注文映千秋学术网获取更多干货！\n#学术攻略 #避坑指南',
+  title: '爆款小绿书标题（严格≤32字，数字+痛点+解决方案结构）',
+  content: '📌 核心速览：\n提炼核心干货，3~5 个要点分段呈现，每段搭配 emoji 导读。\n\n✅ 要点一：xxx\n✅ 要点二：xxx\n✅ 要点三：xxx\n\n💡 避坑提醒：xxx\n\n关注文映千秋学术网获取更多干货！\n#学术攻略 #避坑指南',
   cards: [
-    { sub: 1, role: 'cover', prompt: '封面海报设计，3:4竖版大字报，高清无杂文字' },
-    { sub: 2, role: 'content', prompt: '重点流程图解信息卡片，排版清晰整洁' },
+    { sub: 1, role: 'cover', prompt: '封面海报：大标题视觉冲击，3:4竖版，扁平现代设计，高饱和配色，画面中心预留标题文字排版空间，禁止英文' },
+    { sub: 2, role: 'content', prompt: '核心速览卡片：3~5 个要点清单式排列，图标+短句，信息层次分明，扁平信息图风格，全中文排版' },
+    { sub: 3, role: 'content', prompt: '干货详解卡片：重点流程/步骤图解，箭头引导，模块化布局，配色统一，干净背景，全中文标注' },
+    { sub: 4, role: 'content', prompt: '总结引导卡片：核心结论提炼+关注引导，品牌色点缀，简约大气，底部留白，全中文' },
   ],
 }
 
@@ -120,19 +123,24 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
     },
     doc_spec: NEWSPIC_DOC_SPEC_EXAMPLE,
     parts_format: [
-      'title → 爆款短标题（≤32字）',
-      'content → 纯文案正文（分段/emoji/文末引导/话题标签 #xxx）',
+      'title → 爆款短标题（≤32字，数字+痛点+解决方案结构，如「3步搞定xxx」「xxx避坑指南」）',
+      'content → 纯文案正文（150~500字，分段+emoji导读+文末引导+话题标签 #xxx）',
       'cards → 多图生图提示词列表（每张 sub 从 1 到 ' + cardCount + '）',
+      '  卡片角色分工：sub1=cover（封面吸睛）→ sub2=overview（核心速览）→ sub3~' + (cardCount - 1) + '=key_points（干货要点/流程图解）→ sub' + cardCount + '=cta（总结引导关注）',
+      '  每张卡片 prompt 须明确：① 卡片类型/角色 ② 内容要点 ③ 视觉风格 ④ 全中文约束',
     ],
     hard_rules: [
       '【最高第一优先级】：若本次任务包含补充要求（如指定特定选题/主题、篇数、文章形态、字数、配图、主题色板等），补充要求具有最高裁决权，优先于本规范返回的默认配置值！未被补充要求修改的底层合规与格式规则（如单行HTML零换行、禁词表、防重复发布、生图尺寸比例等）继续严格生效。',
       '平台形态：微信公众号小绿书（图片消息 newspic）',
-      '标题严格 ≤ 32 字，超出微信接口报错拒绝',
+      '标题严格 ≤ 32 字，超出微信接口报错拒绝；标题须含数字或痛点词，避免纯陈述句',
       '作者名固定 ' + account.profile.author_name,
       '数量铁律：默认本次正好 ' + n + ' 篇小绿书（每篇包含 ' + cardCount + ' 张卡片图片 sub 1~' + cardCount + '）；若用户在补充要求中指定了篇数，以补充要求为准',
       '发布铁律：小绿书严格只需调用 1 次 gzh_publish_draft（article_type: "newspic"），单次提交全部 ' + n + ' 篇小绿书标题与摘要，底层会自动逐篇创建独立草稿并完成官方核验，严禁由 Agent 循环多次重复调用发布！',
-      '卡片比例统一为 3:4 竖版（第 1 张卡片自动作为封面，无需额外封面图）',
-      '正文字数：不低于 ' + minWords + ' 字纯文本，建议 150~500 字，分段清晰，善用 emoji 导读',
+      '卡片尺寸：1080×1440px（3:4 竖版），第 1 张卡片自动作为封面，无需额外封面图',
+      '卡片逻辑递进：封面（视觉冲击+标题意象）→ 速览（核心要点概览）→ 详解（干货/流程/对比）→ 收尾（结论+关注引导），禁止卡片内容重复或无序堆砌',
+      '封面卡片（sub1）：画面中心须预留标题文字排版空间，避免关键元素居中导致标题遮挡',
+      '内容卡片（sub2~' + cardCount + '）：每张聚焦一个子主题，信息密度均匀，禁止空白过多或文字堆叠',
+      '正文字数：不低于 ' + minWords + ' 字纯文本，建议 150~500 字，分段清晰，每段以 emoji 导读（如 📌✅💡🔑🎯）',
       '禁词表全文生效：严禁出现任何禁词',
       content.ending_guide_required
         ? '正文结尾必须自然包含品牌名「' + account.profile.brand_name + '」'

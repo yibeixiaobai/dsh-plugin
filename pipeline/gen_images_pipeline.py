@@ -132,7 +132,7 @@ class NonRetryableProviderError(Exception):
     pass
 
 
-def enhance_prompt(prompt, kind, zh_only=True):
+def enhance_prompt(prompt, kind, zh_only=True, sub=1):
     """针对封面、正文信息图、小绿书卡片等场景进行构图与画质引导增强"""
     k = str(kind or "").lower()
     prompt = str(prompt or "").strip()
@@ -142,7 +142,10 @@ def enhance_prompt(prompt, kind, zh_only=True):
     elif k == "content":
         prefix = "学术信息图表与概念结构呈现，清晰现代设计，结构分明，干净背景，极简信息美学，"
     elif k == "pic":
-        prefix = "3:4小绿书竖版海报卡片，扁平现代设计风格，高饱和对比配色，吸睛排版，卡片视觉美学，"
+        if int(sub or 1) <= 1:
+            prefix = "3:4小绿书封面海报卡片，竖版构图，扁平现代设计风格，高饱和对比配色，画面中心预留标题文字排版空间，视觉冲击力强，吸睛排版，"
+        else:
+            prefix = "3:4小绿书内容卡片，竖版构图，扁平信息图风格，干净背景，模块化布局，图文层次分明，全中文标注，"
 
     enhanced = prefix + prompt
     if zh_only:
@@ -514,7 +517,7 @@ def main():
     if job.get("dry_run"):
         for item in items:
             out_abs = under(output_abs, item["out"])
-            prompt = enhance_prompt(str(item.get("prompt", "")), item.get("kind"), zh_only=zh_only)
+            prompt = enhance_prompt(str(item.get("prompt", "")), item.get("kind"), zh_only=zh_only, sub=item.get("sub", 1))
             generated.append({"out": out_abs, "dry_run": True, "prompt_head": prompt[:60]})
         result = {"generated": generated, "failed": [], "dry_run": True, "provider_used": "dry_run", "provider_attempts": []}
         emit({"ok": True, "data": result})
@@ -526,7 +529,7 @@ def main():
         # 单项或单并发顺序执行
         for item in items:
             out_abs = under(output_abs, item["out"])
-            prompt = enhance_prompt(str(item.get("prompt", "")), item.get("kind"), zh_only=zh_only)
+            prompt = enhance_prompt(str(item.get("prompt", "")), item.get("kind"), zh_only=zh_only, sub=item.get("sub", 1))
             outcome = coordinator.run_item(
                 item, prompt, out_abs, timeout,
                 job.get("model", "gpt-image-2"), enable_fallback
@@ -539,7 +542,7 @@ def main():
         with ThreadPoolExecutor(max_workers=min(concurrency, len(items))) as executor:
             for idx, item in enumerate(items):
                 out_abs = under(output_abs, item["out"])
-                prompt = enhance_prompt(str(item.get("prompt", "")), item.get("kind"), zh_only=zh_only)
+                prompt = enhance_prompt(str(item.get("prompt", "")), item.get("kind"), zh_only=zh_only, sub=item.get("sub", 1))
                 f = executor.submit(
                     coordinator.run_item,
                     item, prompt, out_abs, timeout,

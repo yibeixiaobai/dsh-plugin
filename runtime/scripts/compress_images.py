@@ -77,6 +77,8 @@ def main():
     ap.add_argument("--brand-quality", type=int, default=85)
     ap.add_argument("--content-max-edge", type=int, default=1000)
     ap.add_argument("--content-quality", type=int, default=82)
+    ap.add_argument("--pic-max-edge", type=int, default=1440, help="小绿书卡片图长边限制（默认1440，匹配3:4竖版1080×1440）")
+    ap.add_argument("--pic-quality", type=int, default=85)
     ap.add_argument("--covers", action="store_true", help="同时压缩封面（封面走封面字段，通常无需内联）")
     args = ap.parse_args()
 
@@ -102,6 +104,19 @@ def main():
     for name in files:
         p = os.path.join(args.dir, name)
         b, a, sz = compress(p, args.content_max_edge, args.content_quality)
+        total_before += b
+        total_after += a
+        print(f"  {name}: {b/1024:.0f}KB -> {a/1024:.0f}KB  {sz[0]}x{sz[1]}")
+
+    print("=== 小绿书卡片图 ===")
+    pic_files = sorted(
+        f for f in os.listdir(args.dir)
+        if f.startswith("pic_") and not f.endswith((".orig.png", ".orig.jpg"))
+        and f.lower().endswith((".png", ".jpg", ".jpeg"))
+    )
+    for name in pic_files:
+        p = os.path.join(args.dir, name)
+        b, a, sz = compress(p, args.pic_max_edge, args.pic_quality)
         total_before += b
         total_after += a
         print(f"  {name}: {b/1024:.0f}KB -> {a/1024:.0f}KB  {sz[0]}x{sz[1]}")
