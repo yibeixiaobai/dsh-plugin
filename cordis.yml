@@ -15,6 +15,10 @@
         app_secret: ''
         author_name: 文映学术win00.cn
         brand_name: 文映千秋学术网
+        # 草稿创建后自动开启文字原创声明。注意：真正生效的配置是
+        # profiles/desktop/cordis.patch.yml（本包以 profile 依赖方式安装，
+        # link:D:/666/gzh/dsh-plugin），本文件仅用于 --patch 开发挂载。
+        auto_enable_original: true
       content:
         articles_per_day: 6
         min_words: 2000

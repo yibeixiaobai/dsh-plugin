@@ -303,6 +303,10 @@ export function syncConfig(cfg: Config): SyncReport {
       author_name: account.author_name,
       brand_name: account.brand_name,
       content: account.content,
+      // 账号级发布增强配置必须持久化，否则每次 apply/热重载都会丢失，
+      // 导致品牌图被静默禁用、草稿自动开启原创失效。
+      auto_enable_original: account.auto_enable_original === true,
+      brand_images: account.brand_images,
     }
   })
   const providers = providerPool(cfg).map(({ id, provider }) => {

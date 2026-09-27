@@ -180,7 +180,11 @@ async function verifyWechatBrowser(cfg: Config, accountId: string, expectedCount
     articles: verifyRes.details.map((d) => ({
       title: d.title,
       found: d.found,
-      url: d.appmsgid ? `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit&type=10&appmsgid=${d.appmsgid}&lang=zh_CN` : undefined,
+      // 仅在拿到 appmsgid 时输出 url：显式 undefined 不是无损 JSON，
+      // 会被宿主工具输出校验拒绝（表现为 "value is not lossless JSON"）。
+      ...(d.appmsgid
+        ? { url: `https://mp.weixin.qq.com/cgi-bin/appmsg?t=media/appmsg_edit&action=edit&type=10&appmsgid=${d.appmsgid}&lang=zh_CN` }
+        : {}),
       problems: d.found ? [] : ['公众号草稿箱中未匹配到该文章标题'],
     })),
   }

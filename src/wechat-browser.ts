@@ -1,4 +1,4 @@
-// 微信公众号后台浏览器自动化适配器：基于 puppeteer-core + 本机 Chrome/Edge。
+﻿// 微信公众号后台浏览器自动化适配器：基于 puppeteer-core + 本机 Chrome/Edge。
 // 用于在公众号草稿创建成功后，模拟登录公众号后台，进入该草稿编辑页，
 // 自动执行用户脚本：逐篇开启文字原创、填入作者、勾选协议并保存草稿。
 import fs from 'node:fs'
@@ -722,34 +722,123 @@ function imageToDataUri(filePath: string): string {
   return `data:${mime};base64,${b64}`
 }
 
+/**
+ * 把本地图片上传到微信 CDN，返回 mmbiz.qpic.cn / mmbiz.qlogo.cn 链接。
+ *
+ * 为什么必须这样做：微信后台会**剔除**图文 content 里的 data: URI 图片。
+ * 实测把内联 base64 的 HTML 提交后，服务端保存的 content 中 dataUriCount=0，
+ * 图片全部丢失（正文配图与头尾品牌图都不显示），但接口仍返回成功、保存也成功，
+ * 属于静默故障。编辑器自身插入图片走的就是本函数使用的 uploadimg2cdn 接口。
+ *
+ * @param page  已登录微信后台的页面（用于带 Cookie 发起同源请求）
+ * @param files 待上传的本地文件绝对路径
+ * @returns 与入参等长的 CDN URL 数组；上传失败的位置为 ''
+ */
+async function uploadImagesToCdn(page: Page, files: string[]): Promise<string[]> {
+  const results: string[] = []
+  for (const file of files) {
+    if (!file || !fs.existsSync(file)) {
+      results.push('')
+      continue
+    }
+    const ext = path.extname(file).toLowerCase()
+    const mime = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : 'image/jpeg'
+    const b64 = fs.readFileSync(file).toString('base64')
+    const name = path.basename(file)
+    try {
+      const url = await page.evaluate(async (data: string, fname: string, mt: string) => {
+        const bin = atob(data)
+        const arr = new Uint8Array(bin.length)
+        for (let i = 0; i < bin.length; i += 1) arr[i] = bin.charCodeAt(i)
+        const blob = new Blob([arr], { type: mt })
+        const fd = new FormData()
+        fd.append('id', 'p' + Date.now() + Math.floor(Math.random() * 1000))
+        fd.append('name', fname)
+        fd.append('type', mt)
+        fd.append('lastModifiedDate', new Date().toString())
+        fd.append('size', String(blob.size))
+        // 字段名必须是 upfile —— 编辑器自身上传用的就是它
+        fd.append('upfile', blob, fname)
+        const token = new URL(location.href).searchParams.get('token') || ''
+        const res = await fetch(`/cgi-bin/uploadimg2cdn?lang=zh_CN&token=${token}&t=${Math.random()}`, {
+          method: 'POST',
+          credentials: 'include',
+          body: fd,
+        })
+        const text = await res.text()
+        try {
+          const j = JSON.parse(text)
+          return typeof j.url === 'string' ? j.url : ''
+        } catch {
+          return ''
+        }
+      }, b64, name, mime)
+      results.push(url)
+      if (!url) console.warn(`[social-publisher] 图片上传未返回 URL: ${name}`)
+    } catch (e) {
+      console.warn(`[social-publisher] 图片上传异常 ${name}:`, e instanceof Error ? e.message : e)
+      results.push('')
+    }
+  }
+  return results
+}
+
 function prepareArticleHtml(
   rawHtml: string,
   job: WechatBrowserPublishJob,
+  cdnUrls?: Map<string, string>,
 ): string {
   let html = rawHtml
+  // 优先使用已上传的 CDN 链接；没有时退回内联 data URI（会被微信剔除，仅作最后兜底）
+  const resolve = (filePath: string): string => {
+    const cdn = cdnUrls?.get(filePath)
+    if (cdn) return cdn
+    return imageToDataUri(filePath)
+  }
   // 替换品牌图占位符
   if (job.brand_top_enabled && job.brand_top && fs.existsSync(job.brand_top)) {
-    const dataUri = imageToDataUri(job.brand_top)
-    html = html.split('__BRAND_TOP__').join(dataUri)
+    html = html.split('__BRAND_TOP__').join(resolve(job.brand_top))
   }
   if (job.brand_bot_enabled && job.brand_bot && fs.existsSync(job.brand_bot)) {
-    const dataUri = imageToDataUri(job.brand_bot)
-    html = html.split('__BRAND_BOT__').join(dataUri)
+    html = html.split('__BRAND_BOT__').join(resolve(job.brand_bot))
   }
   // 替换正文图占位符：IMG_A{i}_{j} 与 __IMG_{i}_{j}__
   for (const [key, p] of Object.entries(job.content_files)) {
     if (fs.existsSync(p)) {
-      const dataUri = imageToDataUri(p)
-      html = html.split(key).join(dataUri)
+      const src = resolve(p)
+      html = html.split(key).join(src)
       const m = /^IMG_A(\d+)_(\d+)$/.exec(key)
       if (m) {
-        html = html.split(`__IMG_${m[1]}_${m[2]}__`).join(dataUri)
+        html = html.split(`__IMG_${m[1]}_${m[2]}__`).join(src)
       }
       const m2 = /^__IMG_(\d+)_(\d+)__$/.exec(key)
       if (m2) {
-        html = html.split(`IMG_A${m2[1]}_${m2[2]}`).join(dataUri)
+        html = html.split(`IMG_A${m2[1]}_${m2[2]}`).join(src)
       }
     }
+  }
+
+  // 兜底守卫：占位符一旦残留，微信编辑器不认这些 src，图片位置会整片空白，
+  // 而保存/核验仍会成功（核验只比对篇数与标题），属于静默故障。
+  // 因此在此显式失败，宁可阻断发布也不产出缺图草稿。
+  const leftover = html.match(/__BRAND_TOP__|__BRAND_BOT__|__IMG_\d+_\d+__|IMG_A\d+_\d+/g)
+  if (leftover && leftover.length > 0) {
+    const unique = Array.from(new Set(leftover))
+    const reasons: string[] = []
+    if (unique.some((k) => k === '__BRAND_TOP__') && !(job.brand_top_enabled && job.brand_top && fs.existsSync(job.brand_top))) {
+      reasons.push(`头部品牌图未替换（brand_top_enabled=${job.brand_top_enabled}, path=${job.brand_top}, exists=${job.brand_top ? fs.existsSync(job.brand_top) : false}）`)
+    }
+    if (unique.some((k) => k === '__BRAND_BOT__') && !(job.brand_bot_enabled && job.brand_bot && fs.existsSync(job.brand_bot))) {
+      reasons.push(`尾部品牌图未替换（brand_bot_enabled=${job.brand_bot_enabled}, path=${job.brand_bot}, exists=${job.brand_bot ? fs.existsSync(job.brand_bot) : false}）`)
+    }
+    const missingContent = Object.entries(job.content_files)
+      .filter(([, p]) => !fs.existsSync(p))
+      .map(([k]) => k)
+    if (missingContent.length > 0) reasons.push(`正文配图文件缺失: ${missingContent.join(', ')}`)
+    throw new Error(
+      '文章图片占位符未完全替换，拒绝发布以免产生空白配图草稿。残留: ' + unique.join(', ') +
+      (reasons.length > 0 ? '\n原因: ' + reasons.join('；') : ''),
+    )
   }
   return html
 }
@@ -1029,19 +1118,12 @@ async function publishWechatMultiArticleByBrowser(
   const debugDir = path.join(sdir, 'wechat_debug')
   const headless = cfg.runtime.gzh_headless !== false
 
-  // 1. 读取并前置校验全部 HTML
-  const preparedHtmls: string[] = []
-  const allChecks: string[] = []
+  // 1. 读取并前置校验全部 HTML（图片替换延后到浏览器就绪、上传 CDN 之后）
+  const rawHtmls: string[] = []
   for (let i = 0; i < n; i += 1) {
     const file = job.article_files[i]
     if (!fs.existsSync(file)) throw new Error('缺少文章文件: ' + file)
-    const raw = fs.readFileSync(file, 'utf-8')
-    const prep = prepareArticleHtml(raw, job)
-    preparedHtmls.push(prep)
-    allChecks.push(...precheckArticle(prep, i + 1, job))
-  }
-  if (allChecks.length > 0) {
-    throw new Error('文章发布前内容校验未通过:\n' + allChecks.join('\n'))
+    rawHtmls.push(fs.readFileSync(file, 'utf-8'))
   }
 
   const browser = await launchWechatBrowser(cfg, accountId, headless)
@@ -1112,6 +1194,50 @@ async function publishWechatMultiArticleByBrowser(
     for (let i = 0; i < n; i += 1) {
       const c = job.cover_files[i]
       if (c && fs.existsSync(c)) coverFiles.push(c)
+    }
+
+    // 1b. 把正文配图与头尾品牌图上传到微信 CDN，拿到 mmbiz 链接。
+    // 必须走这一步：微信会剔除 content 里的 data: URI，内联 base64 会导致图片全部丢失。
+    const allLocalImages: string[] = []
+    const pushIfLocal = (p?: string) => {
+      if (p && fs.existsSync(p) && !allLocalImages.includes(p)) allLocalImages.push(p)
+    }
+    if (job.brand_top_enabled) pushIfLocal(job.brand_top)
+    if (job.brand_bot_enabled) pushIfLocal(job.brand_bot)
+    for (const p of Object.values(job.content_files)) pushIfLocal(p)
+
+    const cdnUrls = new Map<string, string>()
+    if (allLocalImages.length > 0) {
+      console.log(`[social-publisher] 账号 ${accountId} 正在上传 ${allLocalImages.length} 张配图到微信 CDN...`)
+      const urls = await uploadImagesToCdn(page, allLocalImages)
+      let okCount = 0
+      allLocalImages.forEach((p, i) => {
+        const u = urls[i]
+        if (u) {
+          cdnUrls.set(p, u)
+          okCount += 1
+        }
+      })
+      console.log(`[social-publisher] 账号 ${accountId} 配图上传完成：${okCount}/${allLocalImages.length} 成功`)
+      const failed = allLocalImages.filter((p) => !cdnUrls.get(p))
+      if (failed.length > 0) {
+        throw new Error(
+          '配图上传微信 CDN 失败（若继续发布，这些图片在草稿中会整片空白）：' +
+          failed.map((p) => path.basename(p)).join(', '),
+        )
+      }
+    }
+
+    // 1c. 用 CDN 链接替换占位符，并做发布前内容校验
+    const preparedHtmls: string[] = []
+    const allChecks: string[] = []
+    for (let i = 0; i < n; i += 1) {
+      const prep = prepareArticleHtml(rawHtmls[i], job, cdnUrls)
+      preparedHtmls.push(prep)
+      allChecks.push(...precheckArticle(prep, i + 1, job))
+    }
+    if (allChecks.length > 0) {
+      throw new Error('文章发布前内容校验未通过:\n' + allChecks.join('\n'))
     }
 
     let coverUrls: string[] = []
@@ -1259,9 +1385,35 @@ async function publishWechatMultiArticleByBrowser(
 
     // 6. 复读草稿核验篇数 / 标题 / 封面
     await page.goto(draftEditUrl(token, newId), { waitUntil: 'domcontentloaded', timeout: 60000 })
-    await new Promise((resolve) => setTimeout(resolve, 10000))
+    // 编辑器是异步渲染正文的：先等 ProseMirror 出现，再等其中的图片数稳定，
+    // 否则会在「正文刚挂载、图片尚未插入」的瞬间读到 0 张而产生误报。
+    await page.waitForSelector('.ProseMirror', { timeout: 45000 }).catch(() => undefined)
+    await page.waitForFunction(() => {
+      const eds = Array.from(document.querySelectorAll('.ProseMirror'))
+      if (eds.length === 0) return false
+      const n = eds.reduce((s, ed) => s + ed.querySelectorAll('img').length, 0)
+      const w = window as unknown as { __spImgSeen?: number; __spImgStable?: number }
+      if (w.__spImgSeen !== n) {
+        w.__spImgSeen = n
+        w.__spImgStable = Date.now()
+        return false
+      }
+      // 图片数连续 3 秒不变即视为渲染完成（含上传/懒加载）
+      return n > 0 && Date.now() - (w.__spImgStable || 0) >= 3000
+    }, { timeout: 60000, polling: 500 }).catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 2000))
     const check = await page.evaluate(() => {
       const items = Array.from(document.querySelectorAll('.js_appmsg_item'))
+      // 正文配图必须到编辑器正文容器（.ProseMirror）里数：
+      // .js_appmsg_item 是左侧「文章标题卡片」，本身不含正文图片，
+      // 在那里查询会恒为 0 并产生误报。
+      const editors = Array.from(document.querySelectorAll('.ProseMirror'))
+      const isBodyImg = (img: Element): boolean => {
+        const src = (img as HTMLImageElement).src || ''
+        return src.includes('mmbiz.qpic.cn') || src.includes('mmbiz.qlogo.cn') || src.startsWith('data:image')
+      }
+      const countBodyImgs = (root: Element) =>
+        Array.from(root.querySelectorAll('img')).filter(isBodyImg).length
       return {
         count: items.length,
         titles: items.map((e) => ((e.querySelector('.js_appmsg_title') as HTMLElement | null)?.innerText || '').trim()),
@@ -1269,6 +1421,14 @@ async function publishWechatMultiArticleByBrowser(
           const t = e.querySelector('.card_appmsg_thumb')
           return t ? getComputedStyle(t).backgroundImage.replace(/^url\("?/, '').replace(/"?\)$/, '') : ''
         }),
+        // 诊断用：全部 img 的 src 形态，便于定位是「未插入」还是「选择器不对」
+        imgSummary: Array.from(document.querySelectorAll('.ProseMirror img')).map((im) => {
+          const s = (im as HTMLImageElement).getAttribute('src') || ''
+          return s ? s.slice(0, 40) : '(empty)'
+        }),
+        // 每篇卡片对应一个编辑器实例时逐篇统计；否则退回全量统计
+        bodyImgsPerEditor: editors.map(countBodyImgs),
+        bodyImgsTotal: editors.reduce((sum, ed) => sum + countBodyImgs(ed), 0),
       }
     })
     const matched = check.count === n && check.titles.every((t, i) => t === job.titles[i])
@@ -1279,7 +1439,53 @@ async function publishWechatMultiArticleByBrowser(
       )
     }
     const coversOk = check.covers.filter((c) => c.includes('mmbiz.qpic.cn')).length
-    console.log(`[social-publisher] 账号 ${accountId} 已合并 ${n} 篇为单条多图文草稿：${newId}（封面已设置 ${coversOk}/${n}）`)
+    // 每篇期望内联图：2 张正文配图 + 头部/尾部品牌图（启用时）
+    const expectedInline = (job.brand_top_enabled ? 1 : 0) + (job.brand_bot_enabled ? 1 : 0) +
+      Object.keys(job.content_files).length / Math.max(1, n)
+    // 编辑器实例数与篇数一致时逐篇校验，否则只校验总量（避免结构差异导致误报）
+    const perEditor = check.bodyImgsPerEditor
+    const thin = perEditor.length === n
+      ? perEditor.map((c, i) => ({ i: i + 1, c })).filter((x) => x.c < expectedInline)
+      : []
+    const totalThin = perEditor.length !== n && check.bodyImgsTotal < expectedInline
+    if (thin.length > 0 || totalThin) {
+      const shot = await debugScreenshot(page, debugDir, 'merge_verify_thin_images')
+      const detail = thin.length > 0
+        ? `第 ${thin.map((t) => t.i).join(',')} 篇正文内联图片数不足（期望 ≥${expectedInline}，实际 ${thin.map((t) => t.c).join(',')}）`
+        : `正文内联图片总数不足（期望 ≥${expectedInline}，实际 ${check.bodyImgsTotal}）`
+      throw new Error(
+        `合并多图文核验未通过：${detail}。` +
+        `这通常意味着图片占位符未替换或配图丢失。` +
+        `（诊断：正文 img 数=${check.bodyImgsTotal}，src 样本=${JSON.stringify(check.imgSummary.slice(0, 6))}）` +
+        `截图已存：${shot}`,
+      )
+    }
+    console.log(`[social-publisher] 账号 ${accountId} 已合并 ${n} 篇为单条多图文草稿：${newId}（封面已设置 ${coversOk}/${n}，正文内联图 ${perEditor.join('/') || check.bodyImgsTotal}）`)
+
+    // 7. 自动开启文字原创声明（若启用）
+    // 说明：多图文草稿此前完全没有走这一步（仅单篇路径实现），
+    // 导致 6 篇合并草稿永远拿不到原创声明。此处补齐，脚本内部会逐篇切换并保存。
+    let originalResult: WechatOriginalResult | undefined
+    if (job.auto_enable_original) {
+      try {
+        console.log(`[social-publisher] 账号 ${accountId} 正在免 API 模式下为多图文草稿开启文字原创...`)
+        const orig = await runOriginalScriptInPage(page, job.author || '文映学术win00.cn')
+        originalResult = {
+          success: orig.success,
+          article_count: orig.completed.length,
+          completed: orig.completed,
+          summary: {
+            drafts_total: 1,
+            drafts_ok: orig.success ? 1 : 0,
+            drafts_failed: orig.success ? 0 : 1,
+            articles_total: orig.completed.length,
+          },
+        }
+        console.log(`[social-publisher] 账号 ${accountId} 多图文原创声明完成：${orig.completed.length} 篇`)
+      } catch (e) {
+        console.warn(`[social-publisher] 免 API 模式下为多图文开启原创异常（草稿已保存）: `, e)
+      }
+    }
 
     return {
       dry_run: false,
@@ -1288,6 +1494,7 @@ async function publishWechatMultiArticleByBrowser(
       article_count: n,
       titles: job.titles,
       draft_url: draftEditUrl(token, newId),
+      original_result: originalResult,
       verify: {
         checked: true,
         article_count: n,
@@ -1341,28 +1548,27 @@ export async function publishWechatDraftByBrowser(
     return publishWechatMultiArticleByBrowser(cfg, accountId, job)
   }
 
-  // 1. 读取并前置校验 HTML
+  // 1. 读取 HTML（图片替换延后到浏览器就绪、上传 CDN 之后）
   const rawHtmls: string[] = []
-  const preparedHtmls: string[] = []
-  const allChecks: string[] = []
 
   for (let i = 0; i < n; i += 1) {
     const file = job.article_files[i]
     if (!fs.existsSync(file)) throw new Error('缺少文章文件: ' + file)
-    const raw = fs.readFileSync(file, 'utf-8')
-    rawHtmls.push(raw)
-    const prep = prepareArticleHtml(raw, job)
-    preparedHtmls.push(prep)
-    const checks = precheckArticle(prep, i + 1, job)
-    allChecks.push(...checks)
-  }
-
-  if (allChecks.length > 0) {
-    throw new Error('文章发布前内容校验未通过:\n' + allChecks.join('\n'))
+    rawHtmls.push(fs.readFileSync(file, 'utf-8'))
   }
 
   // 演练模式：直接返回校验结果，不启动浏览器
   if (job.dry_run || cfg.runtime.dry_run) {
+    const preparedHtmls: string[] = []
+    const allChecks: string[] = []
+    for (let i = 0; i < n; i += 1) {
+      const prep = prepareArticleHtml(rawHtmls[i], job)
+      preparedHtmls.push(prep)
+      allChecks.push(...precheckArticle(prep, i + 1, job))
+    }
+    if (allChecks.length > 0) {
+      throw new Error('文章发布前内容校验未通过:\n' + allChecks.join('\n'))
+    }
     return {
       dry_run: true,
       media_id: 'dry_run_browser_media_id',
@@ -1407,6 +1613,36 @@ export async function publishWechatDraftByBrowser(
 
     await page.waitForSelector('#title, textarea.js_title, input[name="title"], .card_appmsg_inner', { timeout: 45000 })
     await new Promise((resolve) => setTimeout(resolve, 1500))
+
+    // 2b. 上传配图到微信 CDN 并替换占位符（data: URI 会被微信剔除，必须用 CDN 链接）
+    const localImages: string[] = []
+    const pushIfLocal = (p?: string) => {
+      if (p && fs.existsSync(p) && !localImages.includes(p)) localImages.push(p)
+    }
+    if (job.brand_top_enabled) pushIfLocal(job.brand_top)
+    if (job.brand_bot_enabled) pushIfLocal(job.brand_bot)
+    for (const p of Object.values(job.content_files)) pushIfLocal(p)
+
+    const cdnUrls = new Map<string, string>()
+    if (localImages.length > 0) {
+      const urls = await uploadImagesToCdn(page, localImages)
+      localImages.forEach((p, i) => { if (urls[i]) cdnUrls.set(p, urls[i]) })
+      const failed = localImages.filter((p) => !cdnUrls.get(p))
+      if (failed.length > 0) {
+        throw new Error('配图上传微信 CDN 失败：' + failed.map((p) => path.basename(p)).join(', '))
+      }
+    }
+
+    const preparedHtmls: string[] = []
+    const allChecks: string[] = []
+    for (let i = 0; i < n; i += 1) {
+      const prep = prepareArticleHtml(rawHtmls[i], job, cdnUrls)
+      preparedHtmls.push(prep)
+      allChecks.push(...precheckArticle(prep, i + 1, job))
+    }
+    if (allChecks.length > 0) {
+      throw new Error('文章发布前内容校验未通过:\n' + allChecks.join('\n'))
+    }
 
     // 3. 逐篇填充文章内容（标题、作者、摘要、正文富文本与封面）
     for (let i = 0; i < n; i += 1) {
