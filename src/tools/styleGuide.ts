@@ -3,7 +3,6 @@ import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, XHS_COVER_RATIO, XHS_CONTENT_MAX, XHS_IMAGES_MAX, XHS_TITLE_MAX, ZHIHU_COVER_RATIO, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { readAccountPublishRecords } from '../publish-history.ts'
 import {
   contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveCoverRatio, resolveTheme, resolveTypography, runtimeResourceDir,
 } from './shared.ts'
@@ -65,25 +64,8 @@ export interface StyleGuide {
   content_images_per_article: number
   theme_plan: Record<string, ThemeKey>
   references: string[]
-  recent_titles: string[]
   sync_newspic?: boolean
   newspic_spec?: unknown
-}
-
-function getRecentTitles(cfg: Config, accountId: string, limit = 30): string[] {
-  try {
-    const records = readAccountPublishRecords(cfg, accountId)
-    const titles: string[] = []
-    for (const rec of records) {
-      for (const item of rec.items) {
-        if (item.title) titles.push(item.title)
-      }
-      if (titles.length >= limit) break
-    }
-    return titles.slice(0, limit)
-  } catch {
-    return []
-  }
 }
 
 // 知乎 doc spec：与公众号同一骨架（intro/toc/sections/blocks/sign_off），theme 字段被忽略
@@ -197,7 +179,6 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const n = content.newspic_articles_per_day || 1
   const cardCount = content.newspic_images_per_article || 4
   const minWords = content.newspic_min_words ?? Math.min(content.min_words, 100)
-  const recentTitles = getRecentTitles(cfg, account.id)
   return {
     account_id: account.id,
     account_name: account.profile.name,
@@ -235,7 +216,6 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
         ? '正文结尾必须自然包含品牌名「' + account.profile.brand_name + '」'
         : '正文结尾引导语可选',
       '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
-      '选题避让铁律：recent_titles 列出了本账号最近已发布的文章标题，新选题必须在主题角度、核心论点、实操方法上与之显著区分；若某个 topics 关键词下的热门角度已被覆盖，须深入挖掘该关键词的细分方向或交叉领域',
     ],
     forbidden_words: content.forbidden_words,
     articles_per_day: n,
@@ -243,7 +223,6 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
     content_images_per_article: cardCount,
     theme_plan: {},
     references: [],
-    recent_titles: recentTitles,
   }
 }
 
@@ -252,7 +231,6 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const content = account.profile.content
   const n = content.articles_per_day
   const contentImgs = contentImagesPerArticle(cfg, account.profile)
-  const recentTitles = getRecentTitles(cfg, account.id)
   return {
     account_id: account.id,
     account_name: account.profile.name,
@@ -285,7 +263,6 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
         : '结尾引导语可选；如使用需自然融入，不堆砌广告感',
       '封面比例统一 ' + ZHIHU_COVER_RATIO + '（知乎账号固定，按账号平台机器强制）',
       '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
-      '选题避让铁律：recent_titles 列出了本账号最近已发布的文章标题，新选题必须在主题角度、核心论点、实操方法上与之显著区分；若某个 topics 关键词下的热门角度已被覆盖，须深入挖掘该关键词的细分方向或交叉领域',
     ],
     forbidden_words: content.forbidden_words,
     articles_per_day: n,
@@ -293,7 +270,6 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
     content_images_per_article: contentImgs,
     theme_plan: {},
     references: [],
-    recent_titles: recentTitles,
   }
 }
 
@@ -341,7 +317,6 @@ export function styleGuideTool(cfg: Config) {
       const theme = (args.theme && args.theme in THEME_NAMES ? args.theme : resolveTheme(cfg, 1, account.profile)) as ThemeKey
       const themePlan: Record<string, ThemeKey> = {}
       for (let i = 1; i <= n; i++) themePlan[String(i)] = resolveTheme(cfg, i, account.profile)
-      const recentTitles = getRecentTitles(cfg, account.id)
       const refsDir = path.join(runtimeResourceDir(), 'references')
       const references: string[] = []
       // 主题文件：按 hints 模糊匹配 theme-*.md
@@ -400,7 +375,6 @@ export function styleGuideTool(cfg: Config) {
           '正文配图：提示词应强调学术信息图表或概念结构呈现，清晰现代设计，结构分明，干净背景，极简信息美学',
           '生图铁律：画面中文字必须全部是中文，禁止出现任何英文单词、英文字母，禁止二维码、乱码字符与水印；系统已内置多线程并发与本地优雅保底',
           content.ending_guide_required ? '结尾引导语为硬性要求' : '结尾引导语可选',
-          '选题避让铁律：recent_titles 列出了本账号最近已发布的文章标题，新选题必须在主题角度、核心论点、实操方法上与之显著区分；若某个 topics 关键词下的热门角度已被覆盖，须深入挖掘该关键词的细分方向或交叉领域',
         ],
         forbidden_words: content.forbidden_words,
         articles_per_day: n,
@@ -409,7 +383,6 @@ export function styleGuideTool(cfg: Config) {
         content_images_per_article: contentImgs,
         theme_plan: themePlan,
         references,
-        recent_titles: recentTitles,
         sync_newspic: isBoth,
         ...(isBoth ? { newspic_spec: NEWSPIC_DOC_SPEC_EXAMPLE } : {}),
       }

@@ -71,22 +71,6 @@ def bigrams(s):
     return {s[i:i + 2] for i in range(len(s) - 1)}
 
 
-_STOP_WORDS = {
-    "可以", "如何", "什么", "怎么", "为什么", "哪些", "其中", "以及",
-    "还是", "或者", "但是", "因为", "所以", "如果", "那么", "已经",
-    "这个", "那个", "一个", "不是", "就是", "这些", "那些", "你的",
-    "我的", "他的", "她的", "我们", "你们", "他们", "自己", "别人",
-    "真的", "其实", "应该", "需要", "知道", "了解", "使用", "进行",
-}
-
-
-def core_keywords(s):
-    """提取标题中的核心实义词（2-4 字中文片段，去停用词），用于语义级重复检测。"""
-    s = normalize(s)
-    words = re.findall(r"[\u4e00-\u9fff]{2,4}", s)
-    return [w for w in words if w not in _STOP_WORDS]
-
-
 def similarity(topic, title):
     a, b = normalize(topic), normalize(title)
     if not a or not b:
@@ -94,9 +78,7 @@ def similarity(topic, title):
     ratio = SequenceMatcher(None, a, b).ratio()
     bg_a, bg_b = bigrams(topic), bigrams(title)
     overlap = len(bg_a & bg_b) / max(1, len(bg_a))
-    ck_a, ck_b = set(core_keywords(topic)), set(core_keywords(title))
-    core_overlap = len(ck_a & ck_b) / max(1, len(ck_a)) if ck_a else 0.0
-    return max(ratio, overlap, core_overlap * 0.85)
+    return max(ratio, overlap)
 
 
 def main():
@@ -137,8 +119,8 @@ def main():
             if other_idx == idx:
                 continue
             b_score = similarity(topic, other_topic)
-            if b_score >= 0.35:
-                kind = "batch-duplicate" if b_score >= 0.50 else "batch-overlap"
+            if b_score >= 0.40:
+                kind = "batch-duplicate" if b_score >= 0.55 else "batch-overlap"
                 match_entry = {
                     "title": other_topic,
                     "source": "当前配置候选(第%d篇)" % (other_idx + 1),
@@ -146,22 +128,22 @@ def main():
                     "kind": kind,
                 }
                 matches.append(match_entry)
-                if b_score >= 0.50:
+                if b_score >= 0.55:
                     batch_duplicates.append((other_idx + 1, other_topic))
 
         # 本账号历史比对
         for title, source in history:
             score = similarity(topic, title)
-            if score >= 0.35:
+            if score >= 0.40:
                 matches.append({
                     "title": title,
                     "source": source,
                     "score": round(score, 3),
-                    "kind": "similar" if score >= 0.50 else "keyword-overlap",
+                    "kind": "similar" if score >= 0.55 else "keyword-overlap",
                 })
         matches.sort(key=lambda m: -m["score"])
         top = matches[0]["score"] if matches else 0.0
-        risk = "high" if (top >= 0.50 or prefix_violation or batch_duplicates) else ("medium" if top >= 0.35 else "low")
+        risk = "high" if (top >= 0.55 or prefix_violation or batch_duplicates) else ("medium" if top >= 0.40 else "low")
         item = {
             "topic": topic,
             "risk": risk,

@@ -33,7 +33,7 @@ export interface EmbeddedServerOptions {
   onConfigImported?: (newConfig: Config, allowDelete?: boolean) => void | Promise<void>
 }
 
-let activeEmbeddedServer: http.Server | null = null
+let activeEmbeddedServers: http.Server[] = []
 let activeEmbeddedPort = 0
 
 export function getEmbeddedServerPort(): number {
@@ -50,12 +50,14 @@ function writePortFile(port: number): void {
 }
 
 export async function startEmbeddedServer(options: EmbeddedServerOptions): Promise<{ port: number; close: () => void }> {
-  if (activeEmbeddedServer && activeEmbeddedPort > 0) {
+  if (activeEmbeddedServers.length > 0 && activeEmbeddedPort > 0) {
     return {
       port: activeEmbeddedPort,
       close: () => {
-        try { activeEmbeddedServer?.close() } catch {}
-        activeEmbeddedServer = null
+        for (const s of activeEmbeddedServers) {
+          try { s.close() } catch {}
+        }
+        activeEmbeddedServers = []
         activeEmbeddedPort = 0
       },
     }
@@ -63,7 +65,7 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
 
   const { ctx, getConfig, onConfigImported } = options
 
-  const server = http.createServer(async (req, res) => {
+  const requestHandler = async (req: http.IncomingMessage, res: http.ServerResponse) => {
     // 统一处理 CORS 及 OPTIONS 预检
     if (handleCors(req, res)) return
 
@@ -144,44 +146,38 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
       ctx.logger?.error?.('[social-publisher] embedded server request error:', error)
       sendJson(res, 500, { error: error instanceof Error ? error.message : String(error) })
     }
-  })
+  }
 
-  // 尝试绑定端口：从 3088 开始递增探测
-  const startPort = DEFAULT_EMBEDDED_PORT
-  const maxPort = startPort + 10
+  // 尝试绑定端口：优先尝试 3080（旧前端默认），同时也绑定 3088~3090（新架构保底）
+  const candidatePorts = [3080, 3088, 3089, 3090]
+  const boundServers: http.Server[] = []
+  const boundPorts: number[] = []
 
-  for (let p = startPort; p <= maxPort; p++) {
-    const bound = await new Promise<boolean>((resolve) => {
-      server.once('error', (err: any) => {
-        if (err.code === 'EADDRINUSE') {
-          resolve(false)
-        } else {
-          ctx.logger?.warn?.(`[social-publisher] 尝试端口 ${p} 失败:`, err)
-          resolve(false)
-        }
-      })
-      server.listen(p, '127.0.0.1', () => {
-        resolve(true)
-      })
+  for (const p of candidatePorts) {
+    const s = http.createServer(requestHandler)
+    const ok = await new Promise<boolean>((resolve) => {
+      s.once('error', () => resolve(false))
+      s.listen(p, '127.0.0.1', () => resolve(true))
     })
-
-    if (bound) {
-      activeEmbeddedServer = server
-      activeEmbeddedPort = p
-      writePortFile(p)
-      ctx.logger?.info?.(`[social-publisher] 独立直通 API 服务已就绪：http://127.0.0.1:${p}`)
-      break
+    if (ok) {
+      boundServers.push(s)
+      boundPorts.push(p)
+      if (activeEmbeddedPort === 0) activeEmbeddedPort = p
+      ctx.logger?.info?.(`[social-publisher] 直通 API 服务已就绪：http://127.0.0.1:${p}`)
     }
   }
 
+  activeEmbeddedServers = boundServers
+  if (boundPorts.length > 0) {
+    writePortFile(boundPorts[0])
+  }
+
   const close = () => {
-    try {
-      server.close()
-    } catch {}
-    if (activeEmbeddedServer === server) {
-      activeEmbeddedServer = null
-      activeEmbeddedPort = 0
+    for (const s of boundServers) {
+      try { s.close() } catch {}
     }
+    activeEmbeddedServers = []
+    activeEmbeddedPort = 0
   }
 
   return { port: activeEmbeddedPort, close }
