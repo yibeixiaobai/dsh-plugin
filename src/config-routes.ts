@@ -27,17 +27,24 @@ function sendJson(res: ServerResponse, status: number, value: unknown, headers: 
   res.end(body)
 }
 
+function normalizeHost(h: string | undefined): string {
+  if (!h) return ''
+  return h.trim().toLowerCase().replace(/^localhost(?=[:/]|$)/, '127.0.0.1')
+}
+
 function sameOrigin(req: IncomingMessage): boolean {
   const origin = req.headers.origin
   if (origin) {
     try {
-      if (new URL(origin).host !== req.headers.host) return false
+      const originHost = normalizeHost(new URL(origin).host)
+      const reqHost = normalizeHost(req.headers.host)
+      if (originHost !== reqHost) return false
     } catch {
       return false
     }
   }
-  const site = String(req.headers['sec-fetch-site'] ?? '')
-  return site === '' || site === 'same-origin' || site === 'none'
+  const site = String(req.headers['sec-fetch-site'] ?? '').toLowerCase()
+  return site === '' || site === 'same-origin' || site === 'same-site' || site === 'none'
 }
 
 function readBodyText(req: IncomingMessage): Promise<string> {
@@ -73,10 +80,11 @@ export function registerConfigRoutes(
   const { getConfig, onConfigImported } = options
 
   ctx.inject(['webServer'], (serverCtx) => {
-    if (!serverCtx.webServer) return
-
-    // 1. GET /api/gzh-publisher/config/export
-    serverCtx.webServer.register({
+    const webServer = serverCtx.webServer
+    if (!webServer) return
+    serverCtx.effect(() => {
+      // 1. GET /api/gzh-publisher/config/export
+      webServer.register({
       kind: 'exact',
       path: CONFIG_EXPORT_ROUTE,
       handler(req, res) {
@@ -112,7 +120,7 @@ export function registerConfigRoutes(
     })
 
     // 2. POST /api/gzh-publisher/config/validate
-    serverCtx.webServer.register({
+    webServer.register({
       kind: 'exact',
       path: CONFIG_VALIDATE_ROUTE,
       async handler(req, res) {
@@ -136,7 +144,7 @@ export function registerConfigRoutes(
     })
 
     // 3. POST /api/gzh-publisher/config/import
-    serverCtx.webServer.register({
+    webServer.register({
       kind: 'exact',
       path: CONFIG_IMPORT_ROUTE,
       async handler(req, res) {
@@ -188,7 +196,7 @@ export function registerConfigRoutes(
     })
 
     // 4. POST /api/gzh-publisher/config/save
-    serverCtx.webServer.register({
+    webServer.register({
       kind: 'exact',
       path: CONFIG_SAVE_ROUTE,
       async handler(req, res) {
@@ -278,4 +286,5 @@ export function registerConfigRoutes(
       },
     })
   })
+})
 }
