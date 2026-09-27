@@ -36,11 +36,8 @@ export function ensureWorkspace(cfg: Config): string {
   fs.mkdirSync(tests, { recursive: true })
   for (const id of Object.keys(cfg.accounts)) {
     fs.mkdirSync(accountScriptsDir(cfg, id), { recursive: true })
-    if (cfg.accounts[id].platform === 'zhihu') {
-      fs.mkdirSync(zhihuProfileDir(cfg, id), { recursive: true })
-    } else {
-      fs.mkdirSync(wechatProfileDir(cfg, id), { recursive: true })
-    }
+    fs.mkdirSync(wechatProfileDir(cfg, id), { recursive: true })
+    fs.mkdirSync(zhihuProfileDir(cfg, id), { recursive: true })
   }
   const defaults = path.join(runtimeResourceDir(), 'default-brand')
   for (const name of ['brand_top.jpg', 'brand_bot.jpg']) {

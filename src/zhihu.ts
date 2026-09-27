@@ -8,6 +8,7 @@ import puppeteer, { type Browser, type Page } from 'puppeteer-core'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Config } from './config.ts'
 import { accountScriptsDir, zhihuProfileDir } from './sync.ts'
+import { getCachedLoginState, setCachedLoginState, isLoginInFlight, setLoginInFlight } from './login-state.ts'
 
 const WRITE_URL = 'https://zhuanlan.zhihu.com/write'
 const DRAFT_SAVE_RE = /zhuanlan\.zhihu\.com\/api\/articles\/drafts/
@@ -458,13 +459,17 @@ export async function runZhihuPublish(cfg: Config, accountId: string, job: Zhihu
 
 // ---------- 登录与核验 ----------
 
-/** 检查登录态（无头，几秒返回） */
+/** 检查登录态（无头，几秒返回；60s 内重复检查直接返回缓存，不启动浏览器） */
 export async function zhihuCheckLogin(cfg: Config, accountId: string): Promise<boolean> {
+  const cached = getCachedLoginState('zhihu', accountId)
+  if (cached !== null) return cached
   const browser = await launchZhihuBrowser(cfg, accountId, true)
   try {
     const page = await browser.newPage()
     await page.goto('https://www.zhihu.com', { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => undefined)
-    return await isLoggedIn(page)
+    const loggedIn = await isLoggedIn(page)
+    setCachedLoginState('zhihu', accountId, loggedIn)
+    return loggedIn
   } finally {
     await browser.close().catch(() => undefined)
   }
@@ -478,9 +483,13 @@ export async function zhihuLogin(cfg: Config, accountId: string, timeoutMs = 240
     await page.goto('https://www.zhihu.com/signin?next=%2Fwrite', { waitUntil: 'domcontentloaded', timeout: 60000 })
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
-      if (await isLoggedIn(page)) return true
+      if (await isLoggedIn(page)) {
+        setCachedLoginState('zhihu', accountId, true)
+        return true
+      }
       await new Promise((resolve) => setTimeout(resolve, 2000))
     }
+    setCachedLoginState('zhihu', accountId, false)
     return false
   } finally {
     await browser.close().catch(() => undefined)
@@ -558,8 +567,6 @@ function sendJson(res: import('node:http').ServerResponse, status: number, value
   res.end(body)
 }
 
-let loginInFlight = false
-
 /** 设置界面：知乎登录态检查 / 扫码登录（长时间等待，前端用 spinner 呈现） */
 export function registerZhihuRoutes(ctx: Context, getConfig: () => Config): void {
   ctx.inject(['webServer'], (webCtx) => {
@@ -603,11 +610,11 @@ export function registerZhihuRoutes(ctx: Context, getConfig: () => Config): void
           }
           return
         }
-        if (loginInFlight) {
-          sendJson(res, 409, { error: '已有一个知乎登录流程在进行中' })
+        if (isLoginInFlight('zhihu', accountId)) {
+          sendJson(res, 409, { error: '账号 ' + accountId + ' 的知乎登录流程正在进行中' })
           return
         }
-        loginInFlight = true
+        setLoginInFlight('zhihu', accountId, true)
         try {
           const logged = await zhihuLogin(cfg, accountId)
           sendJson(res, 200, logged
@@ -616,7 +623,7 @@ export function registerZhihuRoutes(ctx: Context, getConfig: () => Config): void
         } catch (error) {
           sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
         } finally {
-          loginInFlight = false
+          setLoginInFlight('zhihu', accountId, false)
         }
       },
     }), 'gzh-publisher: zhihu login route')

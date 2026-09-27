@@ -11,6 +11,7 @@ import { resolveAccount } from './config-runtime.ts'
 import { accountScriptsDir, wechatProfileDir } from './sync.ts'
 import { renderJson, RESULT_FILE } from './tools/shared.ts'
 import { findBrowserExecutable } from './zhihu.ts'
+import { getCachedLoginState, setCachedLoginState, isLoginInFlight, setLoginInFlight } from './login-state.ts'
 
 export const WECHAT_LOGIN_ROUTE = '/api/gzh-publisher/wechat-login'
 
@@ -159,17 +160,24 @@ export async function launchWechatBrowser(cfg: Config, accountId: string, headle
   }
 }
 
-/** 检查微信公众平台登录态（无头，快速判断 URL 或关键 Cookie） */
+/** 检查微信公众平台登录态（无头，快速判断 URL 或关键 Cookie；60s 内重复检查直接返回缓存） */
 export async function wechatCheckLogin(cfg: Config, accountId: string): Promise<boolean> {
+  const cached = getCachedLoginState('gzh', accountId)
+  if (cached !== null) return cached
   const browser = await launchWechatBrowser(cfg, accountId, true)
   try {
     const page = await browser.newPage()
     await page.goto(MP_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => undefined)
     await new Promise((resolve) => setTimeout(resolve, 2000))
     const currentUrl = page.url()
-    if (currentUrl.includes('token=')) return true
+    if (currentUrl.includes('token=')) {
+      setCachedLoginState('gzh', accountId, true)
+      return true
+    }
     const cookies = await page.cookies(MP_LOGIN_URL)
-    return cookies.some((c) => (c.name === 'data_ticket' || c.name === 'slave_user' || c.name === 'slave_sid') && Boolean(c.value))
+    const loggedIn = cookies.some((c) => (c.name === 'data_ticket' || c.name === 'slave_user' || c.name === 'slave_sid') && Boolean(c.value))
+    setCachedLoginState('gzh', accountId, loggedIn)
+    return loggedIn
   } finally {
     await browser.close().catch(() => undefined)
   }
@@ -184,12 +192,19 @@ export async function wechatLogin(cfg: Config, accountId: string, timeoutMs = 24
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
       const currentUrl = page.url()
-      if (currentUrl.includes('token=')) return true
+      if (currentUrl.includes('token=')) {
+        setCachedLoginState('gzh', accountId, true)
+        return true
+      }
       const cookies = await page.cookies(MP_LOGIN_URL)
       const hasSession = cookies.some((c) => (c.name === 'data_ticket' || c.name === 'slave_user' || c.name === 'slave_sid') && Boolean(c.value))
-      if (hasSession && !currentUrl.includes('/cgi-bin/loginpage')) return true
+      if (hasSession && !currentUrl.includes('/cgi-bin/loginpage')) {
+        setCachedLoginState('gzh', accountId, true)
+        return true
+      }
       await new Promise((resolve) => setTimeout(resolve, 2000))
     }
+    setCachedLoginState('gzh', accountId, false)
     return false
   } finally {
     await browser.close().catch(() => undefined)
@@ -239,6 +254,12 @@ export function registerWechatRoutes(ctx: Context, getConfig: () => Config): voi
           }
           return
         }
+        if (isLoginInFlight('gzh', accountId)) {
+          res.writeHead(409, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ error: '账号 ' + accountId + ' 的公众号登录流程正在进行中' }))
+          return
+        }
+        setLoginInFlight('gzh', accountId, true)
         try {
           const logged = await wechatLogin(cfg, accountId)
           res.writeHead(200, { 'content-type': 'application/json' })
@@ -248,6 +269,8 @@ export function registerWechatRoutes(ctx: Context, getConfig: () => Config): voi
         } catch (error) {
           res.writeHead(200, { 'content-type': 'application/json' })
           res.end(JSON.stringify({ ok: false, action, error: error instanceof Error ? error.message : String(error) }))
+        } finally {
+          setLoginInFlight('gzh', accountId, false)
         }
       },
     }), 'gzh-publisher: wechat login route')
