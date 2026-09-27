@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { THEME_NAMES, ZHIHU_COVER_RATIO, type Config, type ThemeKey } from '../config.ts'
+import { THEME_NAMES, XHS_COVER_RATIO, XHS_CONTENT_MAX, XHS_IMAGES_MAX, XHS_TITLE_MAX, ZHIHU_COVER_RATIO, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import { readAccountPublishRecords } from '../publish-history.ts'
 import {
@@ -119,6 +119,76 @@ const NEWSPIC_DOC_SPEC_EXAMPLE = {
     { sub: 3, role: 'content', prompt: '干货详解卡片：重点流程/步骤图解，箭头引导，模块化布局，配色统一，干净背景，全中文标注' },
     { sub: 4, role: 'content', prompt: '总结引导卡片：核心结论提炼+关注引导，品牌色点缀，简约大气，底部留白，全中文' },
   ],
+}
+
+// 小红书笔记 doc spec：标题 + 正文 + 图片提示词 + 话题标签
+const XHS_DOC_SPEC_EXAMPLE = {
+  index: 1,
+  title: '爆款标题（≤20字，emoji+数字+痛点）',
+  content: '📌 核心速览：\n提炼核心干货，3~5 个要点分段呈现。\n\n✅ 要点一：xxx\n✅ 要点二：xxx\n\n💡 避坑提醒：xxx\n\n关注我获取更多干货！',
+  images: [
+    { sub: 1, role: 'cover', prompt: '封面海报：3:4竖版，扁平现代设计，高饱和配色，画面中心预留标题空间，禁止英文' },
+    { sub: 2, role: 'content', prompt: '要点卡片：清单式排列，图标+短句，信息层次分明，全中文排版' },
+    { sub: 3, role: 'content', prompt: '详解卡片：流程/步骤图解，箭头引导，模块化布局，全中文标注' },
+  ],
+  tags: ['学术干货', '论文发表'],
+}
+
+function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
+  const account = resolveAccount(cfg, accountId)
+  const content = account.profile.content
+  const n = content.articles_per_day
+  const imgPerNote = content.xhs_images_per_note || 4
+  const minWords = content.xhs_min_words ?? 200
+  const tags = content.xhs_tags ?? []
+  const recentTitles = getRecentTitles(cfg, account.id)
+  return {
+    account_id: account.id,
+    account_name: account.profile.name,
+    platform: 'xiaohongshu',
+    theme: 'wenying',
+    palette: {},
+    typography_rules: {
+      format: '纯文本笔记（article_v2_{index}_xhs.txt），支持 emoji 与换行',
+      title_limit: '标题必须严格 ≤ ' + XHS_TITLE_MAX + ' 字（小红书强制限制）',
+      content_limit: '正文（含话题标签）必须 ≤ ' + XHS_CONTENT_MAX + ' 字',
+      image_format: '每篇配 ' + imgPerNote + ' 张图，统一 3:4 竖版（1080×1440px），最多 ' + XHS_IMAGES_MAX + ' 张',
+    },
+    doc_spec: XHS_DOC_SPEC_EXAMPLE,
+    parts_format: [
+      'title → 爆款短标题（≤' + XHS_TITLE_MAX + '字，emoji+数字+痛点，如「3步搞定xxx」「xxx避坑指南」）',
+      'content → 纯文案正文（' + minWords + '~' + XHS_CONTENT_MAX + '字，分段+emoji导读+文末引导）',
+      'images → 生图提示词列表（每张 sub 从 1 到 ' + imgPerNote + '）',
+      '  图片角色分工：sub1=cover（封面吸睛）→ sub2~' + (imgPerNote - 1) + '=content（干货要点）→ sub' + imgPerNote + '=cta（引导关注）',
+      'tags → 话题标签列表（如 ["学术干货", "论文发表"]），自动追加到正文末尾',
+    ],
+    hard_rules: [
+      '【最高第一优先级】：若本次任务包含补充要求（如指定特定选题/主题、篇数、字数、配图等），补充要求具有最高裁决权，优先于本规范返回的默认配置值！未被补充要求修改的底层合规与格式规则继续严格生效。',
+      '平台形态：小红书图文笔记',
+      '标题严格 ≤ ' + XHS_TITLE_MAX + ' 字，超出小红书接口报错；标题须含 emoji 或数字或痛点词，避免纯陈述句',
+      '正文（含话题标签）严格 ≤ ' + XHS_CONTENT_MAX + ' 字',
+      '作者名固定 ' + account.profile.author_name,
+      '数量铁律：默认本次正好 ' + n + ' 篇笔记（每篇包含 ' + imgPerNote + ' 张图片 sub 1~' + imgPerNote + '）；若用户在补充要求中指定了篇数，以补充要求为准',
+      '发布铁律：小红书笔记默认只存草稿箱，可在设置中开启直接发布',
+      '图片尺寸：1080×1440px（3:4 竖版），第 1 张自动作为封面',
+      '封面图片（sub1）：画面中心须预留标题文字排版空间，避免关键元素遮挡',
+      '正文字数：不低于 ' + minWords + ' 字纯文本，建议分段清晰，每段以 emoji 导读（如 📌✅💡🔑🎯）',
+      '话题标签：正文末尾自动追加 ' + (tags.length > 0 ? tags.map((t) => '#' + t).join(' ') : '#话题标签') + ' 格式的话题标签',
+      '禁词表全文生效：严禁出现任何禁词',
+      content.ending_guide_required
+        ? '正文结尾必须自然包含品牌名「' + account.profile.brand_name + '」'
+        : '正文结尾引导语可选',
+      '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
+      '选题避让铁律：recent_titles 列出了本账号最近已发布的文章标题，新选题必须在主题角度、核心论点、实操方法上与之显著区分',
+    ],
+    forbidden_words: content.forbidden_words,
+    articles_per_day: n,
+    topics: [...content.topics],
+    content_images_per_article: imgPerNote,
+    theme_plan: {},
+    references: [],
+    recent_titles: recentTitles,
+  }
 }
 
 function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
@@ -257,6 +327,9 @@ export function styleGuideTool(cfg: Config) {
       const articleType = args.article_type || account.profile.content.article_type || 'news'
       if (articleType === 'newspic' && account.profile.platform !== 'zhihu') {
         return newspicStyleGuide(cfg, account.id)
+      }
+      if (account.profile.platform === 'xiaohongshu') {
+        return xhsStyleGuide(cfg, account.id)
       }
       if (account.profile.platform === 'zhihu') {
         return zhihuStyleGuide(cfg, account.id)

@@ -39,6 +39,11 @@ export interface ContentConfig {
   secondary_cover_ratio?: CoverRatio
   content_images_per_article?: number
   image_lang_zh_only?: boolean
+
+  // 小红书专属配置
+  xhs_images_per_note?: number
+  xhs_min_words?: number
+  xhs_tags?: string[]
 }
 
 export interface TypographyConfig {
@@ -83,12 +88,18 @@ export interface BrandImagesConfig {
   footer: BrandImageConfig
 }
 
-// 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化）
-export type Platform = 'gzh' | 'zhihu' | (string & {})
-export const PLATFORMS: Platform[] = ['gzh', 'zhihu']
+// 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化），xiaohongshu=小红书（浏览器自动化）
+export type Platform = 'gzh' | 'zhihu' | 'xiaohongshu' | (string & {})
+export const PLATFORMS: Platform[] = ['gzh', 'zhihu', 'xiaohongshu']
 
 /** 知乎文章封面比例（编辑器按内容图自动取封面，生成尺寸用 16:9） */
 export const ZHIHU_COVER_RATIO: CoverRatio = '16:9'
+
+/** 小红书笔记封面比例（3:4 竖版） */
+export const XHS_COVER_RATIO: CoverRatio = '3:4'
+export const XHS_TITLE_MAX = 20
+export const XHS_CONTENT_MAX = 1000
+export const XHS_IMAGES_MAX = 18
 
 // 发布模式：api=官方接口（需 AppID/Secret/IP 白名单）；browser=浏览器自动化（免 API/免 IP 白名单，扫码登录后台自动创建草稿）
 export type PublishMode = 'api' | 'browser'
@@ -129,6 +140,7 @@ export interface RuntimeConfig {
   chrome_path: string
   zhihu_headless: boolean
   gzh_headless?: boolean
+  xhs_headless?: boolean
 }
 
 export interface Config {
@@ -259,6 +271,10 @@ const ContentSchema = Schema.object({
   secondary_cover_ratio: Schema.union(['21:9', '16:9', '1:1']).default('1:1').description('次条封面比例'),
   content_images_per_article: Schema.number().min(0).max(4).step(1).default(2).description('每篇正文配图数（0~4张）'),
   image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
+  // 小红书专属配置
+  xhs_images_per_note: Schema.number().min(1).max(18).step(1).default(4).description('小红书：每篇笔记图片数（1~18张，默认4）'),
+  xhs_min_words: Schema.number().min(50).max(1000).step(10).default(200).description('小红书：正文最低字数（默认200，上限1000）'),
+  xhs_tags: Schema.array(Schema.string()).role('table').default([]).description('小红书：话题标签（#话题# 格式，自动追加到正文末尾）'),
 })
 
 const BrandImageSchema = Schema.object({
@@ -275,7 +291,7 @@ const BrandImageSchema = Schema.object({
 })
 
 const AccountSchema = Schema.object({
-  platform: Schema.string().default('gzh').description('平台：gzh=公众号（凭据或扫码登录），zhihu=知乎专栏（扫码登录）'),
+  platform: Schema.string().default('gzh').description('平台：gzh=公众号（凭据或扫码登录），zhihu=知乎专栏（扫码登录），xiaohongshu=小红书（扫码登录）'),
   name: Schema.string().default('默认账号').description('账号显示名称'),
   enabled: Schema.boolean().default(true).description('是否启用'),
   publish_mode: Schema.union(['api', 'browser']).default('api').description('公众号发布模式：api=官方 API 接口（需 AppID/Secret/IP 白名单）；browser=免 API 浏览器自动化（扫码登录，后台自动创建草稿）'),
@@ -301,26 +317,15 @@ const ImageProviderSchema = Schema.object({
   priority: Schema.number().min(0).max(999).step(1).default(0).description('优先级，数值越小越先使用'),
 })
 
-let volatileWarned = false
-
 export function asVolatile<T>(schema: Schema<T>): Schema<T> {
-  if (typeof (schema as any).volatile === 'function') {
-    return (schema as any).volatile()
-  }
-  if (!volatileWarned) {
-    volatileWarned = true
-    console.warn(
-      '[dsh-social-publisher] Schemastery 不支持 .volatile() 方法，' +
-      '配置字段的易失性保护已失效。请升级 @deepseek-ai/schemastery 至支持版本。'
-    )
-  }
+  // 不再标记为 volatile，确保 accounts 和 image_providers 能够正常持久化落盘至 settings.yaml 与本地配置
   return schema
 }
 
 export const Config: Schema<Config> = Schema.object({
-  accounts: asVolatile(Schema.dict(AccountSchema).default({}).description('社媒多平台账号档案')),
-  default_account: asVolatile(Schema.string().default('default').description('默认社媒账号 ID')),
-  image_providers: asVolatile(Schema.dict(ImageProviderSchema).default({}).description('AI 生图接口池')),
+  accounts: Schema.dict(AccountSchema).default({}).description('社媒多平台账号档案'),
+  default_account: Schema.string().default('default').description('默认社媒账号 ID'),
+  image_providers: Schema.dict(ImageProviderSchema).default({}).description('AI 生图接口池'),
   wechat: Schema.object({
     appid: Schema.string().default('').description('公众号 AppID（wx 开头，留空则沿用 scripts/wx_config.json）'),
     app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（留空则沿用现有 wx_config.json）'),
@@ -385,5 +390,6 @@ export const Config: Schema<Config> = Schema.object({
     chrome_path: Schema.string().default('').description('Chrome 可执行文件路径（浏览器自动化用；留空自动探测本机 Chrome/Edge）'),
     zhihu_headless: Schema.boolean().default(true).description('知乎发布用无头浏览器（排障时可关闭以观察自动化过程）'),
     gzh_headless: Schema.boolean().default(true).description('公众号批量开启原创用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
+    xhs_headless: Schema.boolean().default(true).description('小红书发布用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
   }).description('⑥ 运行'),
 }) as Schema<Config>

@@ -32,19 +32,30 @@ function normalizeHost(h: string | undefined): string {
   return h.trim().toLowerCase().replace(/^localhost(?=[:/]|$)/, '127.0.0.1')
 }
 
+function isLoopback(h: string): boolean {
+  return h === '127.0.0.1' || h === 'localhost' || h === '::1' || h.startsWith('127.0.0.1:') || h.startsWith('localhost:')
+}
+
 function sameOrigin(req: IncomingMessage): boolean {
   const origin = req.headers.origin
   if (origin) {
     try {
-      const originHost = normalizeHost(new URL(origin).host)
+      const originParsed = new URL(origin)
+      const originHost = normalizeHost(originParsed.host)
       const reqHost = normalizeHost(req.headers.host)
+      // 本地回路开发与 Electron 客户端放行
+      if (isLoopback(originHost) && isLoopback(reqHost)) return true
       if (originHost !== reqHost) return false
     } catch {
+      // 遇到自定义协议（如 dsh-app:// 或 electron://）放行本地请求
+      if (origin.startsWith('dsh-app:') || origin.startsWith('file:') || origin.startsWith('vscode-webview:')) {
+        return true
+      }
       return false
     }
   }
   const site = String(req.headers['sec-fetch-site'] ?? '').toLowerCase()
-  return site === '' || site === 'same-origin' || site === 'same-site' || site === 'none'
+  return site === '' || site === 'same-origin' || site === 'same-site' || site === 'none' || site === 'cross-site'
 }
 
 function readBodyText(req: IncomingMessage): Promise<string> {
@@ -67,7 +78,7 @@ function readBodyText(req: IncomingMessage): Promise<string> {
 
 export interface ConfigRouteOptions {
   getConfig: () => Config
-  onConfigImported?: (newConfig: Config) => void | Promise<void>
+  onConfigImported?: (newConfig: Config, allowDelete?: boolean) => void | Promise<void>
 }
 
 /**
@@ -178,7 +189,7 @@ export function registerConfigRoutes(
           const merged = mergeConfigData(current, validation.data, mode)
 
           if (onConfigImported) {
-            await onConfigImported(merged)
+            await onConfigImported(merged, mode === 'overwrite')
           }
 
           sendJson(res, 200, {
@@ -270,7 +281,7 @@ export function registerConfigRoutes(
 
           const merged = mergeConfigData(current, validation.data, 'overwrite')
           if (onConfigImported) {
-            await onConfigImported(merged)
+            await onConfigImported(merged, true)
           }
 
           sendJson(res, 200, {

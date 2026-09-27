@@ -151,6 +151,28 @@ def main_zhihu(args, doc, forbidden):
                    "plain_chars": plain_chars, "img_count": img_count, "problems": problems}})
 
 
+def main_xiaohongshu(args, doc, forbidden):
+    """小红书分支：纯文本笔记（无主题/品牌图/单行约束）。"""
+    idx = int(doc["index"])
+    if not (1 <= idx <= 99):
+        raise SystemExit("index 必须在 1~99")
+    resource_scripts = os.path.join(os.path.abspath(args.resource_dir), "scripts")
+    if not os.path.exists(os.path.join(resource_scripts, "xhs_components.py")):
+        raise SystemExit("插件内置资源缺少 xhs_components.py: " + resource_scripts)
+    sys.path.insert(0, resource_scripts)
+    import xhs_components as xc
+
+    text, title, plain_chars, img_count, problems = xc.build_note(
+        doc, idx,
+        min_words=args.min_words,
+        brand_name=args.brand_name,
+        require_brand=args.require_brand,
+        forbidden=forbidden)
+    emit({"ok": len(problems) == 0,
+          "data": {"index": idx, "platform": "xiaohongshu", "text": text, "title": title,
+                   "plain_chars": plain_chars, "img_count": img_count, "problems": problems}})
+
+
 def main_newspic(args, doc, forbidden):
     """小绿书分支：纯文本说明 + 多图卡片提示词列表。"""
     idx = int(doc.get("index", 1))
@@ -287,7 +309,7 @@ def main():
     ap.add_argument("--brand-name", default="文映千秋学术网")
     ap.add_argument("--typography", default="{}", help='{"font_size":"13px",...}')
     ap.add_argument("--brand-images", default="{}", help='{"header":{...},"footer":{...}}')
-    ap.add_argument("--platform", choices=["gzh", "zhihu"], default="gzh", help="发布平台分支")
+    ap.add_argument("--platform", choices=["gzh", "zhihu", "xiaohongshu"], default="gzh", help="发布平台分支")
     ap.add_argument("--article-type", choices=["news", "newspic"], default="news", help="文章形态")
     ap.add_argument("--content-img-count", type=int, default=2, help="每篇正文配图占位符数（0-4）")
     ap.add_argument("--require-brand", action="store_true", help="结尾必须包含品牌名")
@@ -307,6 +329,10 @@ def main():
 
     if args.platform == "zhihu":
         main_zhihu(args, doc, forbidden)
+        return
+
+    if args.platform == "xiaohongshu":
+        main_xiaohongshu(args, doc, forbidden)
         return
 
     article_type = args.article_type

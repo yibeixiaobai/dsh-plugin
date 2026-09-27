@@ -16,11 +16,12 @@ function enabledAccountIds(config: Config): string[] {
 }
 
 function normalizePlatform(profile: { platform?: string }): Platform {
-  return profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
+  return profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
 }
 
 export function platformLabel(platform: Platform | 'all' | ''): string {
   if (platform === 'zhihu') return '知乎'
+  if (platform === 'xiaohongshu') return '小红书'
   if (platform === 'gzh') return '公众号'
   if (platform === 'all') return '全平台社媒'
   return '社媒'
@@ -31,6 +32,10 @@ const PLATFORM_KEYWORD_MAP: Record<string, Platform | 'all'> = {
   zhihu: 'zhihu',
   知乎: 'zhihu',
   zh: 'zhihu',
+  xiaohongshu: 'xiaohongshu',
+  小红书: 'xiaohongshu',
+  xhs: 'xiaohongshu',
+  red: 'xiaohongshu',
   gzh: 'gzh',
   wechat: 'gzh',
   wx: 'gzh',
@@ -433,7 +438,20 @@ export function registerQuickCommand(ctx: Context, config: Config): void {
     },
   })
 
-  // 5. 社媒发布工作台卡片入口指令：/publish-config
+  // 5. 小红书快捷指令：/xiaohongshu
+  ctx.commands.register({
+    name: 'xiaohongshu',
+    description: '小红书发布任务（默认执行全部小红书已启用账号；可指定账号名/ID，空格分割）',
+    input: {
+      hint: '[账号名|账号ID] [选题/补充要求]',
+      attachments: true,
+    },
+    handler(invocation) {
+      return handleCommandInvocation(config, invocation, { fixedPlatform: 'xiaohongshu', commandName: 'xiaohongshu' })
+    },
+  })
+
+  // 6. 社媒发布工作台卡片入口指令：/publish-config
   ctx.commands.register({
     name: 'publish-config',
     description: '查看社媒发布工作台卡片入口与使用指引',

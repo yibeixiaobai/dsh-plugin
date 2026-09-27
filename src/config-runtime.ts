@@ -14,9 +14,11 @@ export interface ResolvedAccount {
   profile: AccountProfile
 }
 
-function clone<T>(value: T): T {
+export function cloneConfig<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
+const clone = cloneConfig
+
 
 function normalizeBrandImage(value: Partial<BrandImageConfig> | undefined, fallback: BrandImageConfig): BrandImageConfig {
   return {
@@ -81,8 +83,8 @@ export function normalizeConfig(config: Config): Config {
   for (const profile of Object.values(accounts)) {
     profile.name = profile.name || '未命名账号'
     profile.enabled = profile.enabled !== false
-    // 老配置无 platform 字段：一律视为公众号，知乎需在设置中显式切换
-    profile.platform = profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
+    // 老配置无 platform 字段：一律视为公众号，知乎/小红书需在设置中显式切换
+    profile.platform = profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
     profile.publish_mode = profile.publish_mode === 'browser' ? 'browser' : 'api'
     profile.appid = profile.appid || ''
     profile.app_secret = profile.app_secret || ''
@@ -173,6 +175,7 @@ export function hasRealAccounts(accounts: Record<string, AccountProfile> | undef
     first.app_secret ||
     (first.name && first.name !== '默认账号' && first.name !== '未命名账号') ||
     first.platform === 'zhihu' ||
+    first.platform === 'xiaohongshu' ||
     first.publish_mode === 'browser' ||
     (first.author_name && first.author_name !== '文映学术win00.cn') ||
     (first.brand_name && first.brand_name !== '文映千秋学术网')
@@ -193,17 +196,38 @@ export function hasRealProviders(providers: Record<string, ImageProviderConfig> 
   )
 }
 
-export function applyNormalizedConfig(target: Config, source: Config): Config {
+export function applyNormalizedConfig(target: Config, source: Config, allowDelete = false): Config {
   const normalized = normalizeConfig(source)
 
-  // 永久防清空保护：若 target 已有真实配置的账号/生图接口，而 source 为空或仅为未配置的占位默认项，绝对保留 target 的实体数据
-  if (hasRealAccounts(target.accounts) && !hasRealAccounts(source.accounts)) {
-    normalized.accounts = clone(target.accounts)
-    normalized.default_account = target.default_account
+  // 永久防清空与防残缺覆盖保护：若 target 已有真实配置的账号/生图接口
+  if (hasRealAccounts(target.accounts)) {
+    if (!hasRealAccounts(source.accounts)) {
+      normalized.accounts = clone(target.accounts)
+      normalized.default_account = target.default_account
+    } else if (!allowDelete) {
+      // 非显式用户删除操作（如重启、settings 初始加载、热重载等）时，
+      // 保留 target 中已有但 source 中缺失的实体账号，杜绝残缺数据覆盖导致账号丢失！
+      for (const [id, acc] of Object.entries(target.accounts)) {
+        if (!normalized.accounts[id]) {
+          normalized.accounts[id] = clone(acc)
+        }
+      }
+      if (!normalized.accounts[normalized.default_account] && target.default_account && normalized.accounts[target.default_account]) {
+        normalized.default_account = target.default_account
+      }
+    }
   }
 
-  if (hasRealProviders(target.image_providers) && !hasRealProviders(source.image_providers)) {
-    normalized.image_providers = clone(target.image_providers)
+  if (hasRealProviders(target.image_providers)) {
+    if (!hasRealProviders(source.image_providers)) {
+      normalized.image_providers = clone(target.image_providers)
+    } else if (!allowDelete) {
+      for (const [id, prov] of Object.entries(target.image_providers)) {
+        if (!normalized.image_providers[id]) {
+          normalized.image_providers[id] = clone(prov)
+        }
+      }
+    }
   }
 
   Object.assign(target, normalized)

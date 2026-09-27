@@ -14,8 +14,8 @@ export function defaultWorkspaceDir(): string {
   return path.resolve(pluginDir(), '..', 'tasks', 'default')
 }
 
-export function workspaceDir(cfg: Config): string {
-  const configured = String(cfg.runtime.project_root ?? '').trim()
+export function workspaceDir(cfg: Partial<Config> | undefined): string {
+  const configured = String(cfg?.runtime?.project_root ?? '').trim()
   if (!configured || configured.toLowerCase() === 'default' || configured.toLowerCase() === 'plugin-default') {
     return defaultWorkspaceDir()
   }
@@ -38,6 +38,7 @@ export function ensureWorkspace(cfg: Config): string {
     fs.mkdirSync(accountScriptsDir(cfg, id), { recursive: true })
     fs.mkdirSync(wechatProfileDir(cfg, id), { recursive: true })
     fs.mkdirSync(zhihuProfileDir(cfg, id), { recursive: true })
+    fs.mkdirSync(xhsProfileDir(cfg, id), { recursive: true })
   }
   const defaults = path.join(runtimeResourceDir(), 'default-brand')
   for (const name of ['brand_top.jpg', 'brand_bot.jpg']) {
@@ -72,6 +73,11 @@ export function zhihuProfileDir(cfg: Config, accountId: string): string {
 /** 微信公众号账号的浏览器用户数据目录（后台登录态持久化；扫码一次后长期有效） */
 export function wechatProfileDir(cfg: Config, accountId: string): string {
   return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'wechat_profile')
+}
+
+/** 小红书账号的浏览器用户数据目录（登录态持久化；扫码一次后长期有效） */
+export function xhsProfileDir(cfg: Config, accountId: string): string {
+  return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'xhs_profile')
 }
 
 export function brandDir(cfg: Config): string {
@@ -129,7 +135,7 @@ function restoreAccountsFromDisk(
         const id = item.id.trim()
         if (!cfg.accounts[id]) {
           cfg.accounts[id] = {
-            platform: item.platform === 'zhihu' ? 'zhihu' : 'gzh',
+            platform: item.platform === 'zhihu' ? 'zhihu' : item.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh',
             name: String(item.name || id),
             enabled: item.enabled !== false,
             publish_mode: item.publish_mode === 'browser' ? 'browser' : 'api',
@@ -199,25 +205,85 @@ function restoreProvidersFromDisk(
   return changed
 }
 
-/** Fill empty new-model fields from the existing Python config without overriding plugin values. */
+/** 工作区全量配置文件路径 */
+export function publisherConfigPath(cfg: Config): string {
+  return path.join(workspaceDir(cfg), 'publisher_config.json')
+}
+
+/** 插件根目录任务文件夹兜底全量配置文件路径 */
+export function fallbackPublisherConfigPath(): string {
+  return path.join(defaultWorkspaceDir(), 'publisher_config.json')
+}
+
+/** Fill empty new-model fields from the existing disk configs without overriding plugin values. */
 export function hydrateConfigFromWx(cfg: Config): { config: Config; changed: boolean } {
-  const result = JSON.parse(JSON.stringify(cfg)) as Config
+  const result = JSON.parse(JSON.stringify(cfg || {})) as Config
+  if (!result.accounts || typeof result.accounts !== 'object') (result as any).accounts = {}
+  if (!result.image_providers || typeof result.image_providers !== 'object') (result as any).image_providers = {}
+  if (!result.wechat || typeof result.wechat !== 'object') (result as any).wechat = {}
+  if (!result.image_api || typeof result.image_api !== 'object') (result as any).image_api = {}
+  if (!result.runtime || typeof result.runtime !== 'object') (result as any).runtime = {}
+  let changed = false
+
+  // 1. 优先从 publisher_config.json 恢复全量配置（工作区根目录与默认目录双重探测）
+  const candidateConfigPaths = [
+    publisherConfigPath(result),
+    fallbackPublisherConfigPath(),
+  ]
+  for (const pubPath of candidateConfigPaths) {
+    if (fs.existsSync(pubPath)) {
+      try {
+        const fullPubData = JSON.parse(fs.readFileSync(pubPath, 'utf-8')) as Partial<Config>
+        if (fullPubData && typeof fullPubData === 'object') {
+          // 恢复账号
+          if (fullPubData.accounts && typeof fullPubData.accounts === 'object') {
+            for (const [id, acc] of Object.entries(fullPubData.accounts)) {
+              if (acc && typeof acc === 'object') {
+                if (!result.accounts[id]) {
+                  result.accounts[id] = JSON.parse(JSON.stringify(acc))
+                  changed = true
+                } else {
+                  // 补齐缺失字段
+                  const target = result.accounts[id]
+                  if (!target.app_secret && acc.app_secret) { target.app_secret = acc.app_secret; changed = true }
+                  if (!target.appid && acc.appid) { target.appid = acc.appid; changed = true }
+                }
+              }
+            }
+            if (fullPubData.default_account && result.accounts[fullPubData.default_account]) {
+              result.default_account = fullPubData.default_account
+            }
+          }
+          // 恢复生图接口
+          if (fullPubData.image_providers && typeof fullPubData.image_providers === 'object') {
+            for (const [id, prov] of Object.entries(fullPubData.image_providers)) {
+              if (prov && typeof prov === 'object' && !result.image_providers[id]) {
+                result.image_providers[id] = JSON.parse(JSON.stringify(prov))
+                changed = true
+              }
+            }
+          }
+        }
+      } catch {}
+      break
+    }
+  }
+
+  // 2. 从 scripts/wx_config.json 及账号子目录容灾自愈恢复
   const wxPath = path.join(scriptsDir(result), 'wx_config.json')
   let existing: Record<string, unknown> = {}
   try {
     existing = JSON.parse(fs.readFileSync(wxPath, 'utf-8')) as Record<string, unknown>
   } catch {
-    return { config: result, changed: false }
+    existing = {}
   }
-  if (!result.accounts || typeof result.accounts !== 'object') (result as any).accounts = {}
-  if (!result.image_providers || typeof result.image_providers !== 'object') (result as any).image_providers = {}
-  let changed = false
+
   const legacyAppid = String(existing.appid ?? '')
   const legacySecret = String(existing.app_secret ?? '')
   const legacyImageBase = String(existing.image_api_base ?? '')
   const legacyImageKey = String(existing.image_api_key ?? '')
 
-  // 容灾自愈 + 账号/接口恢复（统一调用提取的函数）
+  // 容灾自愈 + 账号/接口恢复
   changed = restoreAccountsFromDisk(result, existing, workspaceDir(result)) || changed
   changed = restoreProvidersFromDisk(result, existing) || changed
 
@@ -230,8 +296,10 @@ export function hydrateConfigFromWx(cfg: Config): { config: Config; changed: boo
   if (defaultAccount) {
     if (!defaultAccount.appid && legacyAppid) { defaultAccount.appid = legacyAppid; changed = true }
     if (!defaultAccount.app_secret && legacySecret) { defaultAccount.app_secret = legacySecret; changed = true }
-  } else if (Object.keys(result.accounts).length === 1) {
-    const only = Object.values(result.accounts)[0]
+  } else if (Object.keys(result.accounts).length > 0) {
+    const pick = Object.keys(result.accounts).find((k) => result.accounts[k]?.enabled) ?? Object.keys(result.accounts)[0]
+    result.default_account = pick
+    const only = result.accounts[pick]
     if (!only.appid && legacyAppid) { only.appid = legacyAppid; changed = true }
     if (!only.app_secret && legacySecret) { only.app_secret = legacySecret; changed = true }
   }
@@ -289,7 +357,7 @@ export function syncConfig(cfg: Config): SyncReport {
       id,
       name: account.name,
       enabled: account.enabled,
-      platform: account.platform === 'zhihu' ? 'zhihu' : 'gzh',
+      platform: account.platform === 'zhihu' ? 'zhihu' : account.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh',
       publish_mode: account.publish_mode === 'browser' ? 'browser' : 'api',
       publish_immediately: account.publish_immediately === true,
       appid: account.appid.trim()
@@ -339,6 +407,22 @@ export function syncConfig(cfg: Config): SyncReport {
   fs.mkdirSync(dir, { recursive: true })
   const serialized = JSON.stringify(merged, null, 2) + '\n'
   fs.writeFileSync(wxPath, serialized, 'utf-8')
+
+  // 双重落盘全量配置 publisher_config.json（保证跨重启与多账号配置绝不丢失）
+  try {
+    const fullSerialized = JSON.stringify(cfg, null, 2) + '\n'
+    const targetPubPaths = [
+      publisherConfigPath(cfg),
+      fallbackPublisherConfigPath(),
+    ]
+    for (const p of targetPubPaths) {
+      try {
+        fs.mkdirSync(path.dirname(p), { recursive: true })
+        fs.writeFileSync(p, fullSerialized, 'utf-8')
+      } catch {}
+    }
+  } catch {}
+
   // 每个账号目录下发同一份 wx_config.json：Python 侧从该账号自己的 --scripts-dir 读取凭据
   for (const id of Object.keys(cfg.accounts)) {
     const accountDir = accountScriptsDir(cfg, id)

@@ -3,10 +3,11 @@
 // apply 在加载与每次配置热重载时执行：同步凭据到 wx_config.json 并注册全部工具与社媒命令。
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigT } from './config.ts'
-import { normalizeConfig, applyNormalizedConfig, hasRealAccounts, hasRealProviders } from './config-runtime.ts'
+import { normalizeConfig, applyNormalizedConfig, hasRealAccounts, hasRealProviders, cloneConfig } from './config-runtime.ts'
 import { registerBrandImageRoutes } from './brand-images.ts'
 import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
+import { registerXhsRoutes } from './xiaohongshu.ts'
 import { registerWechatRoutes, enableOriginalTool } from './wechat-browser.ts'
 import { registerPublishHistoryRoutes } from './publish-history.ts'
 import { registerDshModelRoutes } from './dsh-models.ts'
@@ -58,18 +59,15 @@ async function updateSettingsWithRetry(
 
 export function apply(ctx: Context, config: ConfigT) {
   const { config: hydratedConfig, changed: hydrated } = hydrateConfigFromWx(config)
-  // 传给 installSection 的组合 base 必须是静态对象且不带 accounts / image_providers：
-  // 宿主每次求值都做 schema(mergeLayers(base, 用户层))，对象层按 key 递归合并，
-  // base 里残留的 dict 条目会把用户层已删除的账号/生图接口合并回来（删除后保存即复活）。
-  // dict 条目是纯用户数据，一律以设置界面（用户层）为唯一事实来源。
-  const compositionEntry: ConfigT = { ...hydratedConfig, accounts: {}, image_providers: {} }
-  // 工具与路由读 liveConfig；settings 注入前它由组合层规范化而来，之后随 onChange 刷新，
-  // compositionEntry 自注册起不再改动。
   const liveConfig = normalizeConfig(hydratedConfig)
+  // 核心修复：全量配置事实来源是磁盘快照（publisher_config.json + wx_config.json）。
+  // compositionEntry 必须注入 liveConfig 的真实克隆，确保 DSH 宿主 settings 服务与前端 scope 从启动第一帧就拥有完整的实体账号！
+  const compositionEntry: ConfigT = cloneConfig(liveConfig)
   ensureWorkspace(liveConfig)
   registerBrandImageRoutes(ctx, () => liveConfig)
   registerImageTestRoute(ctx, () => liveConfig)
   registerZhihuRoutes(ctx, () => liveConfig)
+  registerXhsRoutes(ctx, () => liveConfig)
   registerWechatRoutes(ctx, () => liveConfig)
   registerPublishHistoryRoutes(ctx, () => liveConfig)
   registerDshModelRoutes(ctx)
@@ -78,12 +76,14 @@ export function apply(ctx: Context, config: ConfigT) {
 
   registerConfigRoutes(ctx, {
     getConfig: () => liveConfig,
-    async onConfigImported(newConfig) {
-      applyNormalizedConfig(liveConfig, newConfig)
+    async onConfigImported(newConfig, allowDelete = true) {
+      applyNormalizedConfig(liveConfig, newConfig, allowDelete)
       ensureWorkspace(liveConfig)
       syncConfig(liveConfig)
+      compositionEntry.accounts = cloneConfig(liveConfig.accounts)
+      compositionEntry.image_providers = cloneConfig(liveConfig.image_providers)
       if (settingsService && typeof settingsService.update === 'function') {
-        await updateSettingsWithRetry(settingsService, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '导入配置同步更新至 settings')
+        await updateSettingsWithRetry(settingsService, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '配置保存/导入同步更新至 settings')
       }
     },
   })
@@ -104,18 +104,13 @@ export function apply(ctx: Context, config: ConfigT) {
         onChange() {
           const next = source()
           if (!next || typeof next !== 'object') return
-          // 绝不用空账号字典或未配置占位项覆盖已有账号与接口！
-          if (hasRealAccounts(liveConfig.accounts) && !hasRealAccounts(next.accounts)) {
-            next.accounts = { ...liveConfig.accounts }
-            next.default_account = liveConfig.default_account
-          }
-          if (hasRealProviders(liveConfig.image_providers) && !hasRealProviders(next.image_providers)) {
-            next.image_providers = { ...liveConfig.image_providers }
-          }
-          applyNormalizedConfig(liveConfig, next)
+          // 强化保护：allowDelete 为 false，绝不用空账号或残缺账号冲掉 liveConfig 中已有的多账号实体！
+          applyNormalizedConfig(liveConfig, next, false)
           ensureWorkspace(liveConfig)
           syncConfig(liveConfig)
-          // 显式持久化至 settings 存储（auto:false + volatile 字段不会自动落盘）
+          compositionEntry.accounts = cloneConfig(liveConfig.accounts)
+          compositionEntry.image_providers = cloneConfig(liveConfig.image_providers)
+          // 显式持久化至 settings 存储
           if (settingsService && typeof settingsService.update === 'function') {
             updateSettingsWithRetry(settingsService, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '保存配置至 settings').catch(() => {})
           }
@@ -145,22 +140,13 @@ export function apply(ctx: Context, config: ConfigT) {
           ...(liveConfig.image_providers ?? {}),
         },
       }
-      applyNormalizedConfig(liveConfig, merged)
+      applyNormalizedConfig(liveConfig, merged, false)
       updateSettingsWithRetry(settingsCtx.settings, SETTINGS_NAMESPACE, merged, ctx.logger, '旧配置自动平滑迁移').catch(() => {})
     }
 
-    const currentResolved = resolved || legacyResolved
-    if (!currentResolved) return
-    const needAccounts = hydrated || Object.keys(currentResolved.accounts ?? {}).length === 0
-    const needProviders = hydrated || Object.keys(currentResolved.image_providers ?? {}).length === 0
-    if (needAccounts || needProviders) {
-      const patch: Record<string, unknown> = {}
-      if (needAccounts) {
-        patch.accounts = liveConfig.accounts
-        patch.default_account = liveConfig.default_account
-      }
-      if (needProviders) patch.image_providers = liveConfig.image_providers
-      updateSettingsWithRetry(settingsCtx.settings, SETTINGS_NAMESPACE, patch, ctx.logger, '默认配置自动初始化').catch(() => {})
+    // 启动就绪时：确保已恢复的磁盘全量账号（liveConfig）同步推送入 settings 存储，防止重启后 settings.yaml 残留空态
+    if (hasRealAccounts(liveConfig.accounts) || hasRealProviders(liveConfig.image_providers)) {
+      updateSettingsWithRetry(settingsCtx.settings, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '启动时全量同步配置至 settings').catch(() => {})
     }
   })
 
@@ -171,14 +157,7 @@ export function apply(ctx: Context, config: ConfigT) {
         if (targetCtx === ctx || targetCtx?.name === PLUGIN_NAME || patch?.ns === SETTINGS_NAMESPACE) {
           if (patch?.config) {
             const next = patch.config
-            if (hasRealAccounts(liveConfig.accounts) && !hasRealAccounts(next.accounts)) {
-              next.accounts = { ...liveConfig.accounts }
-              next.default_account = liveConfig.default_account
-            }
-            if (hasRealProviders(liveConfig.image_providers) && !hasRealProviders(next.image_providers)) {
-              next.image_providers = { ...liveConfig.image_providers }
-            }
-            applyNormalizedConfig(liveConfig, next)
+            applyNormalizedConfig(liveConfig, next, false)
             ensureWorkspace(liveConfig)
             syncConfig(liveConfig)
           }
@@ -209,6 +188,6 @@ export function apply(ctx: Context, config: ConfigT) {
   ctx.tools.register(enableOriginalTool(liveConfig))
   registerQuickCommand(ctx, liveConfig)
 
-  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：8 个生产工具与 /publish, /post, /zhihu, /gzh, /publish-config 指令就绪' +
+  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：8 个生产工具与 /publish, /post, /zhihu, /gzh, /xiaohongshu, /publish-config 指令就绪' +
     (config.runtime.dry_run ? '（演练模式：不联网生图、不发布）' : ''))
 }

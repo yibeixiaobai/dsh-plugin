@@ -4,6 +4,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import { zhihuVerifyDrafts } from '../zhihu.ts'
+import { xhsVerifyNotes } from '../xiaohongshu.ts'
 import { wechatVerifyDrafts } from '../wechat-browser.ts'
 import {
   RESULT_FILE, accountScriptsDir, assertWechatCreds, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir,
@@ -54,14 +55,15 @@ export function verifyTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      const isNewspic = platform !== 'zhihu' && (
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+      const isNewspic = platform === 'gzh' && (
         args.article_type === 'newspic' ||
         content.article_type === 'newspic' ||
         (args.expected_count === 1 && (content.article_type === 'both' || content.sync_newspic))
       )
       const expectedCount = args.expected_count ?? (isNewspic ? 1 : content.articles_per_day)
       if (platform === 'zhihu') return verifyZhihu(cfg, account.id, expectedCount)
+      if (platform === 'xiaohongshu') return verifyXhs(cfg, account.id, expectedCount)
       if (account.profile.publish_mode === 'browser') {
         return verifyWechatBrowser(cfg, account.id, expectedCount)
       }
@@ -146,6 +148,51 @@ async function verifyZhihu(cfg: Config, accountId: string, expectedCount: number
     articles: report.articles.map((a) => ({
       ...a,
       problems: a.found ? [] : ['发布记录缺少 draft id（保存响应未捕获），无法远程核验；请在知乎草稿箱人工确认'],
+    })),
+  }
+}
+
+/** 小红书分支：期望标题与 note_id 取自最近一次发布记录（publish_result.json），逐篇访问笔记页面核验 */
+async function verifyXhs(cfg: Config, accountId: string, expectedCount: number): Promise<VerifyReport> {
+  const sdir = accountScriptsDir(cfg, accountId)
+  const base = path.resolve(sdir)
+  const resultPath = path.resolve(base, RESULT_FILE)
+  if (!resultPath.startsWith(base + path.sep)) throw new Error('路径越界: ' + RESULT_FILE)
+  let titles: string[] = []
+  let drafts: Array<{ draft_id?: string; title?: string }> = []
+  try {
+    const record = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as {
+      articles?: string[]
+      drafts?: Array<{ draft_id?: string; title?: string }>
+    }
+    titles = Array.isArray(record.articles) ? record.articles.filter((t) => typeof t === 'string') : []
+    drafts = Array.isArray(record.drafts) ? record.drafts : []
+  } catch {
+    throw new Error('没有可核验的发布记录（先运行 gzh_publish_draft）：' + resultPath)
+  }
+  if (titles.length === 0) throw new Error('发布记录中没有标题可核验: ' + resultPath)
+  if (cfg.runtime.dry_run) {
+    return {
+      account_id: accountId,
+      article_count: titles.length,
+      expected: expectedCount,
+      articles: titles.map((title) => ({ title, found: false, problems: ['演练模式：不启动浏览器核验'] })),
+    }
+  }
+  const expected = titles.map((title) => ({
+    title,
+    note_id: drafts.find((d) => d.title === title)?.draft_id,
+  }))
+  const report = await xhsVerifyNotes(cfg, accountId, expected)
+  return {
+    account_id: accountId,
+    article_count: report.note_count,
+    expected: expectedCount,
+    articles: report.notes.map((a) => ({
+      title: a.title,
+      found: a.found,
+      ...(a.url ? { url: a.url } : {}),
+      problems: a.found ? [] : [a.note || '发布记录缺少 note_id，无法远程核验'],
     })),
   }
 }

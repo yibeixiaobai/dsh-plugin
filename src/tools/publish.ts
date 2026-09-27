@@ -5,6 +5,7 @@ import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import { appendPublishRecord, readAccountPublishRecords } from '../publish-history.ts'
 import { runZhihuPublish } from '../zhihu.ts'
+import { runXhsPublish } from '../xiaohongshu.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, accountScriptsDir, assertWechatCreds, brandDir,
   brandImagePath, contentImagesPerArticle, findImage, readUploadCache, removeJobFile, renderJson, runPipeline,
@@ -116,9 +117,9 @@ export function publishTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
       const publishMode = args.publish_mode || account.profile.publish_mode || 'api'
-      const isNewspic = platform !== 'zhihu' && (
+      const isNewspic = platform === 'gzh' && (
         (args.article_type === 'newspic') ||
         (!args.article_type && content.article_type === 'newspic') ||
         Boolean(args.article_files && args.article_files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
@@ -133,7 +134,7 @@ export function publishTool(cfg: Config) {
         throw new Error('article_files 数量（' + args.article_files.length + '）必须与 titles 数量（' + args.titles.length + '）一致')
       }
       const n = args.titles.length
-      const maxTitle = platform === 'zhihu' ? 100 : isNewspic ? 32 : 64
+      const maxTitle = platform === 'zhihu' ? 100 : platform === 'xiaohongshu' ? 20 : isNewspic ? 32 : 64
       for (const t of args.titles) {
         if (typeof t !== 'string' || t.length > maxTitle) throw new Error('标题超 ' + maxTitle + ' 字: ' + String(t).slice(0, 40))
       }
@@ -205,6 +206,9 @@ export function publishTool(cfg: Config) {
         }
       }
 
+      if (platform === 'xiaohongshu') {
+        return publishXiaohongshu(cfg, account.id, sdir, args, n)
+      }
       if (platform === 'zhihu') {
         return publishZhihu(cfg, account.id, sdir, args, n)
       }
@@ -294,6 +298,92 @@ async function publishZhihu(
   return {
     account_id: accountId, platform: 'zhihu', dry_run: false,
     drafts: result.drafts, article_count: result.drafts.length, titles: args.titles,
+    verify: { checked: false }, result_file: resultPath,
+  }
+}
+
+/** 小红书分支：浏览器自动化发布图文笔记，N 篇 = N 个独立笔记；结果落盘协议与知乎对齐 */
+async function publishXiaohongshu(
+  cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number,
+): Promise<PublishOk> {
+  const account = resolveAccount(cfg, accountId)
+  const xhsImagesPerNote = account.profile.content.xhs_images_per_note || 4
+  const articlePaths = defaultArticleFiles(sdir, n, '_xhs.txt', args.article_files)
+
+  const imageFiles: Record<string, string[]> = {}
+  const imageCounts: number[] = []
+  for (let i = 1; i <= n; i++) {
+    const key = 'IMG_A' + i + '_1'
+    const paths: string[] = []
+    for (let j = 1; j <= xhsImagesPerNote; j++) {
+      const imgKey = 'IMG_A' + i + '_' + j
+      paths.push(cfg.runtime.dry_run
+        ? path.resolve(sdir, 'pic_' + i + '_' + j + '.png')
+        : findImage(sdir, 'pic_' + i + '_' + j))
+    }
+    imageFiles[key] = paths
+    imageCounts.push(xhsImagesPerNote)
+  }
+
+  const job = {
+    account_id: accountId,
+    titles: args.titles,
+    article_files: articlePaths,
+    image_files: imageFiles,
+    image_counts: imageCounts,
+    publish_immediately: cfg.accounts[accountId]?.publish_immediately === true,
+    dry_run: cfg.runtime.dry_run === true,
+    min_words: account.profile.content.xhs_min_words ?? 200,
+    forbidden: account.profile.content.forbidden_words ?? [],
+    tags: account.profile.content.xhs_tags ?? [],
+  }
+  const result = await runXhsPublish(cfg, accountId, job)
+
+  if (result.dry_run) {
+    return {
+      account_id: accountId, platform: 'xiaohongshu', dry_run: true, article_count: n,
+      titles: args.titles, verify: { checked: false }, result_file: '',
+    }
+  }
+  const now = stampNow()
+  const authorName = account.profile.author_name
+  const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
+    status: 'success',
+    account_id: accountId,
+    platform: 'xiaohongshu',
+    article_count: n,
+    author: authorName,
+    timestamp: now,
+    articles: args.titles,
+    drafts: result.notes,
+  }, null, 2) + '\n')
+  try {
+    appendPublishRecord(cfg, {
+      id: `batch_${now.replace(/[^0-9]/g, '').slice(0, 14)}_${Math.random().toString(36).slice(2, 6)}`,
+      account_id: accountId,
+      platform: 'xiaohongshu',
+      article_count: n,
+      author: authorName,
+      timestamp: now,
+      articles: args.titles,
+      digests: args.digests,
+      items: result.notes.map((d, i) => ({
+        index: i + 1,
+        title: d.title,
+        digest: args.digests[i] || '',
+        draft_id: d.note_id,
+        url: d.url,
+        published: d.published,
+      })),
+    })
+  } catch {
+    // best-effort history append
+  }
+  writeTextFile(sdir, 'draft_urls.txt', result.notes.map((d) => d.url).join('\n') + '\n')
+  return {
+    account_id: accountId, platform: 'xiaohongshu', dry_run: false,
+    drafts: result.notes.map((d) => ({ draft_id: d.note_id, title: d.title, url: d.url, published: d.published })),
+    article_count: result.notes.length, titles: args.titles,
     verify: { checked: false }, result_file: resultPath,
   }
 }

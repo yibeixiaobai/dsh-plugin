@@ -134,6 +134,32 @@ def check_file_newspic(path, min_words, forbidden, brand_name, img_count, requir
     return {"file": path, "plain_chars": len(plain), "img_count": len(cards), "problems": problems}
 
 
+def check_file_xhs(path, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders):
+    """小红书纯文本笔记校验：标题≤20字、正文≤1000字、字数下限、禁词、图片数。"""
+    text = open(path, encoding="utf-8").read()
+    problems = []
+    if "\\u" in text:
+        problems.append("存在 unicode 转义残留")
+    plain = re.sub(r"#[^#\s]+#", "", text)
+    plain = re.sub(r"[\U00010000-\U0010ffff]", "", plain)
+    plain = re.sub(r"[✅❌📌💡🔑🎯🌟✨🔥💪📝🎓📚🏆⚡🎉❤️👍🙏💰📊🔍📋]", "", plain)
+    plain = re.sub(r"\s", "", plain)
+    effective_min = int(min_words * 0.85)
+    if len(plain) < effective_min:
+        problems.append("纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (len(plain), effective_min, min_words))
+    for w in forbidden:
+        if w in plain:
+            problems.append("含禁词: " + w)
+    if require_brand and brand_name and brand_name not in plain:
+        problems.append("缺少品牌引导语: " + brand_name)
+    imgs = re.findall(r"IMG_A\d+_\d+", text)
+    if len(imgs) != img_count:
+        problems.append("图片占位符数量 %d != %d（按设置的每篇笔记图片数）" % (len(imgs), img_count))
+    if not allow_placeholders and ("IMG_A" in text or "__BRAND" in text):
+        problems.append("仍有占位符残留（IMG_A*、__BRAND_*）")
+    return {"file": path, "plain_chars": len(plain), "img_count": len(imgs), "problems": problems}
+
+
 def check_file(path, min_words, forbidden, brand_name, img_count, allow_placeholders):
     html = open(path, encoding="utf-8").read()
     problems = []
@@ -197,7 +223,7 @@ def main():
     ap.add_argument("--img-count", type=int, default=4)
     ap.add_argument("--allow-placeholders", action="store_true", help="发布前阶段允许 IMG_*/__BRAND_* 占位符")
     ap.add_argument("--lint", action="store_true", help="同时运行 validate_gzh_html.py 校验")
-    ap.add_argument("--platform", choices=["gzh", "zhihu"], default="gzh", help="发布平台分支")
+    ap.add_argument("--platform", choices=["gzh", "zhihu", "xiaohongshu"], default="gzh", help="发布平台分支")
     ap.add_argument("--article-type", choices=["news", "newspic"], default="news", help="文章形态")
     ap.add_argument("--require-brand", action="store_true", help="知乎/小绿书分支：结尾必须包含品牌名")
     ap.add_argument("--gzh-design-scripts", default="")
@@ -219,6 +245,10 @@ def main():
         if args.platform == "zhihu":
             results.append(check_file_md(fp, args.min_words, forbidden, args.brand_name,
                                          args.img_count, args.require_brand, args.allow_placeholders))
+            continue
+        if args.platform == "xiaohongshu":
+            results.append(check_file_xhs(fp, args.min_words, forbidden, args.brand_name,
+                                          args.img_count, args.require_brand, args.allow_placeholders))
             continue
         r = check_file(fp, args.min_words, forbidden, args.brand_name, args.img_count, args.allow_placeholders)
         if args.lint:

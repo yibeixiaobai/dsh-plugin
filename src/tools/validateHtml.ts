@@ -61,21 +61,21 @@ export function validateHtmlTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : 'gzh'
-      const isNewspic = platform !== 'zhihu' && (
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+      const isNewspic = platform === 'gzh' && (
         args.article_type === 'newspic' ||
         (!args.article_type && content.article_type === 'newspic') ||
         Boolean(args.files && args.files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
       )
       const count = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
-      const requiredExt = platform === 'zhihu' ? '.md' : isNewspic ? '_pic.json' : '.html'
+      const requiredExt = platform === 'zhihu' ? '.md' : platform === 'xiaohongshu' ? '_xhs.txt' : isNewspic ? '_pic.json' : '.html'
       let files = Array.isArray(args.files) ? args.files.filter(Boolean).map(String) : []
       if (files.length === 0) {
         files = Array.from({ length: count }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
       } else {
         files = files.map((f) => {
           const trimmed = f.trim()
-          if (trimmed.endsWith('.md') || trimmed.endsWith('.html') || trimmed.endsWith('.json')) return trimmed
+          if (trimmed.endsWith('.md') || trimmed.endsWith('.html') || trimmed.endsWith('.json') || trimmed.endsWith('.txt')) return trimmed
           return trimmed + requiredExt
         })
       }
@@ -89,12 +89,18 @@ export function validateHtmlTool(cfg: Config) {
         ? (content.newspic_images_per_article || 4)
         : platform === 'zhihu'
           ? contentImagesPerArticle(cfg)
-          : expectedArticleImageCount(cfg, account.profile)
+          : platform === 'xiaohongshu'
+            ? (content.xhs_images_per_note || 4)
+            : expectedArticleImageCount(cfg, account.profile)
       const expectedImgs = typeof args.img_count === 'number' && args.img_count >= 0
         ? args.img_count
         : defaultExpectedImgs
 
-      const defaultMinWords = filesAreNewspic ? Math.min(content.min_words, 100) : content.min_words
+      const defaultMinWords = filesAreNewspic
+        ? Math.min(content.min_words, 100)
+        : platform === 'xiaohongshu'
+          ? (content.xhs_min_words ?? 200)
+          : content.min_words
       const minWords = typeof args.min_words === 'number' && args.min_words > 0
         ? args.min_words
         : defaultMinWords
@@ -110,7 +116,7 @@ export function validateHtmlTool(cfg: Config) {
         '--platform', platform,
         '--article-type', filesAreNewspic ? 'newspic' : 'news',
       ]
-      if ((platform === 'zhihu' || filesAreNewspic) && content.ending_guide_required) cmd.push('--require-brand')
+      if ((platform === 'zhihu' || platform === 'xiaohongshu' || filesAreNewspic) && content.ending_guide_required) cmd.push('--require-brand')
       if (platform === 'gzh' && !filesAreNewspic) cmd.push('--lint')
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')
       const report = await runPipeline<Omit<ValidateReport, 'account_id'>>(cfg, 'check_html.py', cmd, 120000)
