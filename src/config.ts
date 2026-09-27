@@ -280,7 +280,7 @@ const ContentSchema = Schema.object({
 const BrandImageSchema = Schema.object({
   enabled: Schema.boolean().default(true).description('是否使用该品牌图'),
   file: Schema.string().default('').description('brand_assets 目录内的图片文件名或相对路径'),
-  width: Schema.number().min(10).max(100).step(1).default(100).description('显示宽度（文章宽度百分比）'),
+  width: Schema.number().min(0).max(100).step(1).default(100).description('显示宽度（文章宽度百分比，0=按原图比例自适应）'),
   height: Schema.number().min(0).max(2000).step(10).default(0).description('固定显示高度（px，0=按原图比例）'),
   fit: Schema.union(['contain', 'cover', 'fill']).default('contain').description('图片适配方式'),
   position: Schema.union(['top', 'center', 'bottom']).default('center').description('裁切或留白时的垂直对齐'),
@@ -357,7 +357,7 @@ export const Config: Schema<Config> = Schema.object({
     header: Schema.object({
       enabled: Schema.boolean().default(true).description('是否在每篇文章顶部插入品牌图'),
       file: Schema.string().default(DEFAULT_BRAND_IMAGES.header.file).description('brand_assets 目录内的图片文件名或相对路径'),
-      width: Schema.number().min(10).max(100).step(1).default(100).description('显示宽度（文章宽度百分比）'),
+      width: Schema.number().min(0).max(100).step(1).default(100).description('显示宽度（文章宽度百分比，0=按原图比例自适应）'),
       height: Schema.number().min(0).max(2000).step(10).default(0).description('固定显示高度（px，0=按原图比例）'),
       fit: Schema.union(['contain', 'cover', 'fill']).default('contain').description('图片适配：contain 完整显示 / cover 裁切铺满 / fill 拉伸'),
       position: Schema.union(['top', 'center', 'bottom']).default('center').description('裁切或留白时的垂直对齐'),
@@ -369,7 +369,7 @@ export const Config: Schema<Config> = Schema.object({
     footer: Schema.object({
       enabled: Schema.boolean().default(true).description('是否在每篇文章末尾插入品牌图'),
       file: Schema.string().default(DEFAULT_BRAND_IMAGES.footer.file).description('brand_assets 目录内的图片文件名或相对路径'),
-      width: Schema.number().min(10).max(100).step(1).default(60).description('显示宽度（文章宽度百分比）'),
+      width: Schema.number().min(0).max(100).step(1).default(60).description('显示宽度（文章宽度百分比，0=按原图比例自适应）'),
       height: Schema.number().min(0).max(2000).step(10).default(0).description('固定显示高度（px，0=按原图比例）'),
       fit: Schema.union(['contain', 'cover', 'fill']).default('contain').description('图片适配：contain 完整显示 / cover 裁切铺满 / fill 拉伸'),
       position: Schema.union(['top', 'center', 'bottom']).default('center').description('裁切或留白时的垂直对齐'),

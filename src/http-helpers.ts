@@ -13,21 +13,34 @@ export function isLoopback(h: string): boolean {
 
 export function isAllowedOrigin(origin: string | undefined, host: string | undefined): boolean {
   if (!origin) return true
+  const lower = origin.trim().toLowerCase()
+  if (
+    lower.startsWith('dsh-app:') ||
+    lower.startsWith('file:') ||
+    lower.startsWith('vscode-webview:') ||
+    lower.startsWith('electron:') ||
+    lower.startsWith('devtools:') ||
+    lower === 'null'
+  ) {
+    return true
+  }
   try {
     const originParsed = new URL(origin)
+    if (
+      originParsed.protocol === 'dsh-app:' ||
+      originParsed.protocol === 'file:' ||
+      originParsed.protocol === 'vscode-webview:' ||
+      originParsed.protocol === 'electron:' ||
+      originParsed.protocol === 'devtools:'
+    ) {
+      return true
+    }
     const originHost = normalizeHost(originParsed.host)
     const reqHost = normalizeHost(host)
     if (isLoopback(originHost) && (isLoopback(reqHost) || !reqHost)) return true
     if (originHost === reqHost) return true
   } catch {
-    if (
-      origin.startsWith('dsh-app:') ||
-      origin.startsWith('file:') ||
-      origin.startsWith('vscode-webview:') ||
-      origin.startsWith('electron:')
-    ) {
-      return true
-    }
+    return false
   }
   return false
 }
@@ -36,15 +49,18 @@ export function setCorsHeaders(req: IncomingMessage, res: ServerResponse): void 
   const origin = req.headers.origin
   if (origin && isAllowedOrigin(origin, req.headers.host)) {
     res.setHeader('Access-Control-Allow-Origin', origin)
-  } else {
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
+  } else if (!origin) {
     res.setHeader('Access-Control-Allow-Origin', '*')
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+    res.setHeader('Access-Control-Allow-Credentials', 'true')
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
   res.setHeader(
     'Access-Control-Allow-Headers',
     'Content-Type, Authorization, X-Requested-With, x-dsh-gzh-upload, x-dsh-gzh-test, x-dsh-filename',
   )
-  res.setHeader('Access-Control-Allow-Credentials', 'true')
 }
 
 /**

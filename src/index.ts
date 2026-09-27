@@ -24,7 +24,7 @@ import { verifyTool } from './tools/verify.ts'
 import { startEmbeddedServer } from './embedded-server.ts'
 
 export const name = PLUGIN_NAME
-export const inject = ['tools', 'commands']
+export const inject = []
 export { Config }
 export type { ConfigT }
 
@@ -194,16 +194,25 @@ export function apply(ctx: Context, config: ConfigT) {
   }
   ctx.logger.info('[social-publisher] 当前任务工作区 →', workspaceDir(liveConfig))
 
-  ctx.tools.register(checkTopicsTool(liveConfig))
-  ctx.tools.register(styleGuideTool(liveConfig))
-  ctx.tools.register(buildArticleTool(liveConfig))
-  ctx.tools.register(genImagesTool(liveConfig, ctx))
-  ctx.tools.register(validateHtmlTool(liveConfig))
-  ctx.tools.register(publishTool(liveConfig))
-  ctx.tools.register(verifyTool(liveConfig))
-  ctx.tools.register(enableOriginalTool(liveConfig))
-  registerQuickCommand(ctx, liveConfig)
+  ctx.inject(['tools'], (toolsCtx) => {
+    if (!toolsCtx.tools) return
+    toolsCtx.tools.register(checkTopicsTool(liveConfig))
+    toolsCtx.tools.register(styleGuideTool(liveConfig))
+    toolsCtx.tools.register(buildArticleTool(liveConfig))
+    toolsCtx.tools.register(genImagesTool(liveConfig, ctx))
+    toolsCtx.tools.register(validateHtmlTool(liveConfig))
+    toolsCtx.tools.register(publishTool(liveConfig))
+    toolsCtx.tools.register(verifyTool(liveConfig))
+    toolsCtx.tools.register(enableOriginalTool(liveConfig))
+    ctx.logger?.info?.('[social-publisher] 8 个社媒自动化生产与发布工具已就绪')
+  })
 
-  ctx.logger.info('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载：8 个生产工具与 /publish, /post, /zhihu, /gzh, /xiaohongshu, /publish-config 指令就绪' +
-    (config.runtime.dry_run ? '（演练模式：不联网生图、不发布）' : ''))
+  ctx.inject(['commands'], (cmdCtx) => {
+    if (!cmdCtx.commands) return
+    registerQuickCommand(cmdCtx, liveConfig)
+    ctx.logger?.info?.('[social-publisher] 社媒快捷指令已就绪 (/publish, /post, /zhihu, /gzh, /xiaohongshu, /publish-config)')
+  })
+
+  ctx.logger?.info?.('[social-publisher] dsh-social-publisher v' + VERSION + ' 已加载' +
+    (config.runtime?.dry_run ? '（演练模式：不联网生图、不发布）' : ''))
 }

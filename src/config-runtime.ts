@@ -15,6 +15,7 @@ export interface ResolvedAccount {
 }
 
 export function cloneConfig<T>(value: T): T {
+  if (value === undefined || value === null) return value
   return JSON.parse(JSON.stringify(value)) as T
 }
 const clone = cloneConfig

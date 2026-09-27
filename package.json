@@ -9,6 +9,10 @@
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
+  "scripts": {
+    "start": "node src/standalone-server.ts",
+    "serve": "node src/standalone-server.ts"
+  },
   "files": [
     "src",
     "lib",

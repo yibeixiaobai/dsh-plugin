@@ -51,6 +51,7 @@ export interface ExportOptions {
 }
 
 function clone<T>(val: T): T {
+  if (val === undefined || val === null) return val
   return JSON.parse(JSON.stringify(val)) as T
 }
 
