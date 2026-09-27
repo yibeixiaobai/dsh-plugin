@@ -161,8 +161,51 @@ export function providerPool(config: Config): Array<{ id: string; provider: Imag
     .sort((left, right) => left.provider.priority - right.provider.priority || left.id.localeCompare(right.id))
 }
 
+export function hasRealAccounts(accounts: Record<string, AccountProfile> | undefined): boolean {
+  if (!accounts || typeof accounts !== 'object') return false
+  const values = Object.values(accounts)
+  if (values.length === 0) return false
+  if (values.length > 1) return true
+  const first = values[0]
+  if (!first) return false
+  return Boolean(
+    first.appid ||
+    first.app_secret ||
+    (first.name && first.name !== '默认账号' && first.name !== '未命名账号') ||
+    first.platform === 'zhihu' ||
+    first.publish_mode === 'browser' ||
+    (first.author_name && first.author_name !== '文映学术win00.cn') ||
+    (first.brand_name && first.brand_name !== '文映千秋学术网')
+  )
+}
+
+export function hasRealProviders(providers: Record<string, ImageProviderConfig> | undefined): boolean {
+  if (!providers || typeof providers !== 'object') return false
+  const values = Object.values(providers)
+  if (values.length === 0) return false
+  if (values.length > 1) return true
+  const first = values[0]
+  if (!first) return false
+  return Boolean(
+    first.api_key ||
+    (first.name && first.name !== '默认生图接口' && first.name !== '未命名接口' && first.name !== '生图接口') ||
+    (first.base_url && first.base_url !== 'https://api.a6api.com')
+  )
+}
+
 export function applyNormalizedConfig(target: Config, source: Config): Config {
   const normalized = normalizeConfig(source)
+
+  // 永久防清空保护：若 target 已有真实配置的账号/生图接口，而 source 为空或仅为未配置的占位默认项，绝对保留 target 的实体数据
+  if (hasRealAccounts(target.accounts) && !hasRealAccounts(source.accounts)) {
+    normalized.accounts = clone(target.accounts)
+    normalized.default_account = target.default_account
+  }
+
+  if (hasRealProviders(target.image_providers) && !hasRealProviders(source.image_providers)) {
+    normalized.image_providers = clone(target.image_providers)
+  }
+
   Object.assign(target, normalized)
   return normalized
 }

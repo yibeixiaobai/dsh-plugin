@@ -58,7 +58,7 @@ declare module '@deepseek-ai/dsh-llm' {
   export type MessageSource =
     | { kind: 'user' }
     | {
-        kind: 'plugin'
+        kind: 'producer'
         plugin: string
         form?: 'notice' | 'instructions' | 'catalog' | 'snapshot' | 'relay' | 'recall'
         summary?: string

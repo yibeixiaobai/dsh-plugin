@@ -3,7 +3,7 @@
 // apply 在加载与每次配置热重载时执行：同步凭据到 wx_config.json 并注册全部工具与社媒命令。
 import type { Context } from '@deepseek-ai/cordis'
 import { Config, type Config as ConfigT } from './config.ts'
-import { normalizeConfig, applyNormalizedConfig } from './config-runtime.ts'
+import { normalizeConfig, applyNormalizedConfig, hasRealAccounts, hasRealProviders } from './config-runtime.ts'
 import { registerBrandImageRoutes } from './brand-images.ts'
 import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
@@ -31,16 +31,41 @@ export const LEGACY_SETTINGS_NAMESPACE = 'gzh-publisher'
 
 const VERSION = '0.2.0'
 
+async function updateSettingsWithRetry(
+  settingsService: any,
+  namespace: string,
+  data: unknown,
+  logger: { warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void },
+  contextLabel: string,
+  maxRetries = 3,
+): Promise<void> {
+  if (!settingsService || typeof settingsService.update !== 'function') return
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      await settingsService.update(namespace, data)
+      return
+    } catch (e) {
+      if (attempt < maxRetries) {
+        const delay = (attempt + 1) * 500
+        logger.warn(`[social-publisher] ${contextLabel} 第 ${attempt + 1} 次重试失败，${delay}ms 后重试：`, e)
+        await new Promise((resolve) => setTimeout(resolve, delay))
+      } else {
+        logger.error(`[social-publisher] ${contextLabel} 全部 ${maxRetries + 1} 次尝试均失败：`, e)
+      }
+    }
+  }
+}
+
 export function apply(ctx: Context, config: ConfigT) {
-  const hydrated = hydrateConfigFromWx(config)
+  const { config: hydratedConfig, changed: hydrated } = hydrateConfigFromWx(config)
   // 传给 installSection 的组合 base 必须是静态对象且不带 accounts / image_providers：
   // 宿主每次求值都做 schema(mergeLayers(base, 用户层))，对象层按 key 递归合并，
   // base 里残留的 dict 条目会把用户层已删除的账号/生图接口合并回来（删除后保存即复活）。
   // dict 条目是纯用户数据，一律以设置界面（用户层）为唯一事实来源。
-  const compositionEntry: ConfigT = { ...config, accounts: {}, image_providers: {} }
+  const compositionEntry: ConfigT = { ...hydratedConfig, accounts: {}, image_providers: {} }
   // 工具与路由读 liveConfig；settings 注入前它由组合层规范化而来，之后随 onChange 刷新，
   // compositionEntry 自注册起不再改动。
-  const liveConfig = normalizeConfig(config)
+  const liveConfig = normalizeConfig(hydratedConfig)
   ensureWorkspace(liveConfig)
   registerBrandImageRoutes(ctx, () => liveConfig)
   registerImageTestRoute(ctx, () => liveConfig)
@@ -58,11 +83,7 @@ export function apply(ctx: Context, config: ConfigT) {
       ensureWorkspace(liveConfig)
       syncConfig(liveConfig)
       if (settingsService && typeof settingsService.update === 'function') {
-        try {
-          await settingsService.update(SETTINGS_NAMESPACE, liveConfig)
-        } catch (e) {
-          ctx.logger.warn('[social-publisher] 导入配置同步更新至 settings 异常：', e)
-        }
+        await updateSettingsWithRetry(settingsService, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '导入配置同步更新至 settings')
       }
     },
   })
@@ -82,14 +103,13 @@ export function apply(ctx: Context, config: ConfigT) {
         },
         onChange() {
           const next = source()
-          // 绝不用空账号字典覆盖已有账号！
-          const nextAccounts = (next?.accounts && typeof next.accounts === 'object') ? next.accounts : {}
-          if (Object.keys(nextAccounts).length === 0 && Object.keys(liveConfig.accounts || {}).length > 0) {
+          if (!next || typeof next !== 'object') return
+          // 绝不用空账号字典或未配置占位项覆盖已有账号与接口！
+          if (hasRealAccounts(liveConfig.accounts) && !hasRealAccounts(next.accounts)) {
             next.accounts = { ...liveConfig.accounts }
             next.default_account = liveConfig.default_account
           }
-          const nextProviders = (next?.image_providers && typeof next.image_providers === 'object') ? next.image_providers : {}
-          if (Object.keys(nextProviders).length === 0 && Object.keys(liveConfig.image_providers || {}).length > 0) {
+          if (hasRealProviders(liveConfig.image_providers) && !hasRealProviders(next.image_providers)) {
             next.image_providers = { ...liveConfig.image_providers }
           }
           applyNormalizedConfig(liveConfig, next)
@@ -104,27 +124,25 @@ export function apply(ctx: Context, config: ConfigT) {
     const resolved = settingsCtx.settings.get(SETTINGS_NAMESPACE) as ConfigT | undefined
 
     const legacyAccountCount = Object.keys(legacyResolved?.accounts ?? {}).length
-    const resolvedAccountCount = Object.keys(resolved?.accounts ?? {}).length
+    const hasLiveAccounts = hasRealAccounts(liveConfig.accounts)
 
-    // 若新命名空间尚未写入配置，或新命名空间账号数少于旧命名空间（处于初始状态），自动完整继承旧配置
-    if (legacyResolved && legacyAccountCount > 0 && (resolvedAccountCount === 0 || legacyAccountCount > resolvedAccountCount)) {
+    // 仅在当前 liveConfig 没有任何有效账号，且旧版存在有效账号时才进行旧账号继承（防止每次重启抹除现有实体账号）
+    if (legacyResolved && legacyAccountCount > 0 && !hasLiveAccounts) {
       ctx.logger.info('[social-publisher] 检测到旧版 gzh-publisher 配置，自动继承迁移至 social-publisher...')
       const merged: ConfigT = {
         ...legacyResolved,
         ...(resolved ?? {}),
         accounts: {
           ...(legacyResolved.accounts ?? {}),
-          ...(resolved?.accounts ?? {}),
+          ...(liveConfig.accounts ?? {}),
         },
         image_providers: {
           ...(legacyResolved.image_providers ?? {}),
-          ...(resolved?.image_providers ?? {}),
+          ...(liveConfig.image_providers ?? {}),
         },
       }
       applyNormalizedConfig(liveConfig, merged)
-      void settingsCtx.settings.update(SETTINGS_NAMESPACE, merged).catch((error) => {
-        ctx.logger.warn('[social-publisher] 旧配置自动平滑迁移失败：', error)
-      })
+      updateSettingsWithRetry(settingsCtx.settings, SETTINGS_NAMESPACE, merged, ctx.logger, '旧配置自动平滑迁移').catch(() => {})
     }
 
     const currentResolved = resolved || legacyResolved
@@ -138,9 +156,7 @@ export function apply(ctx: Context, config: ConfigT) {
         patch.default_account = liveConfig.default_account
       }
       if (needProviders) patch.image_providers = liveConfig.image_providers
-      void settingsCtx.settings.update(SETTINGS_NAMESPACE, patch).catch((error) => {
-        ctx.logger.warn('[social-publisher] 默认配置自动初始化失败：', error)
-      })
+      updateSettingsWithRetry(settingsCtx.settings, SETTINGS_NAMESPACE, patch, ctx.logger, '默认配置自动初始化').catch(() => {})
     }
   })
 
@@ -151,11 +167,11 @@ export function apply(ctx: Context, config: ConfigT) {
         if (targetCtx === ctx || targetCtx?.name === PLUGIN_NAME || patch?.ns === SETTINGS_NAMESPACE) {
           if (patch?.config) {
             const next = patch.config
-            if ((!next.accounts || Object.keys(next.accounts).length === 0) && Object.keys(liveConfig.accounts || {}).length > 0) {
+            if (hasRealAccounts(liveConfig.accounts) && !hasRealAccounts(next.accounts)) {
               next.accounts = { ...liveConfig.accounts }
               next.default_account = liveConfig.default_account
             }
-            if ((!next.image_providers || Object.keys(next.image_providers).length === 0) && Object.keys(liveConfig.image_providers || {}).length > 0) {
+            if (hasRealProviders(liveConfig.image_providers) && !hasRealProviders(next.image_providers)) {
               next.image_providers = { ...liveConfig.image_providers }
             }
             applyNormalizedConfig(liveConfig, next)

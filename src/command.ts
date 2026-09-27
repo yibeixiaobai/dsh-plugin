@@ -354,7 +354,7 @@ function handleCommandInvocation(
   invocation.agent.followup(createUserMessage({
     content: contentBlocks,
     source: {
-      kind: 'plugin',
+      kind: 'producer',
       plugin: PLUGIN_NAME,
       form: 'notice',
       summary: `${modeTag} 已启动${scope}任务（${accounts.map((account) => account.profile.name).join('、')}）${attachmentNotice}`,

@@ -301,9 +301,18 @@ const ImageProviderSchema = Schema.object({
   priority: Schema.number().min(0).max(999).step(1).default(0).description('优先级，数值越小越先使用'),
 })
 
+let volatileWarned = false
+
 export function asVolatile<T>(schema: Schema<T>): Schema<T> {
   if (typeof (schema as any).volatile === 'function') {
     return (schema as any).volatile()
+  }
+  if (!volatileWarned) {
+    volatileWarned = true
+    console.warn(
+      '[dsh-social-publisher] Schemastery 不支持 .volatile() 方法，' +
+      '配置字段的易失性保护已失效。请升级 @deepseek-ai/schemastery 至支持版本。'
+    )
   }
   return schema
 }

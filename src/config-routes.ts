@@ -85,42 +85,42 @@ export function registerConfigRoutes(
     serverCtx.effect(() => {
       // 1. GET /api/gzh-publisher/config/export
       webServer.register({
-      kind: 'exact',
-      path: CONFIG_EXPORT_ROUTE,
-      handler(req, res) {
-        if (!sameOrigin(req)) {
-          sendJson(res, 403, { error: '仅允许同源请求' })
-          return
-        }
-        if (req.method !== 'GET') {
-          sendJson(res, 405, { error: '仅支持 GET 请求' })
-          return
-        }
-
-        try {
-          const url = new URL(req.url ?? CONFIG_EXPORT_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
-          const includeSecrets = url.searchParams.get('include_secrets') === 'true'
-          const scope = (url.searchParams.get('scope') || 'all') as ExportScope
-          const download = url.searchParams.get('download') !== 'false'
-
-          const exported = exportConfigData(getConfig(), { includeSecrets, scope })
-
-          const headers: Record<string, string> = {}
-          if (download) {
-            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-            const filename = `dsh-social-publisher-config-${scope}-${dateStr}.json`
-            headers['content-disposition'] = `attachment; filename="${filename}"`
+        kind: 'exact',
+        path: CONFIG_EXPORT_ROUTE,
+        handler(req, res) {
+          if (!sameOrigin(req)) {
+            sendJson(res, 403, { error: '仅允许同源请求' })
+            return
+          }
+          if (req.method !== 'GET') {
+            sendJson(res, 405, { error: '仅支持 GET 请求' })
+            return
           }
 
-          sendJson(res, 200, exported, headers)
-        } catch (error) {
-          sendJson(res, 500, { error: '导出配置失败：' + (error instanceof Error ? error.message : String(error)) })
-        }
-      },
-    })
+          try {
+            const url = new URL(req.url ?? CONFIG_EXPORT_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
+            const includeSecrets = url.searchParams.get('include_secrets') === 'true'
+            const scope = (url.searchParams.get('scope') || 'all') as ExportScope
+            const download = url.searchParams.get('download') !== 'false'
 
-    // 2. POST /api/gzh-publisher/config/validate
-    webServer.register({
+            const exported = exportConfigData(getConfig(), { includeSecrets, scope })
+
+            const headers: Record<string, string> = {}
+            if (download) {
+              const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+              const filename = `dsh-social-publisher-config-${scope}-${dateStr}.json`
+              headers['content-disposition'] = `attachment; filename="${filename}"`
+            }
+
+            sendJson(res, 200, exported, headers)
+          } catch (error) {
+            sendJson(res, 500, { error: '导出配置失败：' + (error instanceof Error ? error.message : String(error)) })
+          }
+        },
+      })
+
+      // 2. POST /api/gzh-publisher/config/validate
+      webServer.register({
       kind: 'exact',
       path: CONFIG_VALIDATE_ROUTE,
       async handler(req, res) {
