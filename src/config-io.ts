@@ -209,6 +209,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
           platform,
           name,
           enabled,
+          publish_mode: accObj.publish_mode === 'browser' ? 'browser' : 'api',
           appid: String(accObj.appid ?? '').trim(),
           app_secret: String(accObj.app_secret ?? '').trim(),
           author_name: String(accObj.author_name ?? '文映学术win00.cn').trim(),

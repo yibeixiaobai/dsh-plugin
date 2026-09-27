@@ -115,6 +115,10 @@ export function apply(ctx: Context, config: ConfigT) {
           applyNormalizedConfig(liveConfig, next)
           ensureWorkspace(liveConfig)
           syncConfig(liveConfig)
+          // 显式持久化至 settings 存储（auto:false + volatile 字段不会自动落盘）
+          if (settingsService && typeof settingsService.update === 'function') {
+            updateSettingsWithRetry(settingsService, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '保存配置至 settings').catch(() => {})
+          }
         },
       })
     }

@@ -293,6 +293,7 @@ export function syncConfig(cfg: Config): SyncReport {
       name: account.name,
       enabled: account.enabled,
       platform: account.platform === 'zhihu' ? 'zhihu' : 'gzh',
+      publish_mode: account.publish_mode === 'browser' ? 'browser' : 'api',
       publish_immediately: account.publish_immediately === true,
       appid: account.appid.trim()
         || (id === defaultAccount.id ? String(existing.appid ?? '') : ''),

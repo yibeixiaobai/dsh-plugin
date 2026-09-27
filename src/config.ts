@@ -321,23 +321,23 @@ export const Config: Schema<Config> = Schema.object({
   accounts: asVolatile(Schema.dict(AccountSchema).default({}).description('社媒多平台账号档案')),
   default_account: asVolatile(Schema.string().default('default').description('默认社媒账号 ID')),
   image_providers: asVolatile(Schema.dict(ImageProviderSchema).default({}).description('AI 生图接口池')),
-  wechat: asVolatile(Schema.object({
+  wechat: Schema.object({
     appid: Schema.string().default('').description('公众号 AppID（wx 开头，留空则沿用 scripts/wx_config.json）'),
     app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（留空则沿用现有 wx_config.json）'),
     author_name: Schema.string().default('文映学术win00.cn').description('固定作者名（硬性规则）'),
     brand_name: Schema.string().default('文映千秋学术网').description('品牌名（结尾引导语必须包含）'),
     auto_enable_original: Schema.boolean().default(false).description('公众号：草稿创建后自动通过浏览器模拟打开草稿箱批量开启原创并保存草稿'),
-  }).description('① 公众号凭据')),
-  content: asVolatile(ContentSchema.description('② 内容规则（含小绿书同步配置与排版配图）')),
-  typography: asVolatile(Schema.object({
+  }).description('① 公众号凭据'),
+  content: ContentSchema.description('② 内容规则（含小绿书同步配置与排版配图）'),
+  typography: Schema.object({
     headline_theme: Schema.union([...THEME_KEYS]).default('wenying').description('头条主题（wenying=文映学术品牌专属）'),
     secondary_theme: Schema.union([...THEME_KEYS, 'rotate']).default('rotate').description('次条主题：rotate=按篇顺序轮换各主题'),
     font_size: Schema.string().default('13px').description('正文字号铁律'),
     line_height: Schema.string().default('20px').description('正文行高铁律'),
     paragraph_margin: Schema.string().default('25px').description('段落间距'),
     text_indent: Schema.string().default('2em').description('首行缩进'),
-  }).description('③ 排版（13px 铁律）')),
-  image_api: asVolatile(Schema.object({
+  }).description('③ 排版（13px 铁律）'),
+  image_api: Schema.object({
     base_url: Schema.string().default('https://api.a6api.com').description('生图 API 地址（OpenAI 兼容 /v1/images/generations）'),
     api_key: Schema.string().role('secret').default('').description('生图 API Key（sk- 开头，留空则沿用现有 wx_config.json）'),
     model: Schema.string().default('gpt-image-2').description('生图模型'),
@@ -347,8 +347,8 @@ export const Config: Schema<Config> = Schema.object({
     image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
     concurrency: Schema.number().min(1).max(10).step(1).default(3).description('生图并发数（多线程同时生图以大幅提速，推荐 3）'),
     enable_local_fallback: Schema.boolean().default(true).description('接口全部失效时启用本地优雅降级保底图（保证流程不中断）'),
-  }).description('④ AI 配图')),
-  brand_images: asVolatile(Schema.object({
+  }).description('④ AI 配图'),
+  brand_images: Schema.object({
     header: Schema.object({
       enabled: Schema.boolean().default(true).description('是否在每篇文章顶部插入品牌图'),
       file: Schema.string().default(DEFAULT_BRAND_IMAGES.header.file).description('brand_assets 目录内的图片文件名或相对路径'),
@@ -373,8 +373,8 @@ export const Config: Schema<Config> = Schema.object({
       margin_bottom: Schema.number().min(0).max(200).step(1).default(0).description('图片下方间距（px）'),
       frame: Schema.boolean().default(false).description('是否使用白色卡片边框和阴影包裹'),
     }).description('尾部品牌图'),
-  }).description('兼容旧配置：全局品牌头尾图')),
-  runtime: asVolatile(Schema.object({
+  }).description('兼容旧配置：全局品牌头尾图'),
+  runtime: Schema.object({
     project_root: Schema.string().default('').description('任务工作区；留空使用插件内置 tasks/default，也可填写其它工作区路径'),
     python_path: Schema.string().default('python').description('Python 解释器（需 3.12 + requests + Pillow）'),
     request_timeout_ms: Schema.number().min(5000).max(600000).step(1000).default(60000).description('单次请求超时（毫秒）'),
@@ -385,5 +385,5 @@ export const Config: Schema<Config> = Schema.object({
     chrome_path: Schema.string().default('').description('Chrome 可执行文件路径（浏览器自动化用；留空自动探测本机 Chrome/Edge）'),
     zhihu_headless: Schema.boolean().default(true).description('知乎发布用无头浏览器（排障时可关闭以观察自动化过程）'),
     gzh_headless: Schema.boolean().default(true).description('公众号批量开启原创用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
-  }).description('⑥ 运行')),
+  }).description('⑥ 运行'),
 }) as Schema<Config>

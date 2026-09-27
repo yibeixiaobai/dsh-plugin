@@ -138,7 +138,7 @@ def enhance_prompt(prompt, kind, zh_only=True):
     prompt = str(prompt or "").strip()
     prefix = ""
     if k == "cover":
-        prefix = "公众号杂志封面大片，横版开阔构图，留白充裕，中心明确，电影质感光影，8k高清，"
+        prefix = "公众号杂志封面大片，横版开阔构图，留白充裕，中心明确，电影质感光影，8k高清，画面需自然融入标题主题相关中文文字元素（非水印非logo，而是与主题呼应的标题关键词文字排版），"
     elif k == "content":
         prefix = "学术信息图表与概念结构呈现，清晰现代设计，结构分明，干净背景，极简信息美学，"
     elif k == "pic":

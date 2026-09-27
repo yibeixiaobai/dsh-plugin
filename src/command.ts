@@ -295,7 +295,7 @@ export function taskPrompt(config: Config, accountIds: string[], request: string
     '   - 构建：根据规范、补充要求及附件材料撰写充实内容，调用 gzh_build_article 构建（公众号产出单行 HTML，知乎专栏产出富文本与封面）。',
     '   - 强制生图：必须完整调用 gzh_generate_images 生成全新图片（长文封面与配图、小绿书 3:4 竖版卡片），严禁复用旧图或跳过生图。',
     '   - 校验：调用 gzh_validate_html 进行合规校验，发现问题修复后复检。',
-    '   - 草稿发布：调用 gzh_publish_draft 创建草稿（每个形态严格仅需调用 1 次，返回 media_id 或链接即代表完成）。',
+    '   - 草稿发布：调用 gzh_publish_draft 创建草稿（每个形态严格仅需调用 1 次，返回 media_id 或链接即代表完成）。若账号配置了 auto_enable_original=true，发布工具会自动通过浏览器模拟开启文字原创声明并保存草稿，无需额外操作。',
     '4. 纯工具流与结果汇总：严禁在会话回复中打印文章正文草稿、Markdown 文本、单行 HTML 或生图提示词全文，以避免泄露内容与浪费 Token。仅输出单行进度提示，全部账号执行完毕后输出包含选题/标题、草稿 media_id 或链接、执行状态的 Markdown 汇总表格。',
   )
 

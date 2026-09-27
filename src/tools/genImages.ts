@@ -32,10 +32,11 @@ interface ImageItemInput {
   prompt?: string
   description?: string
   text?: string
+  title?: string
 }
 
 export function genImagesTool(cfg: Config, ctx?: Context) {
-  return defineTool<{ items_json?: string | any[]; items?: any[]; account_id?: string }, GenReport>({
+  return defineTool<{ items_json?: string | any[]; items?: any[]; account_id?: string; titles?: string[] }, GenReport>({
     name: 'gzh_generate_images',
     description:
       'AI 生图：封面、正文信息图及小绿书卡片图。多线程并发生图加速，支持同接口备用模型与本地优雅降级保底。' +
@@ -58,12 +59,18 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         type: 'string',
         description: '公众号账号 ID；缺省使用默认账号，用于读取该账号的每日文章数',
       },
+      titles: {
+        type: 'array',
+        description: '可选：每篇文章标题数组（用于封面图提示词自动注入标题文字渲染约束，确保封面与选题匹配）',
+        items: { type: 'string' },
+      },
     },
     output: { schema: { type: 'json' }, render: renderJson },
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const count = account.profile.content.articles_per_day
       const newspicCount = account.profile.content.newspic_articles_per_day || 1
+      const titles = Array.isArray(args.titles) ? args.titles.map(String) : []
       let inputs: ImageItemInput[] = []
       const raw = args.items ?? args.items_json
       if (!raw) {
@@ -105,12 +112,19 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         }
         const isCover = rawKind === 'cover' || (!it.sub && rawKind !== 'content')
         if (isCover) {
-          // 知乎封面统一 16:9（机器强制）；公众号按设置的头条/次条比例（优先账号内容规则）
+          if (prompt.length < 10) {
+            throw new Error('封面图提示词过短（至少 10 字），请紧扣标题核心关键词描述画面主题与标题文字排版要求')
+          }
+          const titleForIndex = titles[index - 1]
+          let enhancedPrompt = prompt
+          if (titleForIndex) {
+            enhancedPrompt = prompt + '；封面需体现标题「' + titleForIndex + '」的主题意象，并在画面中心区域自然排版标题关键词文字'
+          }
           const ratio = account.profile.platform === 'zhihu'
             ? ZHIHU_COVER_RATIO
             : resolveCoverRatio(cfg, index, account.profile)
           return {
-            kind: 'cover', index, prompt,
+            kind: 'cover', index, prompt: enhancedPrompt,
             out: 'cover_' + index + '.png', size: [...COVER_SIZES[ratio]] as [number, number],
           }
         }
