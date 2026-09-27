@@ -1,4 +1,4 @@
-﻿// 微信公众号后台浏览器自动化适配器：基于 puppeteer-core + 本机 Chrome/Edge。
+// 微信公众号后台浏览器自动化适配器：基于 puppeteer-core + 本机 Chrome/Edge。
 // 用于在公众号草稿创建成功后，模拟登录公众号后台，进入该草稿编辑页，
 // 自动执行用户脚本：逐篇开启文字原创、填入作者、勾选协议并保存草稿。
 import fs from 'node:fs'
@@ -10,7 +10,7 @@ import type { Config } from './config.ts'
 import { resolveAccount } from './config-runtime.ts'
 import { accountScriptsDir, wechatProfileDir } from './sync.ts'
 import { renderJson, RESULT_FILE } from './tools/shared.ts'
-import { findBrowserExecutable } from './zhihu.ts'
+import { findBrowserExecutable, cleanStaleChromeLocks } from './zhihu.ts'
 import { getCachedLoginState, setCachedLoginState, isLoginInFlight, setLoginInFlight } from './login-state.ts'
 
 export const WECHAT_LOGIN_ROUTE = '/api/gzh-publisher/wechat-login'
@@ -142,14 +142,25 @@ async function debugScreenshot(page: Page, dir: string, label: string): Promise<
 export async function launchWechatBrowser(cfg: Config, accountId: string, headless: boolean): Promise<Browser> {
   const profileDir = wechatProfileDir(cfg, accountId)
   fs.mkdirSync(profileDir, { recursive: true })
+  cleanStaleChromeLocks(profileDir)
+  const args = [
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-blink-features=AutomationControlled',
+  ]
+  if (!headless) {
+    args.push('--start-maximized')
+  } else {
+    args.push('--window-size=1440,900')
+  }
   try {
     return await puppeteer.launch({
       executablePath: findBrowserExecutable(cfg),
       headless,
       userDataDir: profileDir,
-      defaultViewport: { width: 1440, height: 900 },
-      protocolTimeout: 180000,
-      args: ['--window-size=1440,900', '--disable-blink-features=AutomationControlled'],
+      defaultViewport: headless ? { width: 1440, height: 900 } : null,
+      protocolTimeout: 240000,
+      args,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -166,16 +177,18 @@ export async function wechatCheckLogin(cfg: Config, accountId: string): Promise<
   if (cached !== null) return cached
   const browser = await launchWechatBrowser(cfg, accountId, true)
   try {
-    const page = await browser.newPage()
+    const pages = await browser.pages()
+    const page = pages.length > 0 ? pages[0] : await browser.newPage()
     await page.goto(MP_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => undefined)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+    await new Promise((resolve) => setTimeout(resolve, 2500))
     const currentUrl = page.url()
     if (currentUrl.includes('token=')) {
       setCachedLoginState('gzh', accountId, true)
       return true
     }
     const cookies = await page.cookies(MP_LOGIN_URL)
-    const loggedIn = cookies.some((c) => (c.name === 'data_ticket' || c.name === 'slave_user' || c.name === 'slave_sid') && Boolean(c.value))
+    const hasTicket = cookies.some((c) => (c.name === 'data_ticket' || c.name === 'slave_user') && Boolean(c.value))
+    const loggedIn = hasTicket && !currentUrl.includes('/cgi-bin/loginpage') && currentUrl.includes('cgi-bin')
     setCachedLoginState('gzh', accountId, loggedIn)
     return loggedIn
   } finally {
@@ -187,27 +200,93 @@ export async function wechatCheckLogin(cfg: Config, accountId: string): Promise<
 export async function wechatLogin(cfg: Config, accountId: string, timeoutMs = 240000): Promise<boolean> {
   const browser = await launchWechatBrowser(cfg, accountId, false)
   try {
-    const page = await browser.newPage()
+    const pages = await browser.pages()
+    const page = pages.length > 0 ? pages[0] : await browser.newPage()
+    await page.bringToFront().catch(() => undefined)
     await page.goto(MP_LOGIN_URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    
+    // 给页面 3 秒让其在已有登录态时自动重定向
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    if (page.url().includes('token=')) {
+      setCachedLoginState('gzh', accountId, true)
+      return true
+    }
+
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
+      if (!browser.connected || page.isClosed()) {
+        return false
+      }
       const currentUrl = page.url()
       if (currentUrl.includes('token=')) {
+        // 扫码成功并已重定向至后台首页，等待 3s 确保 cookie 完整持久化
+        await new Promise((resolve) => setTimeout(resolve, 3000))
         setCachedLoginState('gzh', accountId, true)
         return true
       }
-      const cookies = await page.cookies(MP_LOGIN_URL)
-      const hasSession = cookies.some((c) => (c.name === 'data_ticket' || c.name === 'slave_user' || c.name === 'slave_sid') && Boolean(c.value))
-      if (hasSession && !currentUrl.includes('/cgi-bin/loginpage')) {
-        setCachedLoginState('gzh', accountId, true)
-        return true
-      }
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 1500))
     }
     setCachedLoginState('gzh', accountId, false)
     return false
   } finally {
     await browser.close().catch(() => undefined)
+  }
+}
+
+import { handleCors, sendJson, readBodyText } from './http-helpers.ts'
+
+export async function handleWechatLoginRoute(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  getConfig: () => Config,
+): Promise<void> {
+  if (handleCors(req, res)) return
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { error: '不支持的请求方法' })
+    return
+  }
+  let body: { account_id?: string; action?: string; force?: boolean } = {}
+  try {
+    const text = await readBodyText(req)
+    body = JSON.parse(text || '{}')
+  } catch {
+    sendJson(res, 400, { error: '请求体不是合法 JSON' })
+    return
+  }
+  const accountId = String(body.account_id ?? '').trim()
+  const action = body.action === 'check' ? 'check' : 'login'
+  const force = Boolean(body.force)
+  const cfg = getConfig()
+  try {
+    fs.mkdirSync(wechatProfileDir(cfg, accountId), { recursive: true })
+  } catch {}
+  if (action === 'check') {
+    try {
+      const logged = await wechatCheckLogin(cfg, accountId)
+      sendJson(res, 200, { ok: true, action, logged_in: logged })
+    } catch (error) {
+      sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (isLoginInFlight('gzh', accountId)) {
+    if (force) {
+      setLoginInFlight('gzh', accountId, false)
+    } else {
+      sendJson(res, 409, { error: '账号 ' + accountId + ' 的公众号登录流程正在进行中' })
+      return
+    }
+  }
+  setLoginInFlight('gzh', accountId, true)
+  try {
+    const logged = await wechatLogin(cfg, accountId)
+    sendJson(res, 200, logged
+      ? { ok: true, action, logged_in: true }
+      : { ok: false, action, error: '登录未完成或登录窗口已关闭，请重新点击扫码登录' })
+  } catch (error) {
+    sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
+  } finally {
+    setLoginInFlight('gzh', accountId, false)
   }
 }
 
@@ -218,61 +297,7 @@ export function registerWechatRoutes(ctx: Context, getConfig: () => Config): voi
     webCtx.effect(() => webCtx.webServer!.register({
       kind: 'exact',
       path: WECHAT_LOGIN_ROUTE,
-      handler: async (req, res) => {
-        if (req.method !== 'POST') {
-          res.writeHead(405, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ error: '不支持的请求方法' }))
-          return
-        }
-        const chunks: Buffer[] = []
-        for await (const chunk of req) chunks.push(chunk as Buffer)
-        let body: { account_id?: string; action?: string } = {}
-        try {
-          body = JSON.parse(Buffer.concat(chunks).toString('utf-8') || '{}')
-        } catch {
-          res.writeHead(400, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ error: '请求体不是合法 JSON' }))
-          return
-        }
-        const accountId = String(body.account_id ?? '').trim()
-        const action = body.action === 'check' ? 'check' : 'login'
-        const cfg = getConfig()
-        const account = cfg.accounts[accountId]
-        if (!account) {
-          res.writeHead(400, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ error: '账号不存在: ' + accountId }))
-          return
-        }
-        if (action === 'check') {
-          try {
-            const logged = await wechatCheckLogin(cfg, accountId)
-            res.writeHead(200, { 'content-type': 'application/json' })
-            res.end(JSON.stringify({ ok: true, action, logged_in: logged }))
-          } catch (error) {
-            res.writeHead(200, { 'content-type': 'application/json' })
-            res.end(JSON.stringify({ ok: false, action, error: error instanceof Error ? error.message : String(error) }))
-          }
-          return
-        }
-        if (isLoginInFlight('gzh', accountId)) {
-          res.writeHead(409, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ error: '账号 ' + accountId + ' 的公众号登录流程正在进行中' }))
-          return
-        }
-        setLoginInFlight('gzh', accountId, true)
-        try {
-          const logged = await wechatLogin(cfg, accountId)
-          res.writeHead(200, { 'content-type': 'application/json' })
-          res.end(JSON.stringify(logged
-            ? { ok: true, action, logged_in: true }
-            : { ok: false, action, error: '登录超时（4 分钟内未检测到扫码成功），请重试' }))
-        } catch (error) {
-          res.writeHead(200, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, action, error: error instanceof Error ? error.message : String(error) }))
-        } finally {
-          setLoginInFlight('gzh', accountId, false)
-        }
-      },
+      handler: (req, res) => handleWechatLoginRoute(req, res, getConfig),
     }), 'gzh-publisher: wechat login route')
   })
 }

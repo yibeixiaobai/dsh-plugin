@@ -21,6 +21,7 @@ import { publishTool } from './tools/publish.ts'
 import { styleGuideTool } from './tools/styleGuide.ts'
 import { validateHtmlTool } from './tools/validateHtml.ts'
 import { verifyTool } from './tools/verify.ts'
+import { startEmbeddedServer } from './embedded-server.ts'
 
 export const name = PLUGIN_NAME
 export const inject = ['tools', 'commands']
@@ -74,18 +75,33 @@ export function apply(ctx: Context, config: ConfigT) {
   let source = () => liveConfig
   let settingsService: any = null
 
+  const onConfigImportedHandler = async (newConfig: ConfigT, allowDelete = true) => {
+    applyNormalizedConfig(liveConfig, newConfig, allowDelete)
+    ensureWorkspace(liveConfig)
+    syncConfig(liveConfig)
+    compositionEntry.accounts = cloneConfig(liveConfig.accounts)
+    compositionEntry.image_providers = cloneConfig(liveConfig.image_providers)
+    if (settingsService && typeof settingsService.update === 'function') {
+      await updateSettingsWithRetry(settingsService, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '配置保存/导入同步更新至 settings')
+    }
+  }
+
   registerConfigRoutes(ctx, {
     getConfig: () => liveConfig,
-    async onConfigImported(newConfig, allowDelete = true) {
-      applyNormalizedConfig(liveConfig, newConfig, allowDelete)
-      ensureWorkspace(liveConfig)
-      syncConfig(liveConfig)
-      compositionEntry.accounts = cloneConfig(liveConfig.accounts)
-      compositionEntry.image_providers = cloneConfig(liveConfig.image_providers)
-      if (settingsService && typeof settingsService.update === 'function') {
-        await updateSettingsWithRetry(settingsService, SETTINGS_NAMESPACE, liveConfig, ctx.logger, '配置保存/导入同步更新至 settings')
-      }
-    },
+    onConfigImported: onConfigImportedHandler,
+  })
+
+  // 启动保底独立直通 HTTP API 服务（默认端口 3088~3095），解决桌面端或无 webServer 场景下扫码登录和保存受阻的问题
+  startEmbeddedServer({
+    ctx,
+    getConfig: () => liveConfig,
+    onConfigImported: onConfigImportedHandler,
+  }).then((embedded) => {
+    ctx.effect(() => () => {
+      embedded.close()
+    })
+  }).catch((err) => {
+    ctx.logger?.warn?.('[social-publisher] 启动独立直通 API 服务异常:', err)
   })
 
   ctx.inject(['settings'], (settingsCtx) => {

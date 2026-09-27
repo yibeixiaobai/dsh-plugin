@@ -62,9 +62,32 @@ const BROWSER_CANDIDATES = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
   process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe') : '',
+  process.env.PROGRAMFILES ? path.join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe') : '',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+  process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'Application', 'msedge.exe') : '',
+  process.env.PROGRAMFILES ? path.join(process.env.PROGRAMFILES, 'Microsoft', 'Edge', 'Application', 'msedge.exe') : '',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/microsoft-edge',
 ]
+
+/** 清理可能残留的 Chrome 锁文件（避免此前崩溃导致无法启动新窗口） */
+export function cleanStaleChromeLocks(userDataDir: string): void {
+  try {
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'lockfile']
+    for (const f of lockFiles) {
+      const p = path.join(userDataDir, f)
+      if (fs.existsSync(p)) {
+        try {
+          fs.unlinkSync(p)
+        } catch {}
+      }
+    }
+  } catch {}
+}
 
 export function findBrowserExecutable(cfg: Config): string {
   const configured = String(cfg.runtime.chrome_path ?? '').trim()
@@ -81,14 +104,25 @@ export function findBrowserExecutable(cfg: Config): string {
 async function launchZhihuBrowser(cfg: Config, accountId: string, headless: boolean): Promise<Browser> {
   const profileDir = zhihuProfileDir(cfg, accountId)
   fs.mkdirSync(profileDir, { recursive: true })
+  cleanStaleChromeLocks(profileDir)
+  const args = [
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-blink-features=AutomationControlled',
+  ]
+  if (!headless) {
+    args.push('--start-maximized')
+  } else {
+    args.push('--window-size=1440,900')
+  }
   try {
     return await puppeteer.launch({
       executablePath: findBrowserExecutable(cfg),
       headless,
       userDataDir: profileDir,
-      defaultViewport: { width: 1440, height: 900 },
-      protocolTimeout: 180000,
-      args: ['--window-size=1440,900', '--disable-blink-features=AutomationControlled'],
+      defaultViewport: headless ? { width: 1440, height: 900 } : null,
+      protocolTimeout: 240000,
+      args,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -465,9 +499,13 @@ export async function zhihuCheckLogin(cfg: Config, accountId: string): Promise<b
   if (cached !== null) return cached
   const browser = await launchZhihuBrowser(cfg, accountId, true)
   try {
-    const page = await browser.newPage()
-    await page.goto('https://www.zhihu.com', { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => undefined)
-    const loggedIn = await isLoggedIn(page)
+    const pages = await browser.pages()
+    const page = pages.length > 0 ? pages[0] : await browser.newPage()
+    await page.goto('https://www.zhihu.com', { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    const currentUrl = page.url()
+    const notOnLogin = !currentUrl.includes('/signin') && !currentUrl.includes('/signup')
+    const loggedIn = notOnLogin && (await isLoggedIn(page))
     setCachedLoginState('zhihu', accountId, loggedIn)
     return loggedIn
   } finally {
@@ -475,19 +513,36 @@ export async function zhihuCheckLogin(cfg: Config, accountId: string): Promise<b
   }
 }
 
-/** 扫码登录（有头浏览器，轮询 z_c0 cookie；由设置界面的登录按钮调用） */
+/** 扫码登录（有头浏览器，等待扫码并检测登录完成；由设置界面的登录按钮调用） */
 export async function zhihuLogin(cfg: Config, accountId: string, timeoutMs = 240000): Promise<boolean> {
   const browser = await launchZhihuBrowser(cfg, accountId, false)
   try {
-    const page = await browser.newPage()
+    const pages = await browser.pages()
+    const page = pages.length > 0 ? pages[0] : await browser.newPage()
+    await page.bringToFront().catch(() => undefined)
     await page.goto('https://www.zhihu.com/signin?next=%2Fwrite', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    
+    // 给页面 3 秒让其在已有登录态时完成自动重定向
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    const initialUrl = page.url()
+    if (!initialUrl.includes('/signin') && !initialUrl.includes('/signup') && (await isLoggedIn(page))) {
+      setCachedLoginState('zhihu', accountId, true)
+      return true
+    }
+
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
-      if (await isLoggedIn(page)) {
+      if (!browser.connected || page.isClosed()) {
+        return false
+      }
+      const currentUrl = page.url()
+      const stillOnLogin = currentUrl.includes('/signin') || currentUrl.includes('/signup')
+      if (!stillOnLogin && (await isLoggedIn(page))) {
+        await new Promise((resolve) => setTimeout(resolve, 3000))
         setCachedLoginState('zhihu', accountId, true)
         return true
       }
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 1500))
     }
     setCachedLoginState('zhihu', accountId, false)
     return false
@@ -557,14 +612,61 @@ export async function zhihuVerifyDrafts(
 
 // ---------- 设置界面 HTTP 路由 ----------
 
-function sendJson(res: import('node:http').ServerResponse, status: number, value: unknown): void {
-  const body = JSON.stringify(value)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  res.end(body)
+import { handleCors, sendJson, readBodyText } from './http-helpers.ts'
+
+export async function handleZhihuLoginRoute(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  getConfig: () => Config,
+): Promise<void> {
+  if (handleCors(req, res)) return
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { error: '不支持的请求方法' })
+    return
+  }
+  let body: { account_id?: string; action?: string; force?: boolean } = {}
+  try {
+    const text = await readBodyText(req)
+    body = JSON.parse(text || '{}')
+  } catch {
+    sendJson(res, 400, { error: '请求体不是合法 JSON' })
+    return
+  }
+  const accountId = String(body.account_id ?? '').trim()
+  const action = body.action === 'check' ? 'check' : 'login'
+  const force = Boolean(body.force)
+  const cfg = getConfig()
+  try {
+    fs.mkdirSync(zhihuProfileDir(cfg, accountId), { recursive: true })
+  } catch {}
+  if (action === 'check') {
+    try {
+      const logged = await zhihuCheckLogin(cfg, accountId)
+      sendJson(res, 200, { ok: true, action, logged_in: logged })
+    } catch (error) {
+      sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (isLoginInFlight('zhihu', accountId)) {
+    if (force) {
+      setLoginInFlight('zhihu', accountId, false)
+    } else {
+      sendJson(res, 409, { error: '账号 ' + accountId + ' 的知乎登录流程正在进行中' })
+      return
+    }
+  }
+  setLoginInFlight('zhihu', accountId, true)
+  try {
+    const logged = await zhihuLogin(cfg, accountId)
+    sendJson(res, 200, logged
+      ? { ok: true, action, logged_in: true }
+      : { ok: false, action, error: '登录未完成或登录窗口已关闭，请重新点击扫码登录' })
+  } catch (error) {
+    sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
+  } finally {
+    setLoginInFlight('zhihu', accountId, false)
+  }
 }
 
 /** 设置界面：知乎登录态检查 / 扫码登录（长时间等待，前端用 spinner 呈现） */
@@ -574,58 +676,7 @@ export function registerZhihuRoutes(ctx: Context, getConfig: () => Config): void
     webCtx.effect(() => webCtx.webServer!.register({
       kind: 'exact',
       path: ZHIHU_LOGIN_ROUTE,
-      handler: async (req, res) => {
-        if (req.method !== 'POST') {
-          sendJson(res, 405, { error: '不支持的请求方法' })
-          return
-        }
-        const chunks: Buffer[] = []
-        for await (const chunk of req) chunks.push(chunk as Buffer)
-        let body: { account_id?: string; action?: string } = {}
-        try {
-          body = JSON.parse(Buffer.concat(chunks).toString('utf-8') || '{}')
-        } catch {
-          sendJson(res, 400, { error: '请求体不是合法 JSON' })
-          return
-        }
-        const accountId = String(body.account_id ?? '').trim()
-        const action = body.action === 'check' ? 'check' : 'login'
-        const cfg = getConfig()
-        try {
-          const account = resolveAccountSafe(cfg, accountId)
-          if (account.profile.platform !== 'zhihu') {
-            sendJson(res, 400, { error: '账号 ' + accountId + ' 不是知乎平台（platform=zhihu 才支持扫码登录）' })
-            return
-          }
-        } catch (error) {
-          sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
-          return
-        }
-        if (action === 'check') {
-          try {
-            const logged = await zhihuCheckLogin(cfg, accountId)
-            sendJson(res, 200, { ok: true, action, logged_in: logged })
-          } catch (error) {
-            sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
-          }
-          return
-        }
-        if (isLoginInFlight('zhihu', accountId)) {
-          sendJson(res, 409, { error: '账号 ' + accountId + ' 的知乎登录流程正在进行中' })
-          return
-        }
-        setLoginInFlight('zhihu', accountId, true)
-        try {
-          const logged = await zhihuLogin(cfg, accountId)
-          sendJson(res, 200, logged
-            ? { ok: true, action, logged_in: true }
-            : { ok: false, action, error: '登录超时（4 分钟内未检测到登录成功），请重试' })
-        } catch (error) {
-          sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
-        } finally {
-          setLoginInFlight('zhihu', accountId, false)
-        }
-      },
+      handler: (req, res) => handleZhihuLoginRoute(req, res, getConfig),
     }), 'gzh-publisher: zhihu login route')
   })
 }

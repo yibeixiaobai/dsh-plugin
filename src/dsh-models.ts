@@ -17,27 +17,10 @@ export interface DshImageModelCandidate {
 const IMAGE_MODEL_KEYWORD_RE =
   /(image|dall-?e|flux|sd|stable-diffusion|midjourney|recraft|cogview|kolors|janus|imagen|wanx|visual)/i
 
-function sameOrigin(req: IncomingMessage): boolean {
-  const origin = req.headers.origin
-  if (origin) {
-    try {
-      if (new URL(origin).host !== req.headers.host) return false
-    } catch {
-      return false
-    }
-  }
-  const site = String(req.headers['sec-fetch-site'] ?? '')
-  return site === '' || site === 'same-origin' || site === 'none'
-}
+import { handleCors, sendJson, isAllowedOrigin } from './http-helpers.ts'
 
-function sendJson(res: ServerResponse, status: number, value: unknown): void {
-  const body = JSON.stringify(value)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  res.end(body)
+function sameOrigin(req: IncomingMessage): boolean {
+  return isAllowedOrigin(req.headers.origin, req.headers.host)
 }
 
 /**
@@ -181,28 +164,38 @@ export async function discoverDshImageModels(ctx: Context): Promise<DshImageMode
 /**
  * 注册主 dsh 模型发现 API 路由：/api/gzh-publisher/dsh-image-models
  */
+export async function handleDshModelsRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  ctx: Context,
+): Promise<void> {
+  if (handleCors(req, res)) return
+  if (!sameOrigin(req)) {
+    sendJson(res, 403, { error: '仅允许同源或本地请求' })
+    return
+  }
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { error: '仅支持 GET 请求' })
+    return
+  }
+  try {
+    const models = await discoverDshImageModels(ctx)
+    sendJson(res, 200, { ok: true, models })
+  } catch (error) {
+    sendJson(res, 500, { ok: false, error: String(error) })
+  }
+}
+
+/**
+ * 注册主 dsh 模型发现 API 路由：/api/gzh-publisher/dsh-image-models
+ */
 export function registerDshModelRoutes(ctx: Context): void {
   ctx.inject(['webServer'], (serverCtx) => {
     if (!serverCtx.webServer) return
     serverCtx.webServer.register({
       kind: 'exact',
       path: '/api/gzh-publisher/dsh-image-models',
-      async handler(req, res) {
-        if (!sameOrigin(req)) {
-          sendJson(res, 403, { error: '仅允许同源请求' })
-          return
-        }
-        if (req.method !== 'GET') {
-          sendJson(res, 405, { error: '仅支持 GET 请求' })
-          return
-        }
-        try {
-          const models = await discoverDshImageModels(ctx)
-          sendJson(res, 200, { ok: true, models })
-        } catch (error) {
-          sendJson(res, 500, { ok: false, error: String(error) })
-        }
-      },
+      handler: (req, res) => handleDshModelsRoute(req, res, ctx),
     })
   })
 }

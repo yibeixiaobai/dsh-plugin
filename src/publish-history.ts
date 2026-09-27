@@ -43,27 +43,10 @@ export interface PublishHistoryResponse {
   records: PublishBatchRecord[]
 }
 
-function sendJson(res: ServerResponse, status: number, value: unknown): void {
-  const body = JSON.stringify(value)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  res.end(body)
-}
+import { handleCors, sendJson, isAllowedOrigin } from './http-helpers.ts'
 
 function sameOrigin(req: IncomingMessage): boolean {
-  const origin = req.headers.origin
-  if (origin) {
-    try {
-      if (new URL(origin).host !== req.headers.host) return false
-    } catch {
-      return false
-    }
-  }
-  const site = String(req.headers['sec-fetch-site'] ?? '')
-  return site === '' || site === 'same-origin' || site === 'none'
+  return isAllowedOrigin(req.headers.origin, req.headers.host)
 }
 
 function parseHistoryFile(filePath: string): PublishBatchRecord[] {
@@ -225,6 +208,30 @@ export function getPublishHistory(cfg: Config, targetAccountId?: string): Publis
   }
 }
 
+export function handlePublishHistoryRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  getConfig: () => Config,
+): void {
+  if (handleCors(req, res)) return
+  if (!sameOrigin(req)) {
+    sendJson(res, 403, { error: '仅允许同源或本地请求' })
+    return
+  }
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { error: '不支持的请求方法' })
+    return
+  }
+  try {
+    const url = new URL(req.url ?? PUBLISH_HISTORY_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
+    const accountId = url.searchParams.get('account') ?? undefined
+    const result = getPublishHistory(getConfig(), accountId)
+    sendJson(res, 200, result)
+  } catch (error) {
+    sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
+  }
+}
+
 /** 注册发表记录 HTTP 路由 */
 export function registerPublishHistoryRoutes(ctx: Context, getConfig: () => Config): void {
   ctx.inject(['webServer'], (webCtx) => {
@@ -232,24 +239,7 @@ export function registerPublishHistoryRoutes(ctx: Context, getConfig: () => Conf
     webCtx.effect(() => webCtx.webServer!.register({
       kind: 'exact',
       path: PUBLISH_HISTORY_ROUTE,
-      handler: (req, res) => {
-        if (!sameOrigin(req)) {
-          sendJson(res, 403, { error: '仅允许同源请求' })
-          return
-        }
-        if (req.method !== 'GET') {
-          sendJson(res, 405, { error: '不支持的请求方法' })
-          return
-        }
-        try {
-          const url = new URL(req.url ?? PUBLISH_HISTORY_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
-          const accountId = url.searchParams.get('account') ?? undefined
-          const result = getPublishHistory(getConfig(), accountId)
-          sendJson(res, 200, result)
-        } catch (error) {
-          sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
-        }
-      },
+      handler: (req, res) => handlePublishHistoryRoute(req, res, getConfig),
     }), 'gzh-publisher: publish history route')
   })
 }

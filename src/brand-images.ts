@@ -11,27 +11,10 @@ export const BRAND_IMAGE_ROUTE = '/api/gzh-publisher/brand-image'
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 const UPLOAD_HEADER = 'x-dsh-gzh-upload'
 
-function sendJson(res: ServerResponse, status: number, value: unknown): void {
-  const body = JSON.stringify(value)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  res.end(body)
-}
+import { handleCors, sendJson, isAllowedOrigin } from './http-helpers.ts'
 
 function sameOrigin(req: IncomingMessage): boolean {
-  const origin = req.headers.origin
-  if (origin) {
-    try {
-      if (new URL(origin).host !== req.headers.host) return false
-    } catch {
-      return false
-    }
-  }
-  const site = String(req.headers['sec-fetch-site'] ?? '')
-  return site === '' || site === 'same-origin' || site === 'none'
+  return isAllowedOrigin(req.headers.origin, req.headers.host)
 }
 
 function sniffImage(data: Buffer): { ext: 'jpg' | 'png' | 'webp'; mediaType: string } | null {
@@ -96,16 +79,22 @@ function isReferenced(config: Config, relative: string): boolean {
   )
 }
 
-async function handle(req: IncomingMessage, res: ServerResponse, config: Config, url: URL): Promise<void> {
+export async function handleBrandImageRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  config: Config,
+  url?: URL,
+): Promise<void> {
+  if (handleCors(req, res)) return
   if (!sameOrigin(req)) {
-    sendJson(res, 403, { error: '仅允许同源请求' })
+    sendJson(res, 403, { error: '仅允许同源或本地请求' })
     return
   }
-
-  const accountId = url.searchParams.get('account') ?? undefined
+  const targetUrl = url || new URL(req.url ?? BRAND_IMAGE_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
+  const accountId = targetUrl.searchParams.get('account') ?? undefined
   const base = path.resolve(brandDir(config))
   if (req.method === 'GET') {
-    const slot = url.searchParams.get('slot')
+    const slot = targetUrl.searchParams.get('slot')
     if (slot !== 'header' && slot !== 'footer') {
       sendJson(res, 400, { error: 'slot 必须是 header 或 footer' })
       return
@@ -124,6 +113,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
       'content-type': mediaType,
       'content-length': stat.size,
       'cache-control': 'no-store',
+      'access-control-allow-origin': '*',
     })
     fs.createReadStream(file).pipe(res)
     return
@@ -135,7 +125,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
   }
 
   if (req.method === 'POST') {
-    const slot = url.searchParams.get('slot')
+    const slot = targetUrl.searchParams.get('slot')
     if (slot !== 'header' && slot !== 'footer') {
       sendJson(res, 400, { error: 'slot 必须是 header 或 footer' })
       return
@@ -170,7 +160,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
   }
 
   if (req.method === 'DELETE') {
-    const relative = url.searchParams.get('file') ?? ''
+    const relative = targetUrl.searchParams.get('file') ?? ''
     if (!relative.replace(/\\/g, '/').startsWith('uploads/')) {
       sendJson(res, 400, { error: '只能删除 brand_assets/uploads 内的上传文件' })
       return
@@ -199,10 +189,7 @@ export function registerBrandImageRoutes(ctx: Context, getConfig: () => Config):
     webCtx.effect(() => webCtx.webServer!.register({
       kind: 'exact',
       path: BRAND_IMAGE_ROUTE,
-      handler: (req, res) => {
-        const url = new URL(req.url ?? BRAND_IMAGE_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
-        return handle(req, res, getConfig(), url)
-      },
+      handler: (req, res) => handleBrandImageRoute(req, res, getConfig()),
     }), 'gzh-publisher: brand image route')
   })
 }

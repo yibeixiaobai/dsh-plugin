@@ -9,7 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Config } from './config.ts'
 import { accountScriptsDir, xhsProfileDir } from './sync.ts'
 import { getCachedLoginState, setCachedLoginState, isLoginInFlight, setLoginInFlight } from './login-state.ts'
-import { findBrowserExecutable } from './zhihu.ts'
+import { findBrowserExecutable, cleanStaleChromeLocks } from './zhihu.ts'
 
 const CREATOR_URL = 'https://creator.xiaohongshu.com'
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish'
@@ -54,14 +54,25 @@ export interface XhsVerifyNote {
 async function launchXhsBrowser(cfg: Config, accountId: string, headless: boolean): Promise<Browser> {
   const profileDir = xhsProfileDir(cfg, accountId)
   fs.mkdirSync(profileDir, { recursive: true })
+  cleanStaleChromeLocks(profileDir)
+  const args = [
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-blink-features=AutomationControlled',
+  ]
+  if (!headless) {
+    args.push('--start-maximized')
+  } else {
+    args.push('--window-size=1440,900')
+  }
   try {
     return await puppeteer.launch({
       executablePath: findBrowserExecutable(cfg),
       headless,
       userDataDir: profileDir,
-      defaultViewport: { width: 1440, height: 900 },
-      protocolTimeout: 180000,
-      args: ['--window-size=1440,900', '--disable-blink-features=AutomationControlled'],
+      defaultViewport: headless ? { width: 1440, height: 900 } : null,
+      protocolTimeout: 240000,
+      args,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
@@ -283,11 +294,15 @@ export async function xhsCheckLogin(cfg: Config, accountId: string): Promise<boo
   if (cached !== null) return cached
   const browser = await launchXhsBrowser(cfg, accountId, true)
   try {
-    const page = await browser.newPage()
-    await page.goto(CREATOR_URL, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => undefined)
-    const loggedIn = await isLoggedIn(page)
-    setCachedLoginState('xiaohongshu', accountId, loggedIn)
-    return loggedIn
+    const pages = await browser.pages()
+    const page = pages.length > 0 ? pages[0] : await browser.newPage()
+    await page.goto(CREATOR_URL, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 2500))
+    const currentUrl = page.url()
+    const notOnLogin = !currentUrl.includes('/login')
+    const logged = notOnLogin && (await isLoggedIn(page))
+    setCachedLoginState('xiaohongshu', accountId, logged)
+    return logged
   } finally {
     await browser.close().catch(() => undefined)
   }
@@ -296,15 +311,31 @@ export async function xhsCheckLogin(cfg: Config, accountId: string): Promise<boo
 export async function xhsLogin(cfg: Config, accountId: string, timeoutMs = 240000): Promise<boolean> {
   const browser = await launchXhsBrowser(cfg, accountId, false)
   try {
-    const page = await browser.newPage()
+    const pages = await browser.pages()
+    const page = pages.length > 0 ? pages[0] : await browser.newPage()
+    await page.bringToFront().catch(() => undefined)
     await page.goto(CREATOR_URL + '/login', { waitUntil: 'domcontentloaded', timeout: 60000 })
+    
+    // 给页面 3 秒让其在已有登录态时自动重定向
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    const initialUrl = page.url()
+    if (!initialUrl.includes('/login') && (await isLoggedIn(page))) {
+      setCachedLoginState('xiaohongshu', accountId, true)
+      return true
+    }
+
     const deadline = Date.now() + timeoutMs
     while (Date.now() < deadline) {
-      if (await isLoggedIn(page)) {
+      if (!browser.connected || page.isClosed()) {
+        return false
+      }
+      const currentUrl = page.url()
+      if (!currentUrl.includes('/login') && (await isLoggedIn(page))) {
+        await new Promise((resolve) => setTimeout(resolve, 3000))
         setCachedLoginState('xiaohongshu', accountId, true)
         return true
       }
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 1500))
     }
     setCachedLoginState('xiaohongshu', accountId, false)
     return false
@@ -367,14 +398,61 @@ export async function xhsVerifyNotes(
   }
 }
 
-function sendJson(res: import('node:http').ServerResponse, status: number, value: unknown): void {
-  const body = JSON.stringify(value)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  res.end(body)
+import { handleCors, sendJson, readBodyText } from './http-helpers.ts'
+
+export async function handleXhsLoginRoute(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  getConfig: () => Config,
+): Promise<void> {
+  if (handleCors(req, res)) return
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { error: '不支持的请求方法' })
+    return
+  }
+  let body: { account_id?: string; action?: string; force?: boolean } = {}
+  try {
+    const text = await readBodyText(req)
+    body = JSON.parse(text || '{}')
+  } catch {
+    sendJson(res, 400, { error: '请求体不是合法 JSON' })
+    return
+  }
+  const accountId = String(body.account_id ?? '').trim()
+  const action = body.action === 'check' ? 'check' : 'login'
+  const force = Boolean(body.force)
+  const cfg = getConfig()
+  try {
+    fs.mkdirSync(xhsProfileDir(cfg, accountId), { recursive: true })
+  } catch {}
+  if (action === 'check') {
+    try {
+      const logged = await xhsCheckLogin(cfg, accountId)
+      sendJson(res, 200, { ok: true, action, logged_in: logged })
+    } catch (error) {
+      sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
+    }
+    return
+  }
+  if (isLoginInFlight('xiaohongshu', accountId)) {
+    if (force) {
+      setLoginInFlight('xiaohongshu', accountId, false)
+    } else {
+      sendJson(res, 409, { error: '账号 ' + accountId + ' 的小红书登录流程正在进行中' })
+      return
+    }
+  }
+  setLoginInFlight('xiaohongshu', accountId, true)
+  try {
+    const logged = await xhsLogin(cfg, accountId)
+    sendJson(res, 200, logged
+      ? { ok: true, action, logged_in: true }
+      : { ok: false, action, error: '登录未完成或登录窗口已关闭，请重新点击扫码登录' })
+  } catch (error) {
+    sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
+  } finally {
+    setLoginInFlight('xiaohongshu', accountId, false)
+  }
 }
 
 export function registerXhsRoutes(ctx: Context, getConfig: () => Config): void {
@@ -383,58 +461,7 @@ export function registerXhsRoutes(ctx: Context, getConfig: () => Config): void {
     webCtx.effect(() => webCtx.webServer!.register({
       kind: 'exact',
       path: XHS_LOGIN_ROUTE,
-      handler: async (req, res) => {
-        if (req.method !== 'POST') {
-          sendJson(res, 405, { error: '不支持的请求方法' })
-          return
-        }
-        const chunks: Buffer[] = []
-        for await (const chunk of req) chunks.push(chunk as Buffer)
-        let body: { account_id?: string; action?: string } = {}
-        try {
-          body = JSON.parse(Buffer.concat(chunks).toString('utf-8') || '{}')
-        } catch {
-          sendJson(res, 400, { error: '请求体不是合法 JSON' })
-          return
-        }
-        const accountId = String(body.account_id ?? '').trim()
-        const action = body.action === 'check' ? 'check' : 'login'
-        const cfg = getConfig()
-        try {
-          const account = resolveAccountSafe(cfg, accountId)
-          if (account.profile.platform !== 'xiaohongshu') {
-            sendJson(res, 400, { error: '账号 ' + accountId + ' 不是小红书平台（platform=xiaohongshu 才支持扫码登录）' })
-            return
-          }
-        } catch (error) {
-          sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
-          return
-        }
-        if (action === 'check') {
-          try {
-            const logged = await xhsCheckLogin(cfg, accountId)
-            sendJson(res, 200, { ok: true, action, logged_in: logged })
-          } catch (error) {
-            sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
-          }
-          return
-        }
-        if (isLoginInFlight('xiaohongshu', accountId)) {
-          sendJson(res, 409, { error: '账号 ' + accountId + ' 的小红书登录流程正在进行中' })
-          return
-        }
-        setLoginInFlight('xiaohongshu', accountId, true)
-        try {
-          const logged = await xhsLogin(cfg, accountId)
-          sendJson(res, 200, logged
-            ? { ok: true, action, logged_in: true }
-            : { ok: false, action, error: '登录超时（4 分钟内未检测到登录成功），请重试' })
-        } catch (error) {
-          sendJson(res, 200, { ok: false, action, error: error instanceof Error ? error.message : String(error) })
-        } finally {
-          setLoginInFlight('xiaohongshu', accountId, false)
-        }
-      },
+      handler: (req, res) => handleXhsLoginRoute(req, res, getConfig),
     }), 'gzh-publisher: xhs login route')
   })
 }

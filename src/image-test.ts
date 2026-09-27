@@ -12,27 +12,10 @@ const REQUEST_HEADER = 'x-dsh-gzh-test'
 const MAX_BODY_BYTES = 16 * 1024
 const DEFAULT_PROMPT = '生成一张简洁、专业的学术出版主题测试封面，红酒色与金色点缀，画面干净，无文字。'
 
-function sendJson(res: ServerResponse, status: number, value: unknown): void {
-  const body = JSON.stringify(value)
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'content-length': Buffer.byteLength(body),
-    'cache-control': 'no-store',
-  })
-  res.end(body)
-}
+import { handleCors, sendJson, isAllowedOrigin } from './http-helpers.ts'
 
 function sameOrigin(req: IncomingMessage): boolean {
-  const origin = req.headers.origin
-  if (origin) {
-    try {
-      if (new URL(origin).host !== req.headers.host) return false
-    } catch {
-      return false
-    }
-  }
-  const site = String(req.headers['sec-fetch-site'] ?? '')
-  return site === '' || site === 'same-origin' || site === 'none'
+  return isAllowedOrigin(req.headers.origin, req.headers.host)
 }
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
@@ -65,18 +48,25 @@ function safeTestFile(value: string): string {
   return normalized
 }
 
-async function handle(req: IncomingMessage, res: ServerResponse, config: Config, url: URL): Promise<void> {
+export async function handleImageTestRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+  config: Config,
+  url?: URL,
+): Promise<void> {
+  if (handleCors(req, res)) return
   if (!sameOrigin(req)) {
-    sendJson(res, 403, { error: '仅允许同源请求' })
+    sendJson(res, 403, { error: '仅允许同源或本地请求' })
     return
   }
 
+  const targetUrl = url || new URL(req.url ?? IMAGE_TEST_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
   const workspace = path.resolve(workspaceDir(config))
   const scripts = path.resolve(scriptsDir(config))
   const testDir = path.join(workspace, 'gzh_test_images')
   if (req.method === 'GET') {
     try {
-      const relative = safeTestFile(url.searchParams.get('file') ?? '')
+      const relative = safeTestFile(targetUrl.searchParams.get('file') ?? '')
       const file = path.resolve(workspace, relative)
       if (!file.startsWith(testDir + path.sep) || !fs.existsSync(file)) {
         sendJson(res, 404, { error: '测试图片不存在' })
@@ -87,6 +77,7 @@ async function handle(req: IncomingMessage, res: ServerResponse, config: Config,
         'content-type': 'image/png',
         'content-length': stat.size,
         'cache-control': 'no-store',
+        'access-control-allow-origin': '*',
       })
       fs.createReadStream(file).pipe(res)
     } catch (error) {
@@ -171,10 +162,7 @@ export function registerImageTestRoute(ctx: Context, getConfig: () => Config): v
     webCtx.effect(() => webCtx.webServer!.register({
       kind: 'exact',
       path: IMAGE_TEST_ROUTE,
-      handler: (req, res) => {
-        const url = new URL(req.url ?? IMAGE_TEST_ROUTE, `http://${req.headers.host ?? '127.0.0.1'}`)
-        return handle(req, res, getConfig(), url)
-      },
+      handler: (req, res) => handleImageTestRoute(req, res, getConfig()),
     }), 'gzh-publisher: image test route')
   })
 }
