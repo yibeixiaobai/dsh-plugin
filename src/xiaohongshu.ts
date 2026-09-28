@@ -364,13 +364,76 @@ async function uploadImages(page: Page, filePaths: string[], debugDir: string): 
   }
 }
 
+const XHS_DIVERSION_WORDS = [
+  '微信', '微信号', '加微', '加v', '加V', 'vx', 'VX', 'v信', '企鹅号', '扣扣',
+  '手机号', '联系电话', '电话咨询', '拨打电话', '电子邮箱',
+  '淘宝', '天猫', '京东', '拼多多', '咸鱼', '闲鱼', '公众号', '知乎', '抖音', '快手',
+  '私信领', '私信我', '私聊', '私发', '后台回复', '看主页简介', '主页联系', '二维码', '扫码',
+]
+
+const XHS_URL_RE = /(https?:\/\/\S+|www\.\S+|[a-zA-Z0-9-]+\.(?:cn|com|net|org|top|xyz|vip)\b)/i
+
+const XHS_PROHIBITED_WORDS = [
+  '代写', '代发', '代办', '包过', '保过', '100%包过', '稳过', '枪手', '买卖论文', '论文代写',
+]
+
+const XHS_EXTREME_WORDS = [
+  '全网第一', '全国第一', '国家级顶级', '顶级绝密', '极品', '史上最全', '秒杀一切', '100%搞定',
+]
+
 function precheckContent(job: XhsPublishJob, index: number, text: string): string[] {
   const problems: string[] = []
+  const title = job.titles[index - 1] || ''
+
+  // 1. 标题长度硬性约束（小红书强制 <= 20 字）
+  if (title.length > 20) {
+    problems.push('第' + index + '篇标题「' + title + '」共 ' + title.length + ' 字，超过小红书平台 20 字硬性上限')
+  }
+
+  // 2. 正文长度硬性约束（小红书强制 <= 1000 字）
+  if (text.length > 1000) {
+    problems.push('第' + index + '篇正文共 ' + text.length + ' 字，超过小红书平台 1000 字上限（含话题标签）')
+  }
+
   const plain = text.replace(/\s+/g, '')
   const effectiveMin = Math.floor(job.min_words * 0.85)
   if (plain.length < effectiveMin) {
     problems.push('第' + index + '篇纯文字 ' + plain.length + ' 字，低于容差下限 ' + effectiveMin + '（设定 ' + job.min_words + '）')
   }
+
+  const combined = title + ' ' + text
+
+  // 3. 小红书社区规范 3.2 导流红线拦截
+  const urlMatch = combined.match(XHS_URL_RE)
+  if (urlMatch) {
+    problems.push('第' + index + '篇违反《小红书社区规范3.2-禁止外链》：包含外部网址或域名「' + urlMatch[0] + '」')
+  }
+  for (const d of XHS_DIVERSION_WORDS) {
+    if (combined.includes(d)) {
+      problems.push('第' + index + '篇违反《小红书社区规范3.2-禁止导流》：包含敏感导流词「' + d + '」')
+    }
+  }
+
+  // 4. 小红书社区规范 2.3 & 3.1 违规交易与学术代办拦截
+  for (const p of XHS_PROHIBITED_WORDS) {
+    if (combined.includes(p)) {
+      problems.push('第' + index + '篇违反《小红书社区规范3.1-违规交易》：包含学术代办/保过承诺词「' + p + '」')
+    }
+  }
+
+  // 5. 小红书社区规范 4.1.3 & 4.1.4 广告极限词拦截
+  for (const e of XHS_EXTREME_WORDS) {
+    if (combined.includes(e)) {
+      problems.push('第' + index + '篇违反《小红书社区规范4.1-虚假夸大》：包含极限夸大词「' + e + '」')
+    }
+  }
+
+  // 6. 占位符残留检测
+  if (/IMG_A\d+_\d+/.test(text)) {
+    problems.push('第' + index + '篇正文残留图片占位符 IMG_A*：小红书正文必须为纯文本')
+  }
+
+  // 7. 用户自定义禁词
   for (const w of job.forbidden) {
     if (plain.includes(w)) problems.push('第' + index + '篇含禁词: ' + w)
   }
@@ -505,7 +568,9 @@ async function publishOneNote(
     .replace(/IMG_A\d+_\d+/g, '') // 行内残留的占位符就地删除
     .replace(/\n{3,}/g, '\n\n') // 收敛删行后产生的多余空行
     .trim()
-  const fullText = job.tags.length > 0
+  // 避免话题标签重复拼接：若正文中已包含话题标签，不再重复追加 job.tags
+  const hasTags = /#[^#\s]+(\s|$)/.test(cleanBody)
+  const fullText = (job.tags.length > 0 && !hasTags)
     ? cleanBody.trimEnd() + '\n\n' + job.tags.map((t) => '#' + t + ' ').join('').trim()
     : cleanBody
   await page.keyboard.type(fullText, { delay: 10 })
@@ -564,38 +629,52 @@ async function publishOneNote(
       })
       .catch(() => undefined)
 
-    // 等跳转到发布成功页或笔记详情，确认真的发布出去了
+    // 等跳转到发布成功页或笔记详情，确认真的发布出去了。
+    //
+    // 【重要】这里**只能**用「拿到真实 note id」或「URL 带 published=true」作为成功依据。
+    // 历史坑：旧实现用 /发布成功|已发布|审核中/.test(document.body.innerText) 判定，
+    // 但创作者后台的静态文案（侧边栏/说明文字）本来就含「已发布」「审核中」，该正则
+    // 在编辑器根本没渲染出来时也恒为真 —— 于是 _onPublish() 未生效、页面空白的情况下
+    // 依然被判定为发布成功，note_id 落成 "pending_N" 占位符，造成连续多批「假成功」。
+    // 因此文本正则仅作为「继续等待」的弱信号，绝不作为成功判据。
     const deadline = Date.now() + 45000
     let liveUrl = ''
     let sawPublishedFlag = false
+    let sawSuccessText = false
     while (Date.now() < deadline) {
       const u = page.url()
       // 发布成功后 SPA 会带上 published=true
       if (/[?&]published=true/.test(u)) sawPublishedFlag = true
       const m = u.match(/\/explore\/([a-f0-9]+)/i) || u.match(/note_id=([a-f0-9]+)/i)
       if (m) { liveUrl = m[1]; break }
-      const done = await page
-        .evaluate(() => /发布成功|已发布|审核中/.test(document.body?.innerText || ''))
+      // 弱信号：仅用于「再等一会」，不参与最终判定
+      const txt = await page
+        .evaluate(() => /发布成功/.test(document.body?.innerText || ''))
         .catch(() => false)
-      if (done) break
+      if (txt) sawSuccessText = true
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
     await assertNoRiskPage(page, debugDir, 'note' + index + '_publish')
 
-    const confirmedByText = await page
-      .evaluate(() => /发布成功|已发布|审核中/.test(document.body?.innerText || ''))
-      .catch(() => false)
-    const published = Boolean(liveUrl) || sawPublishedFlag || confirmedByText
-    if (!published) {
+    // 最终判定：必须拿到真实 note id 才算发布成功。
+    // 注意 published=true 只代表 SPA 跳转到了成功页，仍不足以给出可回查的笔记ID，
+    // 因此不能单独作为成功依据（否则会再次产生只有 url 却无 id 的"半成功"记录）。
+    if (!liveUrl) {
       const shot = await debugScreenshot(page, debugDir, 'note' + index + '_publish_unconfirmed')
-      throw new Error('小红书点击发布后未能确认发布成功（当前 URL: ' + page.url() + '）。截图: ' + shot)
+      throw new Error(
+        '小红书点击发布后未能确认发布成功（未取得笔记ID）。当前 URL: ' + page.url() +
+        '；published=true 标记: ' + (sawPublishedFlag ? '是' : '否') +
+        '；观察到成功文案: ' + (sawSuccessText ? '是' : '否') +
+        '。截图: ' + shot,
+      )
     }
 
     await debugScreenshot(page, debugDir, 'note' + index + '_published')
     return {
-      note_id: liveUrl || 'pending_' + index,
+      // liveUrl 必非空（上方判定已保证），不再用 'pending_N' 兜底占位
+      note_id: liveUrl,
       title,
-      url: liveUrl ? 'https://www.xiaohongshu.com/explore/' + liveUrl : '',
+      url: 'https://www.xiaohongshu.com/explore/' + liveUrl,
       published: true,
     }
   }
@@ -664,6 +743,11 @@ export async function runXhsPublish(cfg: Config, accountId: string, job: XhsPubl
 
     const notes: XhsNote[] = []
     for (const i of plan) {
+      if (notes.length > 0) {
+        // 拟人化发布间隔（3~5秒），严格遵守小红书社区规范 4.4.3（禁止高频机器作弊批量发布）
+        const pacingMs = 3000 + Math.floor(Math.random() * 2000)
+        await new Promise((resolve) => setTimeout(resolve, pacingMs))
+      }
       notes.push(await publishOneNote(cfg, page, debugDir, job, i))
     }
     return { dry_run: false, notes }

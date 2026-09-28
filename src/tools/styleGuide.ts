@@ -148,6 +148,10 @@ const XHS_DOC_SPEC_EXAMPLE = {
   tags: ['学术干货', '论文发表'],
 }
 
+function cleanXhsBrand(brand: string): string {
+  return brand.replace(/(https?:\/\/\S+|[a-zA-Z0-9-]+\.(?:cn|com|net|org|top|xyz)\b)/gi, '').trim()
+}
+
 function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const account = resolveAccount(cfg, accountId)
   const content = account.profile.content
@@ -156,6 +160,8 @@ function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const minWords = content.xhs_min_words ?? 200
   const tags = content.xhs_tags ?? []
   const recentTitles = getRecentTitles(cfg, account.id)
+  const cleanBrandName = cleanXhsBrand(account.profile.brand_name) || '学术知识分享'
+  const cleanAuthorName = cleanXhsBrand(account.profile.author_name) || cleanBrandName
   return {
     account_id: account.id,
     account_name: account.profile.name,
@@ -163,38 +169,36 @@ function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
     theme: 'wenying',
     palette: {},
     typography_rules: {
-      format: '纯文本笔记（article_v2_{index}_xhs.txt），支持 emoji 与换行',
-      title_limit: '标题必须严格 ≤ ' + XHS_TITLE_MAX + ' 字（小红书强制限制）',
+      format: '纯文本笔记（article_v2_{index}_xhs.txt），支持 emoji 与换行分段',
+      title_limit: '标题必须严格 ≤ ' + XHS_TITLE_MAX + ' 字（小红书平台硬性限制）',
       content_limit: '正文（含话题标签）必须 ≤ ' + XHS_CONTENT_MAX + ' 字',
       image_format: '每篇配 ' + imgPerNote + ' 张图，统一 3:4 竖版（1080×1440px），最多 ' + XHS_IMAGES_MAX + ' 张',
+      compliance_standard: '必须严格遵守《小红书社区规范》（协议编号：ZXXY20221213003），严禁导流，真实分享',
     },
     doc_spec: XHS_DOC_SPEC_EXAMPLE,
     parts_format: [
-      'title → 爆款短标题（≤' + XHS_TITLE_MAX + '字，emoji+数字+痛点，如「3步搞定xxx」「xxx避坑指南」）',
-      'content → 纯文案正文（' + minWords + '~' + XHS_CONTENT_MAX + '字，分段+emoji导读+文末引导）',
+      'title → 爆款短标题（严格≤' + XHS_TITLE_MAX + '字，痛点+数字+解决方案，如「3步搞定文献综述」「开题避坑指南」，拒绝夸大极限词）',
+      'content → 纯文案正文（' + minWords + '~' + XHS_CONTENT_MAX + '字，第一人称真诚分享口吻，分段清晰+emoji导读+文末合规互动）',
       'images → 生图提示词列表（每张 sub 从 1 到 ' + imgPerNote + '）',
-      '  图片角色分工：sub1=cover（封面吸睛）→ sub2~' + (imgPerNote - 1) + '=content（干货要点）→ sub' + imgPerNote + '=cta（引导关注）',
-      '  生图提示词铁律：每张图的 prompt 都必须写出【本篇标题的具体主题关键词】，不能只写「要点卡片」「步骤图解」这类通用描述——否则模型会自由发挥，产出与选题无关的通用内容。同一批多篇笔记之间，各篇提示词的主题词必须不同。',
-      'tags → 话题标签列表（如 ["学术干货", "论文发表"]），自动追加到正文末尾',
+      '  图片角色分工：sub1=cover（封面吸睛海报，中心预留标题文字位）→ sub2~' + (imgPerNote - 1) + '=content（干货清单/要点图解）→ sub' + imgPerNote + '=cta（总结引导交流）',
+      '  生图提示词铁律：必须围绕【本篇标题的具体主题关键词】展开，全中文排版，严禁任何英文乱码，严禁二维码、水印，严禁真实名人肖像与商业品牌Logo',
+      'tags → 话题标签列表（如 ["学术干货", "论文写作"]），自动以 #话题 格式附加在文末，建议 3~5 个精准中文标签',
     ],
     hard_rules: [
       '【最高第一优先级】：若本次任务包含补充要求（如指定特定选题/主题、篇数、字数、配图等），补充要求具有最高裁决权，优先于本规范返回的默认配置值！未被补充要求修改的底层合规与格式规则继续严格生效。',
-      '平台形态：小红书图文笔记',
-      '标题严格 ≤ ' + XHS_TITLE_MAX + ' 字，超出小红书接口报错；标题须含 emoji 或数字或痛点词，避免纯陈述句',
-      '正文（含话题标签）严格 ≤ ' + XHS_CONTENT_MAX + ' 字',
-      '作者名固定 ' + account.profile.author_name,
-      '数量铁律：默认本次正好 ' + n + ' 篇笔记（每篇包含 ' + imgPerNote + ' 张图片 sub 1~' + imgPerNote + '）；若用户在补充要求中指定了篇数，以补充要求为准',
-      '发布铁律：小红书笔记默认只存草稿箱，可在设置中开启直接发布',
-      '图片尺寸：1080×1440px（3:4 竖版），第 1 张自动作为封面',
-      '封面图片（sub1）：画面中心须预留标题文字排版空间，避免关键元素遮挡',
-      '字数铁律：正文字数不低于 ' + minWords + ' 字纯文本，建议分段清晰，每段以 emoji 导读（如 📌✅💡🔑🎯）',
-      '正文禁占位符铁律：content 必须是不含任何 IMG_A{i}_{j} 占位符的纯文案——小红书图片由上传区单独提交，正文若写入占位符会直接以文字形式展示给读者。图片数量由 images 数组决定，不要在正文里写图片标记。',
-      '话题标签：正文末尾自动追加 ' + (tags.length > 0 ? tags.map((t) => '#' + t).join(' ') : '#话题标签') + ' 格式的话题标签',
-      '禁词表全文生效：严禁出现任何禁词',
+      '【小红书社区规范红线一：严禁任何导流行为（规范 3.2）】：严禁发布微信号、微信、加V、VX、QQ、手机号、邮箱、二维码、暗号、外部网址域名（.cn/.com/http/https等）、外站平台（淘宝/京东/公众号/知乎等）或“私信领资料”。一律合规于社区内自然互动。',
+      '【小红书社区规范红线二：严禁违规交易与学术不端（规范 2.3 & 3.1）】：严禁出现“代写”、“代办”、“代发”、“保过”、“包过”、“买卖论文”、“枪手”等任何学术不端或虚假承诺词汇。',
+      '【小红书社区规范红线三：真实体验与杜绝虚假夸大（规范 4.1.3 & 4.1.4）】：提倡第一人称“真诚分享”与利他干货，结构清晰，emoji 导读；标题严格 ≤ ' + XHS_TITLE_MAX + ' 字；严禁标题党与广告极限词（如“全网第一”、“绝密”、“100%包过”等）。',
+      '【小红书社区规范红线四：知识产权与肖像保护（规范 5.1 & 5.2）】：生图提示词严禁使用知名真实人物肖像，严禁侵犯商业商标/企业Logo，画面现代美观，全中文，严禁低俗恐怖。',
+      '平台形态：小红书图文笔记（纯文本文案 + 3:4 竖版多图卡片）',
+      '正文（含话题标签）字数区间：' + minWords + ' ~ ' + XHS_CONTENT_MAX + ' 字纯文本，建议分段精炼（每段不超过3-4行），善用 📌💡✅🔍🎯 等 emoji 导读',
+      '正文禁占位符铁律：content 必须是不含任何 IMG_A{i}_{j} 占位符的纯文案——小红书图片由上传区单独提交，正文严禁残留占位符标记',
+      '作者/博主名：' + cleanAuthorName + '（已自动脱敏过滤外部域名网址）',
       content.ending_guide_required
-        ? '正文结尾必须自然包含品牌名「' + account.profile.brand_name + '」'
-        : '正文结尾引导语可选',
-      '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
+        ? '正文结尾自然融入博主IP专栏名「' + cleanBrandName + '」，并配合合规社区互动（如“欢迎在评论区交流探讨~”、“持续分享干货，点击关注不迷路”）'
+        : '正文结尾引导语可选，须为纯净社区互动语',
+      '配图规格：每篇 ' + imgPerNote + ' 张，尺寸统一 1080×1440px（3:4 竖版），第 1 张为封面海报，画面中心预留标题文字排版空间',
+      '禁词表全文生效：严禁出现任何违规禁词与敏感导流词',
       '选题避让铁律：recent_titles 列出了本账号最近已发布的文章标题，新选题必须在主题角度、核心论点、实操方法上与之显著区分',
     ],
     forbidden_words: content.forbidden_words,

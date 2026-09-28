@@ -55,7 +55,7 @@ def http_request(method, url, **kwargs):
         raise requests.ConnectionError(
             "直连失败: " + str(direct_err)[:160] + "；经环境代理失败: " + str(e)[:160])
 
-ZH_SUFFIX = "画面中所有文字必须全部是中文，禁止出现任何英文单词、英文字母，禁止二维码、乱码字符与水印。"
+ZH_SUFFIX = "画面中所有文字必须全部是中文，禁止出现任何英文单词、英文字母，禁止二维码、乱码字符与水印，禁止任何联系方式与外部平台导流，禁止生成知名真实人物肖像及商业Logo。"
 MAX_REDIRECTS = 2
 RETRYABLE_STATUS = {401, 403, 408, 429}
 FALLBACK_MODELS = ["gpt-image-2", "dall-e-3", "flux-schnell", "flux-dev"]

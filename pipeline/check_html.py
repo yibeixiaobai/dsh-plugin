@@ -135,34 +135,79 @@ def check_file_newspic(path, min_words, forbidden, brand_name, img_count, requir
 
 
 def check_file_xhs(path, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders):
-    """小红书纯文本笔记校验：标题≤20字、正文≤1000字、字数下限、禁词、图片数。
-
-    重要：小红书正文是【纯文本】，图片通过上传区单独提交，正文里【不允许】出现
-    IMG_A{i}_{j} 占位符（旧逻辑要求正文含 N 个占位符，导致占位符被当正文发给读者）。
-    因此这里的图片数校验以磁盘上真实存在的 pic_{index}_{sub}.png 为准。
+    """小红书纯文本笔记校验：符合《小红书社区规范》（ZXXY20221213003）。
+    
+    涵盖：
+    1. 导流红线拦截（微信号、电话、邮箱、网址域名、外部平台、二维码）；
+    2. 违规交易与学术代办拦截（代写、代发、包过等）；
+    3. 广告法极限词与虚假夸大拦截；
+    4. 占位符残留拦截；
+    5. 正文字数（<=1000字，>=effective_min）；
+    6. 磁盘配图与图片规格。
     """
     text = open(path, encoding="utf-8").read()
     problems = []
     if "\\u" in text:
         problems.append("存在 unicode 转义残留")
-    plain = re.sub(r"#[^#\s]+#", "", text)
+
+    # 1. 尝试调用内置合规引擎
+    compliance_fn = None
+    try:
+        cur_dir = os.path.dirname(os.path.abspath(__file__))
+        cand_scripts = os.path.join(os.path.dirname(cur_dir), "runtime", "scripts")
+        if os.path.exists(os.path.join(cand_scripts, "xhs_components.py")):
+            if cand_scripts not in sys.path:
+                sys.path.insert(0, cand_scripts)
+            import xhs_components as xc
+            compliance_fn = xc.check_xhs_compliance
+    except Exception:
+        pass
+
+    if compliance_fn:
+        c_probs = compliance_fn(title="", content=text, brand_name=brand_name, forbidden=forbidden)
+        problems.extend(c_probs)
+    else:
+        # 内联降级合规检测
+        url_match = re.findall(r"(https?://\S+|www\.\S+|[a-zA-Z0-9-]+\.(?:cn|com|net|org|top|xyz)\b)", text, re.I)
+        if url_match:
+            problems.append("[违反社区规范3.2-禁止外链] 包含外部网址或域名: " + ", ".join(url_match[:2]))
+        diversions = ["微信", "微信号", "加微", "加v", "加V", "vx", "VX", "手机号", "联系电话", "公众号", "淘宝", "京东", "拼多多", "二维码", "私信领"]
+        for d in diversions:
+            if d in text:
+                problems.append("[违反社区规范3.2-禁止导流] 包含敏感导流词: 「%s」" % d)
+        prohibited = ["代写", "代发", "代办", "包过", "保过", "100%包过", "稳过", "买卖论文", "枪手"]
+        for p in prohibited:
+            if p in text:
+                problems.append("[违反社区规范3.1-违规交易] 包含学术代办/保过承诺词: 「%s」" % p)
+        for w in forbidden:
+            if w in text:
+                problems.append("含禁词: " + w)
+
+    # 2. 长度与字数检查（小红书正文强制 <= 1000 字）
+    if len(text) > 1000:
+        problems.append("正文长度 %d 字超过小红书平台 1000 字上限（含话题标签）" % len(text))
+
+    plain = re.sub(r"#[^#\s]+#?", "", text)
     plain = re.sub(r"[\U00010000-\U0010ffff]", "", plain)
-    plain = re.sub(r"[✅❌📌💡🔑🎯🌟✨🔥💪📝🎓📚🏆⚡🎉❤️👍🙏💰📊🔍📋]", "", plain)
+    plain = re.sub(r"[✅❌📌💡🔑🎯🌟✨🔥💪📝🎓📚🏆⚡🎉❤️👍🙏💰📊🔍📋🏷️📖🧭🚀]", "", plain)
     plain = re.sub(r"\s", "", plain)
     effective_min = int(min_words * 0.85)
     if len(plain) < effective_min:
         problems.append("纯文字 %d 字，低于容差下限 %d（设定下限 %d）" % (len(plain), effective_min, min_words))
-    for w in forbidden:
-        if w in plain:
-            problems.append("含禁词: " + w)
-    if require_brand and brand_name and brand_name not in plain:
-        problems.append("缺少品牌引导语: " + brand_name)
-    # 正文中不得残留任何图片占位符
+
+    # 3. 品牌引导语校验（自动清洗网址域名）
+    if require_brand and brand_name:
+        clean_brand = re.sub(r"(https?://\S+|[a-zA-Z0-9-]+\.(?:cn|com|net|org|top|xyz)\b)", "", brand_name).strip()
+        if clean_brand and clean_brand not in plain:
+            problems.append("缺少品牌引导语: " + clean_brand)
+
+    # 4. 正文中不得残留任何图片占位符
     leftover = re.findall(r"IMG_A\d+_\d+", text)
     if leftover:
         problems.append("正文残留图片占位符 %d 个（%s）：小红书正文为纯文本，占位符不得出现在正文中"
                         % (len(leftover), ",".join(sorted(set(leftover))[:4])))
-    # 图片数按磁盘真实文件统计：pic_{index}_{sub}.png
+
+    # 5. 图片数按磁盘真实文件统计：pic_{index}_{sub}.png
     m = re.search(r"article_v2_(\d+)_xhs", os.path.basename(path))
     idx = int(m.group(1)) if m else 0
     scripts_dir = os.path.dirname(os.path.abspath(path))
@@ -176,6 +221,7 @@ def check_file_xhs(path, min_words, forbidden, brand_name, img_count, require_br
         problems.append("实际配图数量 %d != %d（按设置的每篇笔记图片数，查找 pic_%d_*.png）"
                         % (real, img_count, idx))
     return {"file": path, "plain_chars": len(plain), "img_count": real, "problems": problems}
+
 
 
 def check_file(path, min_words, forbidden, brand_name, img_count, allow_placeholders):

@@ -102,7 +102,8 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
           if (!Number.isInteger(sub) || sub < 1 || sub > 20) {
             throw new Error('pic 图 sub 必须是 1~20（按小绿书卡片张数）')
           }
-          const ratio = (account.profile.content.newspic_image_ratio || '3:4') as CoverRatio
+          const isXhs = account.profile.platform === 'xiaohongshu'
+          const ratio = isXhs ? '3:4' : ((account.profile.content.newspic_image_ratio || '3:4') as CoverRatio)
           const picSize = COVER_SIZES[ratio] || COVER_SIZES['3:4']
           const titleForPic = titles[index - 1]
           let picPrompt = prompt
@@ -122,6 +123,14 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
                 '画面文字与图表内容都要围绕「' + titleForPic + '」的核心信息，' +
                 '禁止出现与选题无关的通用内容（如生活习惯养成、时间管理、读书学习等泛化主题）'
             }
+          }
+          if (isXhs) {
+            picPrompt +=
+              '；【小红书社区规范合规约束】：' +
+              '画面文字必须全中文排版，严禁英文乱码；' +
+              '严禁出现任何二维码、条形码、微信号、手机号、外链网址或外部水印（严禁导流）；' +
+              '严禁侵犯他人肖像权与商业商标（禁止生成真实知名人物肖像或知名企业商业Logo）；' +
+              '构图工整，色彩高级和谐，留白充裕，严禁血腥低俗惊悚'
           }
           return {
             kind: 'pic', index, sub, prompt: picPrompt,

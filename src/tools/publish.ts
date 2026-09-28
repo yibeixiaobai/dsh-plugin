@@ -347,6 +347,28 @@ async function publishXiaohongshu(
   }
   const now = stampNow()
   const authorName = account.profile.author_name
+  // 防呆：真正的成功必须每一篇都拿到真实 note id。
+  // 历史坑：底层曾用过于宽松的文本正则判定成功，导致返回 "pending_N" 占位符时
+  // 这里仍硬编码 status:'success'，形成「假成功」。此处做最后一道拦截。
+  const placeholder = result.notes.filter((d) => !d.note_id || /^pending_/i.test(d.note_id))
+  if (placeholder.length > 0) {
+    const bad = placeholder.map((d) => d.title).join('、')
+    writeTextFile(sdir, RESULT_FILE, JSON.stringify({
+      status: 'failed',
+      account_id: accountId,
+      platform: 'xiaohongshu',
+      article_count: n,
+      author: authorName,
+      timestamp: now,
+      articles: args.titles,
+      error: '以下笔记未取得真实笔记ID（发布未生效，疑似未登录或编辑器未渲染）: ' + bad,
+      drafts: result.notes,
+    }, null, 2) + '\n')
+    throw new Error(
+      '小红书发布未真正成功：' + bad +
+      ' 未返回真实笔记ID（返回占位符）。请检查登录态与创作者后台可达性后重试。',
+    )
+  }
   const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
     status: 'success',
     account_id: accountId,
