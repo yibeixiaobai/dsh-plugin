@@ -15,15 +15,36 @@ const CREATOR_URL = 'https://creator.xiaohongshu.com'
 // 必须带 source/from 参数：裸 /publish/publish 进入时 SPA 未初始化 tab 状态，
 // 点击「上传图文」会被当成导航跳到 ?from=tab_switch（视频页），图文编辑器永不出现。
 const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?source=official&from=menu'
+// 「稿件管理」（创作服务平台 → 笔记管理）的权威地址。
+// 旧地址 /creator/notemanage 会 302 到这里；实测确认列表数据来自该页自身
+// 发起的签名接口请求（见 NOTE_LIST_API），因此必须如实访问该 URL。
+const NOTE_MANAGER_URL = 'https://creator.xiaohongshu.com/new/note-manager'
+// 笔记列表接口：稿件管理页用它取「已发布」列表。
+// 【关键】该接口带 X-S-Common / X-s 反爬签名，签名由页面自身 JS 生成，
+// 用 fetch/axios 复刻必然拿到空列表（实测 tab0~tab3 全为 0 条）。
+// 因此只能「让页面自己发请求 + 拦截其响应」，不能自己拼请求。
+const NOTE_LIST_API = '/api/galaxy/v2/creator/note/user/posted'
 const RISK_PATTERNS = ['验证', '滑块', '安全检测', '账号异常', '环境异常']
 
 export const XHS_LOGIN_ROUTE = '/api/gzh-publisher/xhs-login'
+
+/** 单篇笔记的发布结局。三态取代原先的「二态 + pending 占位符」：
+ *  - published    已在稿件管理中查到该笔记（拿到了真实 note_id，可回查）
+ *  - unconfirmed  点击发布后未在稿件管理中查到（可能仍在同步，或发布未生效）
+ *  - failed       明确的失败（如找不到发布按钮、页面风控）
+ *  只有 failed 才应中断整批；unconfirmed 必须如实上报，绝不伪装成功。 */
+export type XhsNoteStatus = 'published' | 'unconfirmed' | 'failed'
 
 export interface XhsNote {
   note_id: string
   title: string
   url: string
   published?: boolean
+  status?: XhsNoteStatus
+  /** 人类可读的判定依据，便于排查与汇总展示 */
+  confirm_note?: string
+  /** 稿件管理中记录的平台发布时间，形如 2026-09-28 16:07 */
+  posted_time?: string
 }
 
 export interface XhsPublishJob {
@@ -51,6 +72,258 @@ export interface XhsVerifyNote {
   url?: string
   published?: boolean
   note?: string
+  note_id?: string
+  status?: XhsNoteStatus
+}
+
+/** 稿件管理列表中的一条笔记（字段取自接口实测返回） */
+interface XhsManagedNote {
+  id: string
+  display_title: string
+  time: string
+  tab_status?: number
+  type?: string
+}
+
+/**
+ * 读取账号在「稿件管理」中的笔记列表（权威数据源）。
+ *
+ * 【为什么必须这么做】
+ * 旧实现只在发布页 URL 里找 note_id（/explore/{id} 或 note_id={id}），但小红书
+ * 发布成功后只会跳到 ?published=true，URL 里根本不含 note_id —— 于是「确实发成功」
+ * 也被判成「未能确认发布成功」，产生假阴性（实测：2026-09-28 16:07 的笔记已在
+ * 稿件管理中可见，工具却报未确认）。
+ *
+ * 【为什么不能直接请求接口】
+ * 该接口带 X-S-Common / X-s 反爬签名，签名由页面 JS 生成。实测用页面内 fetch
+ * 复刻请求，tab0~tab3 全部返回 0 条（被判定为未签名而拒绝）。因此这里让页面
+ * 自己加载稿件管理页，并用 CDP 拦截它自己发出的签名请求响应，取其 JSON。
+ *
+ * 返回 null 表示「无法读取」（未登录/风控/接口结构变化），调用方须区分对待：
+ * 读不到 ≠ 没发布，不能据此判定失败。
+ */
+async function fetchManagedNotes(
+  page: Page,
+  debugDir: string,
+): Promise<XhsManagedNote[] | null> {
+  // 拦截页面自身发出的签名请求，直接取它的 JSON 响应。
+  // 这是唯一能拿到 note_id 的可靠途径：DOM 里没有 <a href>（实测为空），
+  // 而自己复刻请求会因缺少 X-s 签名被拒。
+  const bodies: Array<Promise<XhsManagedNote[] | null>> = []
+  const onResponse = (res: import('puppeteer-core').HTTPResponse): void => {
+    try {
+      if (!res.url().includes(NOTE_LIST_API)) return
+      if ((res.request().method() || 'GET').toUpperCase() !== 'GET') return
+      bodies.push(
+        res.json().then(
+          (json: unknown) => {
+            const notes = (json as { data?: { notes?: XhsManagedNote[] } })?.data?.notes
+            return Array.isArray(notes) && notes.length > 0 ? notes : null
+          },
+          () => null,
+        ),
+      )
+    } catch {
+      /* 忽略：拦截失败不应影响主流程 */
+    }
+  }
+
+  try {
+    page.on('response', onResponse)
+    await page.goto(NOTE_MANAGER_URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    await assertNoRiskPage(page, debugDir, 'note_manager')
+
+    // 列表异步加载：轮询等待「拦截到的响应」或「已渲染的条目」。
+    const deadline = Date.now() + 25000
+    while (Date.now() < deadline) {
+      const settled = await Promise.all(bodies.map((p) => p.catch(() => null)))
+      const hit = settled.find((n): n is XhsManagedNote[] => Array.isArray(n) && n.length > 0)
+      if (hit) return hit
+
+      // 兜底：接口结构变化时，至少从已渲染 DOM 取标题+时间（无 note_id）
+      const rendered = await readRenderedNotes(page).catch(() => null)
+      if (rendered && rendered.length > 0 && Date.now() + 8000 > deadline) return rendered
+
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+    const settled = await Promise.all(bodies.map((p) => p.catch(() => null)))
+    return settled.find((n): n is XhsManagedNote[] => Array.isArray(n) && n.length > 0) ?? null
+  } catch (error) {
+    await debugScreenshot(page, debugDir, 'note_manager_failed').catch(() => undefined)
+    console.error('[xhs] 读取稿件管理失败:', error)
+    return null
+  } finally {
+    page.off('response', onResponse)
+  }
+}
+
+/**
+ * 从「稿件管理」已渲染的 DOM 中提取笔记条目。
+ *
+ * 说明：页面的列表数据由它自己的签名请求获得；页面内再 fetch 会被拒，
+ * 所以这里只解析已渲染的 DOM，避免复刻签名。
+ */
+async function readRenderedNotes(page: Page): Promise<XhsManagedNote[] | null> {
+  return page.evaluate(() => {
+    const out: XhsManagedNote[] = []
+    const seen = new Set<string>()
+    // 条目时间形如 2026-09-28 16:07；标题是其上方的可读文本。
+    const timeRe = /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/
+    const all = Array.from(document.querySelectorAll('div,li,section,article'))
+    for (const el of all) {
+      const kids = Array.from(el.children)
+      for (let i = 0; i < kids.length; i++) {
+        const t = (kids[i].textContent || '').trim()
+        if (!timeRe.test(t)) continue
+        // 标题向上找一个包含较多文本但又不含时间的兄弟节点
+        let title = ''
+        for (let j = i - 1; j >= 0 && j >= i - 4; j--) {
+          const cand = (kids[j].textContent || '').trim()
+          if (cand && !timeRe.test(cand) && cand.length <= 80) { title = cand; break }
+        }
+        if (!title) {
+          const parentText = (el.textContent || '').trim()
+          const m = parentText.split('\n').map((s) => s.trim()).filter(Boolean)
+          const idx = m.findIndex((s) => timeRe.test(s))
+          if (idx > 0) title = m[idx - 1]
+        }
+        if (!title || title.length > 80) continue
+        // DOM 中通常不含 note_id（在跳转链接里），先占位，后续用详情页补全
+        const key = title + '|' + t
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push({ id: '', display_title: title, time: t })
+      }
+    }
+    return out.length > 0 ? out : null
+  })
+}
+
+/** 把 "2026-09-28 16:07" 解析为时间戳（本地时区，与平台展示一致） */
+function parsePostedTime(s: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})$/.exec((s || '').trim())
+  if (!m) return NaN
+  return new Date(
+    Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]),
+  ).getTime()
+}
+
+/** 标题归一化：统一全角/半角、大小写与零宽字符，避免因排版细节漏配 */
+function normalizeTitle(s: string): string {
+  return (s || '')
+    .replace(/\s+/g, '')
+    // 全角字符（U+FF01–U+FF5E）转半角；全角空格 U+3000 单独处理
+    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/\u3000/g, '')
+    .replace(/[\uFE0F\u200D]/g, '')
+    .toLowerCase()
+}
+
+/**
+ * 在稿件管理列表中为「某篇刚发布的笔记」找到对应条目。
+ *
+ * 匹配策略（宁可 unconfirmed 也不误判成功）：
+ *  1. 标题归一化后完全相同；
+ *  2. 若标题命中多条，用发布时间窗口（默认前后 15 分钟）消歧；
+ *  3. 标题命中但时间都在窗口外 → 视为历史同名笔记，不算本次成功。
+ */
+function matchManagedNote(
+  notes: XhsManagedNote[],
+  title: string,
+  publishedAtMs: number,
+  windowMs = 15 * 60 * 1000,
+): { note: XhsManagedNote; matchedBy: string } | null {
+  const want = normalizeTitle(title)
+  const same = notes.filter((n) => normalizeTitle(n.display_title) === want)
+  if (same.length === 0) return null
+  if (same.length === 1) {
+    const t = parsePostedTime(same[0].time)
+    if (Number.isNaN(t) || Math.abs(t - publishedAtMs) <= windowMs) {
+      return { note: same[0], matchedBy: '标题完全一致' }
+    }
+    return null
+  }
+  // 多条同名：取时间最接近且落在窗口内的
+  const inWindow = same
+    .map((n) => ({ n, t: parsePostedTime(n.time) }))
+    .filter((x) => !Number.isNaN(x.t) && Math.abs(x.t - publishedAtMs) <= windowMs)
+    .sort((a, b) => Math.abs(a.t - publishedAtMs) - Math.abs(b.t - publishedAtMs))
+  if (inWindow.length === 0) return null
+  return { note: inWindow[0].n, matchedBy: '标题一致+时间窗口(' + inWindow.length + '条同名)' }
+}
+
+export interface XhsConfirmItem {
+  title: string
+  status: XhsNoteStatus
+  note_id?: string
+  posted_time?: string
+  url?: string
+  note?: string
+}
+
+/**
+ * 发布后确认：进「稿件管理」核对这批标题是否真的出现了。
+ *
+ * 与旧实现的本质区别：旧实现靠发布页 URL 里的 note_id 判定（小红书根本不提供），
+ * 因此必然假阴性；这里改为查权威列表，成功即返回真实 note_id。
+ *
+ * 三态语义见 XhsNoteStatus。读不到列表时返回 unconfirmed（而不是 failed），
+ * 因为「读不到」不等于「没发布」。
+ */
+export async function xhsConfirmPublished(
+  cfg: Config,
+  accountId: string,
+  expected: Array<{ title: string; publishedAtMs: number }>,
+): Promise<{ logged_in: boolean; items: XhsConfirmItem[] }> {
+  const browser = await launchXhsBrowser(cfg, accountId, cfg.runtime.xhs_headless !== false)
+  try {
+    const page = await browser.newPage()
+    const debugDir = path.join(accountScriptsDir(cfg, accountId), 'xhs_debug')
+    await restoreXhsCookies(page, cfg, accountId)
+    await page.goto(CREATOR_URL, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    if (!(await isLoggedIn(page))) {
+      return {
+        logged_in: false,
+        items: expected.map((e) => ({ title: e.title, status: 'unconfirmed' as XhsNoteStatus, note: '小红书未登录，无法核对稿件管理' })),
+      }
+    }
+
+    const managed = await fetchManagedNotes(page, debugDir)
+    if (!managed) {
+      return {
+        logged_in: true,
+        items: expected.map((e) => ({
+          title: e.title,
+          status: 'unconfirmed' as XhsNoteStatus,
+          note: '稿件管理列表读取失败（未登录/风控/接口变化），无法确认，请人工核对',
+        })),
+      }
+    }
+
+    const items: XhsConfirmItem[] = expected.map((e) => {
+      const hit = matchManagedNote(managed, e.title, e.publishedAtMs)
+      if (!hit) {
+        return {
+          title: e.title,
+          status: 'unconfirmed' as XhsNoteStatus,
+          note: '稿件管理中未找到该标题（列表共 ' + managed.length + ' 条；可能仍在同步，请稍后人工核对）',
+        }
+      }
+      const id = hit.note.id || ''
+      return {
+        title: e.title,
+        status: 'published' as XhsNoteStatus,
+        ...(id ? { note_id: id, url: 'https://www.xiaohongshu.com/explore/' + id } : {}),
+        posted_time: hit.note.time,
+        note: '稿件管理已收录（' + hit.matchedBy + '）' + (id ? '' : '；未取到笔记ID'),
+      }
+    })
+    await debugScreenshot(page, debugDir, 'note_manager_confirmed').catch(() => undefined)
+    return { logged_in: true, items }
+  } finally {
+    await browser.close().catch(() => undefined)
+  }
 }
 
 async function launchXhsBrowser(cfg: Config, accountId: string, headless: boolean): Promise<Browser> {
@@ -629,54 +902,49 @@ async function publishOneNote(
       })
       .catch(() => undefined)
 
-    // 等跳转到发布成功页或笔记详情，确认真的发布出去了。
+    // 【判定策略】点击发布后只做「弱等待」，真正的判定交给稿件管理核对。
     //
-    // 【重要】这里**只能**用「拿到真实 note id」或「URL 带 published=true」作为成功依据。
-    // 历史坑：旧实现用 /发布成功|已发布|审核中/.test(document.body.innerText) 判定，
-    // 但创作者后台的静态文案（侧边栏/说明文字）本来就含「已发布」「审核中」，该正则
-    // 在编辑器根本没渲染出来时也恒为真 —— 于是 _onPublish() 未生效、页面空白的情况下
-    // 依然被判定为发布成功，note_id 落成 "pending_N" 占位符，造成连续多批「假成功」。
-    // 因此文本正则仅作为「继续等待」的弱信号，绝不作为成功判据。
-    const deadline = Date.now() + 45000
-    let liveUrl = ''
+    // 历史两次翻车：
+    //  1) 早期用 /发布成功|已发布|审核中/.test(innerText) 判定 —— 侧边栏静态文案
+    //     本来就含这些词，恒为真，产生 pending_N「假成功」；
+    //  2) 改严后要求发布页 URL 里出现 note_id —— 但小红书只跳 ?published=true，
+    //     URL 永远不含 note_id，于是「真成功」被判成「未能确认」= 假阴性。
+    // 正确做法：这里只记录「已点击发布」的意图与时间，成败由
+    // xhsConfirmPublished() 进稿件管理核对后裁决，绝不在此处伪装成功或武断失败。
+    const publishedAtMs = Date.now()
     let sawPublishedFlag = false
     let sawSuccessText = false
-    while (Date.now() < deadline) {
-      const u = page.url()
-      // 发布成功后 SPA 会带上 published=true
-      if (/[?&]published=true/.test(u)) sawPublishedFlag = true
-      const m = u.match(/\/explore\/([a-f0-9]+)/i) || u.match(/note_id=([a-f0-9]+)/i)
-      if (m) { liveUrl = m[1]; break }
-      // 弱信号：仅用于「再等一会」，不参与最终判定
-      const txt = await page
-        .evaluate(() => /发布成功/.test(document.body?.innerText || ''))
-        .catch(() => false)
-      if (txt) sawSuccessText = true
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+    {
+      const deadline = Date.now() + 20000
+      while (Date.now() < deadline) {
+        const u = page.url()
+        if (/[?&]published=true/.test(u)) sawPublishedFlag = true
+        const txt = await page
+          .evaluate(() => /发布成功/.test(document.body?.innerText || ''))
+          .catch(() => false)
+        if (txt) sawSuccessText = true
+        if (sawPublishedFlag || sawSuccessText) break
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
     }
     await assertNoRiskPage(page, debugDir, 'note' + index + '_publish')
 
-    // 最终判定：必须拿到真实 note id 才算发布成功。
-    // 注意 published=true 只代表 SPA 跳转到了成功页，仍不足以给出可回查的笔记ID，
-    // 因此不能单独作为成功依据（否则会再次产生只有 url 却无 id 的"半成功"记录）。
-    if (!liveUrl) {
-      const shot = await debugScreenshot(page, debugDir, 'note' + index + '_publish_unconfirmed')
-      throw new Error(
-        '小红书点击发布后未能确认发布成功（未取得笔记ID）。当前 URL: ' + page.url() +
-        '；published=true 标记: ' + (sawPublishedFlag ? '是' : '否') +
-        '；观察到成功文案: ' + (sawSuccessText ? '是' : '否') +
-        '。截图: ' + shot,
-      )
-    }
-
-    await debugScreenshot(page, debugDir, 'note' + index + '_published')
+    // 这里只返回「待确认」，由 runXhsPublish 在关闭浏览器前统一进稿件管理核对。
+    // 不再抛错、不再落 pending_N 占位符，也不谎报成功。
+    await debugScreenshot(page, debugDir, 'note' + index + '_submitted').catch(() => undefined)
     return {
-      // liveUrl 必非空（上方判定已保证），不再用 'pending_N' 兜底占位
-      note_id: liveUrl,
+      note_id: '',
       title,
-      url: 'https://www.xiaohongshu.com/explore/' + liveUrl,
-      published: true,
-    }
+      url: '',
+      published: false,
+      status: 'unconfirmed' as XhsNoteStatus,
+      posted_time: '',
+      confirm_note:
+        '已点击发布（published=true: ' + (sawPublishedFlag ? '是' : '否') +
+        '，成功文案: ' + (sawSuccessText ? '是' : '否') + '），待进稿件管理核对',
+      // 供上层核对用的发布时间戳（内部字段，不进入对外结果）
+      ...({ _publishedAtMs: publishedAtMs } as object),
+    } as XhsNote
   }
 
   const saveBtn = await page.evaluate(() => {
@@ -701,11 +969,17 @@ async function publishOneNote(
     return match?.[1] ?? ''
   })
 
+  // 存草稿分支：草稿不会出现在稿件管理的「已发布」列表里，因此不谎报 published。
+  // 旧实现用 'pending_' + index 兜底 note_id，正是「假成功」的来源之一，现已移除。
   const note: XhsNote = {
-    note_id: noteId || 'pending_' + index,
+    note_id: noteId || '',
     title,
     url: noteId ? 'https://www.xiaohongshu.com/explore/' + noteId : '',
     published: false,
+    status: 'unconfirmed' as XhsNoteStatus,
+    confirm_note: noteId
+      ? '已存草稿并取得笔记ID'
+      : '已点「保存草稿」；草稿不在稿件管理「已发布」列表中，如需核验请在草稿箱查看',
   }
 
   await debugScreenshot(page, debugDir, 'note' + index + '_done')
@@ -750,6 +1024,50 @@ export async function runXhsPublish(cfg: Config, accountId: string, job: XhsPubl
       }
       notes.push(await publishOneNote(cfg, page, debugDir, job, i))
     }
+
+    // 【核心改造】发布后统一进「稿件管理」核对，把 unconfirmed 提升为 published。
+    // 复用同一个 page（已登录、已过风控），核对完再关浏览器。
+    // 核对失败不影响已确认的失败项，也不把「读不到」误判成失败。
+    const pending = notes.filter((nt) => nt.status === 'unconfirmed')
+    if (pending.length > 0) {
+      try {
+        const managed = await fetchManagedNotes(page, debugDir)
+        if (managed) {
+          for (const nt of notes) {
+            if (nt.status !== 'unconfirmed') continue
+            const at = Number((nt as unknown as { _publishedAtMs?: number })._publishedAtMs) || Date.now()
+            const hit = matchManagedNote(managed, nt.title, at)
+            if (hit) {
+              const id = hit.note.id || ''
+              nt.status = 'published'
+              nt.published = true
+              nt.note_id = id
+              nt.url = id ? 'https://www.xiaohongshu.com/explore/' + id : ''
+              nt.posted_time = hit.note.time
+              nt.confirm_note = '稿件管理已收录（' + hit.matchedBy + '，发布 ' + hit.note.time + '）' +
+                (id ? '' : '；未取到笔记ID')
+            } else {
+              nt.confirm_note =
+                (nt.confirm_note ? nt.confirm_note + '；' : '') +
+                '稿件管理中未找到该标题（列表 ' + managed.length + ' 条），请稍后人工核对'
+            }
+          }
+        } else {
+          for (const nt of pending) {
+            nt.confirm_note =
+              (nt.confirm_note ? nt.confirm_note + '；' : '') +
+              '稿件管理列表读取失败，无法确认（读不到≠未发布），请人工核对'
+          }
+        }
+      } catch (error) {
+        // 核对环节自身异常绝不能污染发布结果
+        console.error('[xhs] 稿件管理核对异常:', error)
+      }
+    }
+
+    // 清理仅供核对使用的内部时间戳字段，避免泄漏到落盘结果
+    for (const nt of notes) delete (nt as unknown as { _publishedAtMs?: number })._publishedAtMs
+
     return { dry_run: false, notes }
   } finally {
     await browser.close().catch(() => undefined)

@@ -3,9 +3,12 @@ import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { appendPublishRecord, readAccountPublishRecords } from '../publish-history.ts'
+import {
+  appendPublishAttempt, appendPublishRecord, listPendingReconcile, readAccountPublishRecords,
+  readPublishAttempts, updateAttemptOutcome, updateAttemptReconcile, type PublishBatchRecord,
+} from '../publish-history.ts'
 import { runZhihuPublish } from '../zhihu.ts'
-import { runXhsPublish } from '../xiaohongshu.ts'
+import { runXhsPublish, xhsConfirmPublished } from '../xiaohongshu.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, accountScriptsDir, assertWechatCreds, brandDir,
   brandImagePath, contentImagesPerArticle, findImage, readUploadCache, removeJobFile, renderJson, runPipeline,
@@ -47,6 +50,8 @@ export interface PublishOk {
   verify: { checked: boolean; article_count?: number; results?: unknown[] }
   result_file: string
   already_published?: boolean
+  /** 防重闸门说明：为何本次未真正发布 */
+  dedup_note?: string
   original_result?: WechatOriginalResult
 }
 
@@ -207,6 +212,21 @@ export function publishTool(cfg: Config) {
       }
 
       if (platform === 'xiaohongshu') {
+        // 【自愈式核对】先自动把历史未确认的笔记补核对（补齐 note_id → 永久去重）。
+        // 放在防重闸门之前：这样「上次未确认」的条目一旦核对成功，就直接被闸门复用，
+        // 绝不会被再发一次；同时用户无需人工核对。
+        if (!cfg.runtime.dry_run) {
+          try {
+            await xhsSelfReconcile(cfg, account.id)
+          } catch {
+            // 核对异常绝不影响发布主流程
+          }
+        }
+        // 发布前防重：小红书此前没有这道闸门，重试会导致重复笔记（详见 xhsDedupGuard）
+        if (!cfg.runtime.dry_run && !args.force) {
+          const dup = xhsDedupGuard(cfg, account.id, args.titles)
+          if (dup) return dup
+        }
         return publishXiaohongshu(cfg, account.id, sdir, args, n)
       }
       if (platform === 'zhihu') {
@@ -302,6 +322,206 @@ async function publishZhihu(
   }
 }
 
+/**
+ * 小红书发布前防重（幂等拦截）。
+ *
+ * 背景：小红书此前完全没有发布前防重 —— 一旦发布成功但「未能确认」（假阴性），
+ * 模型重试就会把同一篇笔记再发一遍，产生重复笔记。核对机制修好后仍需要这道闸门，
+ * 因为网络抖动、稿件管理读不到等情况下重试依然会发生。
+ *
+ * 判据（双源，第一道命中即拦截）：
+ *  1. 【attempt 日志 · 主判据】publish_attempts.json 由发布动作**发起前**落盘，
+ *     与最终成败无关。同标题组合：
+ *       - 已确认 published → 永久拦截（复用既有结果）
+ *       - 否则在 30 分钟窗口内 → 一律拦截（这就是修复重复发布的关键）
+ *  2. 【history · 兜底】publish_history.json 只在成功路径写入，作为第二道；
+ *     同标题组合：已确认的全部复用；近期批次无论是否确认都拦截。
+ *
+ * 【为什么必须是双源】
+ * 旧实现只有第 2 道。而「已提交但未确认」既不发 history、也不出现在任何记录里，
+ * 于是重试时闸门查不到 → 放行 → 把同一篇**真的再发一遍**。加入第 1 道后，
+ * 「判为未确认」不再导致「重试重复发」。
+ *
+ * 命中返回已存在的结果（already_published: true），不触网、不建重复笔记。
+ * 传 force: true 可跳过（供确需重发时使用）。
+ */
+/**
+ * 【自愈式核对】发布前自动把历史「未确认」的小红书笔记补核对一遍。
+ *
+ * 为什么必须自动做：小红书发布后 URL 从不含 note_id，唯一权威来源是「稿件管理」
+ * 列表；而该列表读取会因风控/接口变化/浏览器不可用而失败。历史上这一失败被
+ * 直接抛给用户去人工核对——用户明确要求「核对你自行完成」。
+ *
+ * 因此：每次发布前，先扫一遍待核对清单，尽力把 note_ids 补齐。
+ * 无论核对成功与否都不阻断发布（best-effort），但成功即永久去重、无需人工介入。
+ */
+async function xhsSelfReconcile(cfg: Config, accountId: string): Promise<{ checked: number; resolved: number }> {
+  let pending: ReturnType<typeof listPendingReconcile> = []
+  try {
+    pending = listPendingReconcile(cfg, accountId)
+  } catch {
+    return { checked: 0, resolved: 0 }
+  }
+  if (pending.length === 0) return { checked: 0, resolved: 0 }
+
+  // 合并成一次核对调用，减少对平台的访问次数（对同一账号只开一次浏览器）
+  const expected: Array<{ title: string; publishedAtMs: number }> = []
+  for (const a of pending) {
+    a.titles.forEach((t, i) => {
+      const already = (a.note_ids || [])[i]
+      if (already) return
+      // 匹配窗口以本次尝试时间为锚点（平台列表时间精确到分钟，matchManagedNote 自带 ±15 分钟容差）
+      expected.push({ title: t, publishedAtMs: a.attemptedAtMs })
+    })
+  }
+  if (expected.length === 0) return { checked: 0, resolved: 0 }
+
+  let items: Awaited<ReturnType<typeof xhsConfirmPublished>>['items'] = []
+  try {
+    const res = await xhsConfirmPublished(cfg, accountId, expected)
+    items = res.items
+  } catch {
+    // 核对失败不阻断发布：条目保持未确认，下次运行再试
+    return { checked: 0, resolved: 0 }
+  }
+
+  // 把核对结果按 attempt 回填
+  let resolved = 0
+  let checked = 0
+  for (const a of pending) {
+    const ids: string[] = a.titles.map((_, i) => (a.note_ids || [])[i] || '')
+    let touched = false
+    a.titles.forEach((t, i) => {
+      if (ids[i]) return
+      const hit = items.find((it) => it.title === t && it.status === 'published')
+      if (hit?.note_id) {
+        ids[i] = hit.note_id
+        touched = true
+        resolved++
+      } else {
+        touched = true // 记录「已核对但未取到」，推进 reconcileAttempts
+      }
+    })
+    if (!touched) continue
+    checked++
+    try {
+      updateAttemptReconcile(cfg, accountId, a.attemptedAtMs, ids)
+    } catch {
+      // best-effort
+    }
+  }
+  return { checked, resolved }
+}
+
+function xhsDedupGuard(
+  cfg: Config,
+  accountId: string,
+  titles: string[],
+  windowMs = 30 * 60 * 1000,
+): PublishOk | null {
+  const nowMs = Date.now()
+
+  // 【第一道】发布尝试日志：发布动作发起前就落盘，与成败无关。
+  // 这是防重的权威依据——「已提交但未确认」的笔记也能被挡住。
+  //
+  // 【为什么「未确认」必须永久拦截而不是窗口内拦截】
+  // 曾经写成 30 分钟内拦截、超窗放行。但小红书发布后 URL 不含 note_id，
+  // 一旦当次核对失败（风控/接口变化/浏览器不可用），该笔记必然停在 unconfirmed。
+  // 若超窗即放行，同一篇会被再发一次——这正是「产生两篇一样的笔记」的成因。
+  // 现在改为：只要还没拿到真实 note_id，就一律拦截重发；明确 failed 才放行。
+  // 确需重发由 force: true 显式覆盖（人工确认后使用）。
+  try {
+    const attempts = readPublishAttempts(cfg, accountId)
+    for (const a of attempts) {
+      if (a.platform !== 'xiaohongshu') continue
+      const at = a.titles || []
+      if (at.length !== titles.length) continue
+      if (!at.every((t, i) => t === titles[i])) continue
+
+      const ids = a.note_ids || []
+      const allConfirmed = ids.length === a.titles.length && ids.every((id) => Boolean(id))
+      const confirmed = a.outcome === 'published' && allConfirmed
+      const fresh = typeof a.attemptedAtMs === 'number' && nowMs - a.attemptedAtMs < windowMs
+      // 明确失败且已过窗口 → 放行（允许修好后补发）
+      const explicitFailure = a.outcome === 'failed' && !fresh
+      if (explicitFailure) continue
+      // 已确认发布 → 永久拦截；其余（含 unconfirmed / 无 outcome）→ 一律拦截
+      const hpath = path.resolve(accountScriptsDir(cfg, accountId), RESULT_FILE)
+      return {
+        account_id: accountId,
+        platform: 'xiaohongshu',
+        dry_run: false,
+        already_published: true,
+        media_ids: ids.filter(Boolean),
+        drafts: titles.map((t, i) => ({
+          draft_id: ids[i] || '',
+          title: t,
+          url: ids[i] ? 'https://www.xiaohongshu.com/explore/' + ids[i] : '',
+          published: Boolean(ids[i]),
+        })),
+        article_count: titles.length,
+        titles,
+        verify: { checked: confirmed, article_count: titles.length },
+        result_file: hpath,
+        dedup_note: confirmed
+          ? '该标题此前已确认发布，直接复用，不再重复创建笔记'
+          : '该标题此前已发起发布但尚未确认到笔记ID（未确认≠未发布，重发会产生重复笔记）。'
+            + '已拦截重发；系统会在后续运行中自动核对并回填 ID。确需重发请先人工确认后传 force: true',
+      } as PublishOk
+    }
+  } catch {
+    // attempts 读不到不应阻断发布，继续走 history 判定
+  }
+
+  let records: PublishBatchRecord[] = []
+  try {
+    records = readAccountPublishRecords(cfg, accountId)
+  } catch {
+    return null
+  }
+  // 新到旧扫描，取第一条标题组合完全一致的批次
+  for (const r of records) {
+    if (r.platform !== 'xiaohongshu') continue
+    const recTitles = r.articles || []
+    if (recTitles.length !== titles.length) continue
+    if (!recTitles.every((t, i) => t === titles[i])) continue
+
+    const recTime = new Date(String(r.timestamp).replace(' ', 'T')).getTime()
+    const fresh = !Number.isNaN(recTime) && nowMs - recTime < windowMs
+    const items = r.items || []
+    const confirmedIds = items
+      .map((it) => it.draft_id)
+      .filter((id): id is string => Boolean(id) && !/^pending_/i.test(String(id)))
+    const fullyConfirmed = confirmedIds.length === titles.length && confirmedIds.length > 0
+
+    // 1) 已确认发布过 → 复用既有结果
+    // 2) 近期刚发过（哪怕未确认）→ 拦截，避免把「已发未确认」重发成重复笔记
+    if (!fullyConfirmed && !fresh) continue
+
+    return {
+      account_id: accountId,
+      platform: 'xiaohongshu',
+      dry_run: false,
+      already_published: true,
+      media_ids: confirmedIds,
+      drafts: items.map((it) => ({
+        draft_id: it.draft_id || '',
+        title: it.title,
+        url: it.url || '',
+        published: it.published,
+      })),
+      article_count: r.article_count || titles.length,
+      titles,
+      verify: { checked: fullyConfirmed, article_count: r.article_count || titles.length },
+      result_file: path.resolve(accountScriptsDir(cfg, accountId), RESULT_FILE),
+      dedup_note: fullyConfirmed
+        ? '该标题组合此前已确认发布（publish_history），直接复用既有结果'
+        : '该标题组合近期已在 publish_history 中登记，按防重合闸拦截；确需重发请传 force: true',
+    }
+  }
+  return null
+}
+
 /** 小红书分支：浏览器自动化发布图文笔记，N 篇 = N 个独立笔记；结果落盘协议与知乎对齐 */
 async function publishXiaohongshu(
   cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number,
@@ -337,6 +557,20 @@ async function publishXiaohongshu(
     forbidden: account.profile.content.forbidden_words ?? [],
     tags: account.profile.content.xhs_tags ?? [],
   }
+  // 【防重关键】在真正发起发布动作**之前**落盘一次尝试记录。
+  // 这样即使后续「已提交但未能确认」，重试也会被 xhsDedupGuard 挡住，
+  // 不会出现同一篇笔记被重复发出。这是修复「重复发布」死锁的核心。
+  const attemptedAtMs = Date.now()
+  try {
+    appendPublishAttempt(cfg, {
+      account_id: accountId,
+      platform: 'xiaohongshu',
+      titles: args.titles,
+      attemptedAtMs,
+    })
+  } catch {
+    // best-effort：attempts 落盘失败不阻断发布本身
+  }
   const result = await runXhsPublish(cfg, accountId, job)
 
   if (result.dry_run) {
@@ -347,36 +581,55 @@ async function publishXiaohongshu(
   }
   const now = stampNow()
   const authorName = account.profile.author_name
-  // 防呆：真正的成功必须每一篇都拿到真实 note id。
-  // 历史坑：底层曾用过于宽松的文本正则判定成功，导致返回 "pending_N" 占位符时
-  // 这里仍硬编码 status:'success'，形成「假成功」。此处做最后一道拦截。
-  const placeholder = result.notes.filter((d) => !d.note_id || /^pending_/i.test(d.note_id))
-  if (placeholder.length > 0) {
-    const bad = placeholder.map((d) => d.title).join('、')
+  // 【三态判定】底层已改为「发布后进稿件管理核对」：
+  //  - published   已在稿件管理查到，拿到真实 note_id → 成功
+  //  - unconfirmed 已点发布但未能确认（列表读不到 / 尚未同步）→ 不算成功，但也不武断判失败
+  //  - failed      明确失败（找不到发布按钮、风控等）
+  // 历史坑：旧实现要求每篇都必须有 note_id，否则整体抛错；但小红书发布页 URL 从不
+  // 含 note_id，导致「真发布成功」也被判失败（假阴性）。现按三态分别处置。
+  const published = result.notes.filter((d) => d.status === 'published' && d.note_id)
+  const unconfirmed = result.notes.filter((d) => d.status !== 'published' || !d.note_id)
+  const failed = result.notes.filter((d) => d.status === 'failed')
+
+  // 占位符残留仍视为硬失败（绝不允许再次产生 pending_N 假成功）
+  const stillPlaceholder = result.notes.filter((d) => /^pending_/i.test(d.note_id || ''))
+
+  if (failed.length > 0 || stillPlaceholder.length > 0) {
+    const bad = [...failed, ...stillPlaceholder].map((d) => d.title).join('、')
+    updateAttemptOutcome(cfg, accountId, attemptedAtMs, 'failed', result.notes.map((d) => d.note_id || ''))
     writeTextFile(sdir, RESULT_FILE, JSON.stringify({
-      status: 'failed',
-      account_id: accountId,
-      platform: 'xiaohongshu',
-      article_count: n,
-      author: authorName,
-      timestamp: now,
-      articles: args.titles,
-      error: '以下笔记未取得真实笔记ID（发布未生效，疑似未登录或编辑器未渲染）: ' + bad,
-      drafts: result.notes,
+      status: 'failed', account_id: accountId, platform: 'xiaohongshu', article_count: n,
+      author: authorName, timestamp: now, articles: args.titles,
+      error: '以下笔记发布明确失败: ' + bad, drafts: result.notes,
     }, null, 2) + '\n')
-    throw new Error(
-      '小红书发布未真正成功：' + bad +
-      ' 未返回真实笔记ID（返回占位符）。请检查登录态与创作者后台可达性后重试。',
-    )
+    throw new Error('小红书发布失败：' + bad + '。请检查登录态与创作者后台可达性后重试。')
   }
+
+  const anyUnconfirmed = unconfirmed.length > 0
+  // 逐篇落盘真实 note_id：下次运行的自愈式核对据此判断是否仍需补核对
+  updateAttemptOutcome(
+    cfg, accountId, attemptedAtMs,
+    anyUnconfirmed ? 'unconfirmed' : 'published',
+    result.notes.map((d) => d.note_id || ''),
+  )
   const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
-    status: 'success',
+    status: anyUnconfirmed ? 'unconfirmed' : 'success',
     account_id: accountId,
     platform: 'xiaohongshu',
     article_count: n,
     author: authorName,
     timestamp: now,
     articles: args.titles,
+    confirmed_count: published.length,
+    ...(anyUnconfirmed
+      ? {
+          warning:
+            '以下笔记已提交发布但本次未能在稿件管理中确认到笔记ID（读不到≠未发布）: ' +
+            unconfirmed.map((d) => d.title).join('、') +
+            '。系统会在下次运行前自动重新核对并回填 ID，无需人工核对；'
+            + '在核对成功前，防重闸门会拦截同标题重发，避免产生重复笔记。',
+        }
+      : {}),
     drafts: result.notes,
   }, null, 2) + '\n')
   try {
@@ -389,13 +642,15 @@ async function publishXiaohongshu(
       timestamp: now,
       articles: args.titles,
       digests: args.digests,
+      status: anyUnconfirmed ? 'unconfirmed' : 'success',
       items: result.notes.map((d, i) => ({
         index: i + 1,
         title: d.title,
         digest: args.digests[i] || '',
         draft_id: d.note_id,
         url: d.url,
-        published: d.published,
+        published: d.status === 'published',
+        status: d.status,
       })),
     })
   } catch {

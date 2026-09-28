@@ -142,10 +142,12 @@ def enhance_prompt(prompt, kind, zh_only=True, sub=1):
     elif k == "content":
         prefix = "学术信息图表与概念结构呈现，清晰现代设计，结构分明，干净背景，极简信息美学，"
     elif k == "pic":
-        if int(sub or 1) <= 1:
-            prefix = "3:4小绿书封面海报卡片，竖版构图，扁平现代设计风格，高饱和对比配色，画面中心预留标题文字排版空间，视觉冲击力强，吸睛排版，"
-        else:
-            prefix = "3:4小绿书内容卡片，竖版构图，扁平信息图风格，干净背景，模块化布局，图文层次分明，全中文标注，"
+        has_custom_aesthetic = ("美学风格" in prompt) or ("杂志" in prompt) or ("手账" in prompt) or ("信息图" in prompt) or ("书桌" in prompt)
+        if not has_custom_aesthetic:
+            if int(sub or 1) <= 1:
+                prefix = "3:4小红书/小绿书封面海报卡片，3:4竖版构图，画面中心预留标题文字排版空间，视觉冲击力强，吸睛排版，"
+            else:
+                prefix = "3:4小红书/小绿书内容卡片，3:4竖版构图，模块化卡片布局，图文层次分明，全中文标注，"
 
     enhanced = prefix + prompt
     if zh_only:

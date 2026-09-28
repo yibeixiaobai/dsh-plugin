@@ -108,6 +108,25 @@ def main():
 
     PREFIX_PATTERN = re.compile(r"^(\s*[\[【(（].+?[\]】)）]\s*|[^\s：:]{2,12}[：:])\s*")
 
+    def detect_syntax_pattern(title):
+        t = str(title).strip()
+        if re.search(r"\d+\s*(?:步|个|招|条|阶段|点|技巧|秘籍|原则|神器|清单)", t):
+            return "数字清单式(如'3步搞定/5个技巧')"
+        if re.search(r"(?:别再|千万别|千万不要|千万不能|踩坑|避坑|大坑|教训)", t):
+            return "避坑警示式(如'千万别这么做/踩坑自白')"
+        if re.search(r"(?:怎么|如何|到底|为什么|选哪|谁更好|该不该)", t):
+            return "痛点疑问式(如'到底怎么选/如何高效')"
+        if re.search(r"(?:搞错|误区|颠覆|不是.*?而是|真相|揭秘)", t):
+            return "认知反转式(如'90%人搞错了/颠覆认知')"
+        if re.search(r"(?:保姆级|手把手|自用|私藏|全流程)", t):
+            return "保姆指引式(如'自用私藏/手把手带你')"
+        return "常规陈述式"
+
+    patterns = [detect_syntax_pattern(t) for t in topics]
+    pattern_counts = {}
+    for p in patterns:
+        pattern_counts[p] = pattern_counts.get(p, 0) + 1
+
     items = []
     for idx, topic in enumerate(topics):
         prefix_matched = PREFIX_PATTERN.match(topic)
@@ -149,6 +168,7 @@ def main():
             "risk": risk,
             "top_score": round(top, 3),
             "matches": matches[:2],
+            "syntax_pattern": patterns[idx],
         }
         warnings = []
         if batch_duplicates:
@@ -158,6 +178,8 @@ def main():
         if prefix_violation:
             item["prefix_violation"] = True
             warnings.append("检测到标题使用前缀开头（如「%s」），违反全账号选题铁律。严禁将业务关键词作为开头词语或前缀标签，必须去除前缀并改为自然流畅的完整叙述标题。" % prefix_matched.group(0).strip())
+        if len(topics) >= 3 and pattern_counts.get(patterns[idx], 0) >= 2 and patterns[idx] != "常规陈述式":
+            warnings.append("去套路化提示：批次内存在多篇采用「%s」句式，建议混合运用疑问、反转、踩坑等不同句型打破模板感" % patterns[idx])
         if warnings:
             item["warning"] = "；".join(warnings)
         items.append(item)

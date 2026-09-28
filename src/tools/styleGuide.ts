@@ -135,17 +135,61 @@ const NEWSPIC_DOC_SPEC_EXAMPLE = {
   ],
 }
 
-// 小红书笔记 doc spec：标题 + 正文 + 图片提示词 + 话题标签
+// 小红书 5 大原生爆款叙事体裁骨架示例（去模板化、去套路化体系）
+const XHS_ARCHETYPES = [
+  {
+    type: 'story_trap',
+    name: '避坑经历型',
+    title: '开题千万别这么写！我踩过的3个大坑',
+    structure: '个人挫折切入（真实痛点） → 核心症结复盘 → 3条避坑指南 → 交流互动',
+    example: '🚨 真实踩坑自白：\n研一开题时我自以为选题宏大，结果答辩被导师连环质问，差点延毕...今天掏心窝子跟大家分享3个千万不能踩的坑：\n\n❌ 误区一：题目假大空，缺乏具体研究边界\n❌ 误区二：文献综述变成简单的论文罗列\n❌ 误区三：研究方法与核心结论无法闭环\n\n💡 翻盘复盘：\n后来把切入点收窄到具体场景，答辩导师直接给优！开题关键不是做多大，而是把一个点挖透。',
+    visual_aesthetic: '真实手账便签记录风（网格纸底纹、手绘便签贴纸、马克笔高亮笔触）',
+  },
+  {
+    type: 'step_checklist',
+    name: '保姆级实操清单型',
+    title: '保姆级文献精读法！照着做不拖延',
+    structure: '目标与准备 → 阶段一宏观速览 → 阶段二精读笔记 → 阶段三输出卡片 → 行动清单',
+    example: '📋 拯救拖延的精读清单：\n文献读完总记不住？建议大家告别从头读到尾的低效模式，照着这份清单逐项打勾执行：\n\n阶段一：10分钟宏观扫读\n◽ 细读 Abstract 与 Conclusion，判断关联度\n◽ 快速过一遍图表 Caption\n\n阶段二：20分钟结构精读\n◽ 标出作者的核心假设与实验创新点\n◽ 用不同颜色马克笔标注研究局限\n\n阶段三：5分钟卡片归档\n◽ 提炼一句话核心收获录入知识库',
+    visual_aesthetic: '现代数据图解/脑图风（模块化卡片布局、清晰的清单勾选符号与逻辑流程箭头）',
+  },
+  {
+    type: 'comparison_matrix',
+    name: '横向对比测评型',
+    title: '这3款学术工具谁更好用？一图看懂',
+    structure: '选型困扰痛点 → 维度横向打分（功能/门槛/性价比） → 适用人群对照 → 最终选型建议',
+    example: '⚖️ 纠结文献管理工具看这篇就够了：\n很多同学在 Zotero、EndNote 和 NoteExpress 之间纠结，结合我4年的深度使用体验，做个纯主观横向对比：\n\n1️⃣ Zotero（推荐指数 ⭐⭐⭐⭐⭐）\n◽ 优势：开源免费、插件生态极其强大、跨平台同步丝滑\n◽ 痛点：需要花半小时配置插件\n◽ 适合：追求高效自由度的研究生\n\n2️⃣ EndNote（推荐指数 ⭐⭐⭐⭐）\n◽ 优势：各大期刊官方模板兼容度第一、老牌稳定\n◽ 痛点：界面相对古早、购买正版成本高\n◽ 适合：纯医学/生物生信发SCI老手',
+    visual_aesthetic: '极简杂志风（米白高级底色、呼吸感留白、精致中文字体排版、高级低饱和配色）',
+  },
+  {
+    type: 'myth_buster',
+    name: '认知反转破局型',
+    title: '文献不是读得越多越好！90%人搞错了',
+    structure: '抛出反直觉真相 → 传统误区错在哪 → 认知升级逻辑 → 高效破局解法',
+    example: '💡 颠覆认知的学术真相：\n你是不是也有一周下载上百篇文献，放在文件夹里吃灰的经历？其实文献不是越多越好，盲目贪多反而是科研内耗的根源：\n\n❌ 假勤奋：收藏即学会，只下载不吸收\n❌ 伪精读：字斟句酌读完全文却提炼不出核心论点\n\n🔑 认知破局：\n真正高效的学者都在做“按需逆向检索”——以要解决的科研痛点为导向，只读能为你的论证提供证据的段落。读透10篇顶刊Benchmark，远胜走马观花刷100篇普通文章！',
+    visual_aesthetic: '极简杂志画报风（强烈视觉焦点、反差色彩对比、大号标题字排版）',
+  },
+  {
+    type: 'toolkit_resources',
+    name: '实用工具库盘点型',
+    title: '自用私藏！5个效率翻倍的科研神器',
+    structure: '核心场景痛点 → 工具1亮点 → 工具2亮点 → 工具3亮点 → 组合提效秘籍',
+    example: '🧰 研究生私藏效率工具库：\n工欲善其事必先利其器！整理了5个每天都在用的高赞科研工具，建议直接码住：\n\n1. Connected Papers：顺藤摸瓜找关联文献的视觉关系图谱\n2. Research Rabbit：学术界的Spotify，根据已读文章智能推荐\n3. Overleaf：多人实时协作LaTeX写论文，免本地复杂环境配置\n4. SciFlow：自带各种期刊参考文献排版模板的学术写作排版器\n5. DeepL：地道学术英语翻译，语法润色体验极佳',
+    visual_aesthetic: '现代模块图解风（网格式卡片、工具专属图标位、清晰功能标注）',
+  },
+]
+
 const XHS_DOC_SPEC_EXAMPLE = {
   index: 1,
-  title: '爆款标题（≤20字，emoji+数字+痛点）',
-  content: '📌 核心速览：\n提炼核心干货，3~5 个要点分段呈现。\n\n✅ 要点一：xxx\n✅ 要点二：xxx\n\n💡 避坑提醒：xxx\n\n关注我获取更多干货！',
+  archetype: 'story_trap',
+  title: '开题千万别这么写！我踩过的3个大坑',
+  content: '🚨 真实踩坑自白：\n研一开题时我自以为选题宏大，结果答辩被导师连环质问...今天掏心窝子跟大家分享3个千万不能踩的坑：\n\n❌ 误区一：题目假大空，缺乏具体研究边界\n❌ 误区二：文献综述变成简单的论文罗列\n❌ 误区三：研究方法与核心结论无法闭环\n\n💡 翻盘复盘：\n后来把切入点收窄到具体场景，答辩导师直接给优！开题关键不是做多大，而是把一个点挖透。\n\n#研究生日常 #开题报告 #科研避坑',
   images: [
-    { sub: 1, role: 'cover', prompt: '封面海报：3:4竖版，扁平现代设计，高饱和配色，画面中心预留标题空间，禁止英文' },
-    { sub: 2, role: 'content', prompt: '要点卡片：清单式排列，图标+短句，信息层次分明，全中文排版' },
-    { sub: 3, role: 'content', prompt: '详解卡片：流程/步骤图解，箭头引导，模块化布局，全中文标注' },
+    { sub: 1, role: 'cover', prompt: '3:4竖版封面海报：真实手账日记风，浅色网格纸纹理，手绘便签贴纸点缀，画面中心预留醒目大标题排版空间，全中文' },
+    { sub: 2, role: 'content', prompt: '3:4内容卡片：3大误区避坑图解，模块化卡片布局，红色叉号图标，手绘便签质感，全中文标注' },
+    { sub: 3, role: 'content', prompt: '3:4内容卡片：翻盘心法与实操路径图，清晰递进步骤箭头，全中文排版' },
   ],
-  tags: ['学术干货', '论文发表'],
+  tags: ['研究生日常', '开题报告', '科研避坑'],
 }
 
 function cleanXhsBrand(brand: string): string {
@@ -162,6 +206,14 @@ function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
   const recentTitles = getRecentTitles(cfg, account.id)
   const cleanBrandName = cleanXhsBrand(account.profile.brand_name) || '学术知识分享'
   const cleanAuthorName = cleanXhsBrand(account.profile.author_name) || cleanBrandName
+
+  // 去模板化：按篇序号为同批次笔记分配互不雷同的叙事体裁与画风
+  const archetypePlan: Record<string, string> = {}
+  for (let i = 1; i <= n; i++) {
+    const arch = XHS_ARCHETYPES[(i - 1) % XHS_ARCHETYPES.length]
+    archetypePlan['note_' + i] = arch.name + '（' + arch.type + '，画风：' + arch.visual_aesthetic + '）'
+  }
+
   return {
     account_id: account.id,
     account_name: account.profile.name,
@@ -174,18 +226,22 @@ function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
       content_limit: '正文（含话题标签）必须 ≤ ' + XHS_CONTENT_MAX + ' 字',
       image_format: '每篇配 ' + imgPerNote + ' 张图，统一 3:4 竖版（1080×1440px），最多 ' + XHS_IMAGES_MAX + ' 张',
       compliance_standard: '必须严格遵守《小红书社区规范》（协议编号：ZXXY20221213003），严禁导流，真实分享',
+      anti_formulaic: '杜绝模板化套路化！同批次多篇笔记必须使用不同叙事体裁与不同视觉画风',
     },
     doc_spec: XHS_DOC_SPEC_EXAMPLE,
     parts_format: [
-      'title → 爆款短标题（严格≤' + XHS_TITLE_MAX + '字，痛点+数字+解决方案，如「3步搞定文献综述」「开题避坑指南」，拒绝夸大极限词）',
-      'content → 纯文案正文（' + minWords + '~' + XHS_CONTENT_MAX + '字，第一人称真诚分享口吻，分段清晰+emoji导读+文末合规互动）',
+      'archetype → 叙事体裁标识（story_trap / step_checklist / comparison_matrix / myth_buster / toolkit_resources）',
+      'title → 爆款短标题（严格≤' + XHS_TITLE_MAX + '字，痛点+数字+解决方案，拒绝极限词与单一模板）',
+      'content → 纯文案正文（' + minWords + '~' + XHS_CONTENT_MAX + '字，第一人称真诚分享口吻，分段精炼+emoji导读+文末合规互动，拒绝AI八股套话）',
       'images → 生图提示词列表（每张 sub 从 1 到 ' + imgPerNote + '）',
-      '  图片角色分工：sub1=cover（封面吸睛海报，中心预留标题文字位）→ sub2~' + (imgPerNote - 1) + '=content（干货清单/要点图解）→ sub' + imgPerNote + '=cta（总结引导交流）',
-      '  生图提示词铁律：必须围绕【本篇标题的具体主题关键词】展开，全中文排版，严禁任何英文乱码，严禁二维码、水印，严禁真实名人肖像与商业品牌Logo',
+      '  图片角色分工：sub1=cover（封面海报，中心预留标题文字位）→ sub2~' + (imgPerNote - 1) + '=content（干货要点图解）→ sub' + imgPerNote + '=cta（总结引导交流）',
+      '  生图提示词铁律：必须围绕【本篇标题的具体主题关键词】展开，融合该篇推荐的美学画风（杂志风/手账风/图解风/实景风），全中文排版，严禁英文乱码，严禁二维码、水印与商标侵权',
       'tags → 话题标签列表（如 ["学术干货", "论文写作"]），自动以 #话题 格式附加在文末，建议 3~5 个精准中文标签',
     ],
     hard_rules: [
-      '【最高第一优先级】：若本次任务包含补充要求（如指定特定选题/主题、篇数、字数、配图等），补充要求具有最高裁决权，优先于本规范返回的默认配置值！未被补充要求修改的底层合规与格式规则继续严格生效。',
+      '【最高第一优先级】：若本次任务包含补充要求（如指定特定选题/主题、篇数、字数、配图、风格等），补充要求具有最高裁决权，优先于本规范返回的默认配置值！未被补充要求修改的底层合规与格式规则继续严格生效。',
+      '【去模板化铁律：5大体裁轮换】：同批次批量产出多篇笔记时，严禁全部采用“速览+原则+避坑”三板斧！必须根据 archetype_plan 分配的体裁写作（如第1篇踩坑自白、第2篇实操清单、第3篇对比测评等），行文逻辑、分段结构必须截然不同！',
+      '【AI去油去八股铁律】：严禁使用假大空机械套话（如“不可否认”、“毋庸置疑”、“显而易见”、“随着时代发展”、“洞悉规律”等）！必须使用第一人称博主真实在场口吻（“我亲测”、“真的建议大家”、“踩过的坑”）。',
       '【小红书社区规范红线一：严禁任何导流行为（规范 3.2）】：严禁发布微信号、微信、加V、VX、QQ、手机号、邮箱、二维码、暗号、外部网址域名（.cn/.com/http/https等）、外站平台（淘宝/京东/公众号/知乎等）或“私信领资料”。一律合规于社区内自然互动。',
       '【小红书社区规范红线二：严禁违规交易与学术不端（规范 2.3 & 3.1）】：严禁出现“代写”、“代办”、“代发”、“保过”、“包过”、“买卖论文”、“枪手”等任何学术不端或虚假承诺词汇。',
       '【小红书社区规范红线三：真实体验与杜绝虚假夸大（规范 4.1.3 & 4.1.4）】：提倡第一人称“真诚分享”与利他干货，结构清晰，emoji 导读；标题严格 ≤ ' + XHS_TITLE_MAX + ' 字；严禁标题党与广告极限词（如“全网第一”、“绝密”、“100%包过”等）。',
@@ -205,7 +261,7 @@ function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
     articles_per_day: n,
     topics: [...content.topics],
     content_images_per_article: imgPerNote,
-    theme_plan: {},
+    theme_plan: archetypePlan as any,
     references: [],
     recent_titles: recentTitles,
   }

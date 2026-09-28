@@ -33,7 +33,7 @@ export async function runPipeline<T>(
     ...pyBase(cfg),
     script: path.join(pipelineDir(), script),
     args,
-    timeoutMs: Math.max(minTimeoutMs, cfg.runtime.request_timeout_ms * 2),
+    timeoutMs: Math.max(minTimeoutMs, (cfg.runtime?.request_timeout_ms || 30000) * 2),
   })
   if (!r.ok || r.data === undefined) {
     const logs = r.logs.length ? '\n--- Python 最近输出 ---\n' + r.logs.slice(-8).join('\n') : ''

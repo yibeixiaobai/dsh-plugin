@@ -62,6 +62,53 @@ EXTREME_AD_KEYWORDS = [
     "100%搞定", "绝对保过", "包教包会", "零门槛暴富", "稳赚不赔", "永久免费",
 ]
 
+# 4. AI 八股套话与假大空词句库（去套路化、去模板化引擎）
+AI_CLICHE_PATTERNS = [
+    "在当今快节奏的", "不可否认的是", "毋庸置疑的是", "毋庸置疑", "显而易见的是",
+    "随着时代的发展", "从某种意义上说", "有助于全面洞悉规律", "综上所述",
+    "总而言之", "众所周知的是", "正如我们所知", "毫无疑问的是", "不得不说的是",
+    "值得注意的是", "总的来说",
+]
+
+# 5. 小红书 5 大原生爆款叙事体裁定义
+ARCHETYPES = {
+    "story_trap": {
+        "name": "避坑经历型",
+        "desc": "以第一人称真实踩坑经历切入，剖析症结，给出复盘对策，情绪共鸣强",
+        "emoji": "🚨",
+    },
+    "step_checklist": {
+        "name": "保姆级实操清单型",
+        "desc": "阶段化/时间线推进，搭配可逐项打勾的对照清单，实操落地性强",
+        "emoji": "📋",
+    },
+    "comparison_matrix": {
+        "name": "横向对比测评型",
+        "desc": "横向对比A/B方案的优缺点、适用场景与性价比，表格化思维呈现",
+        "emoji": "⚖️",
+    },
+    "myth_buster": {
+        "name": "认知反转破局型",
+        "desc": "打破90%人搞错的误区，揭示深层真相，提供认知升级与降维思考",
+        "emoji": "💡",
+    },
+    "toolkit_resources": {
+        "name": "实用工具库盘点型",
+        "desc": "自用私藏高频神器、文献助手、提效软件盘点，高信息密度与收藏率",
+        "emoji": "🧰",
+    },
+}
+
+# 6. 多样化自然博主互动与收尾语池（替代单一机械补全，轮换分配）
+HUMANIZED_INTERACTIONS = [
+    "💬 互动时间：你在写这部分时遇到过什么头疼问题？欢迎在评论区聊聊，学姐看到都会回复~",
+    "📌 实用建议：先收藏起来，等写到这一步直接对照执行！有疑问随时在评论区提问~",
+    "🙋‍♀️ 互助交流：大家目前的进度推进到哪一步啦？欢迎在评论区打卡，一起交流避坑！",
+    "💡 小贴士：建议把这套清单截图存好，随用随查。你在实操中还有哪些好习惯？评论区互相取经呀~",
+    "🎯 行动指南：光看不练假把式，今天就试着按这套逻辑过一遍！遇到卡点欢迎评论区探讨~",
+    "📚 持续分享：持续更新硬核实操干货，大家还想看哪方面内容？在评论区告诉我吧~",
+]
+
 
 def sanitize_brand_for_xhs(brand_name):
     """去除品牌名中的网址、域名、外链及导流后缀（如 '文映学术win00.cn' -> '文映学术'）。
@@ -150,15 +197,21 @@ def check_xhs_compliance(title, content, brand_name="", forbidden=None):
     if leftover:
         problems.append("[违反小红书图文体验] 正文残留图片占位符: %s（小红书正文为纯文本，图片单独上传）" % (", ".join(sorted(set(leftover))[:3]),))
 
+    # 6. 检查 AI 八股套话与假大空（去套路化引擎）
+    cliche_hits = [c for c in AI_CLICHE_PATTERNS if c in combined]
+    if len(cliche_hits) >= 2:
+        problems.append("[检测到AI八股套话超标] 包含机械套话: %s（请采用第一人称真实博主口吻，杜绝机械假大空AI腔）" % ("、".join(cliche_hits[:3]),))
+
     return problems
 
 
 def build_note(doc, idx, min_words=200, brand_name="", require_brand=False, forbidden=None):
     """doc spec → (text, title, plain_chars, img_count, problems)。
 
-    输入 doc spec 骨架：
+    输入 doc spec 骨架（支持 5 大原生爆款体裁）：
     {
       "index": 1,
+      "archetype": "story_trap" | "step_checklist" | "comparison_matrix" | "myth_buster" | "toolkit_resources",
       "title": "标题（<=20字，痛点+数字+解决方案）",
       "content": "正文段落（支持 emoji 导读与清晰分段）...",
       "images": [{"sub": 1, "role": "cover", "prompt": "..."}],
@@ -170,6 +223,7 @@ def build_note(doc, idx, min_words=200, brand_name="", require_brand=False, forb
     - 正文 <= 1000 字（含话题标签），且纯文字满足字数下限；
     - 绝不允许导流（微信号、网址域名、外部平台）；
     - 绝不允许虚假宣传、学术代办与极端违规词；
+    - 过滤 AI 八股套话，促进生动多元的博主真实表达；
     - 规范话题标签格式；
     - 占位符自动剔除。
     """
@@ -207,12 +261,15 @@ def build_note(doc, idx, min_words=200, brand_name="", require_brand=False, forb
     plain = plain_text(full_text)
     effective_min = int(min_words * 0.85)
 
-    # 若字数略微不足（差值<=50字），提供符合小红书真诚分享风格的拓展引导，而非机械套话
-    if len(plain) < effective_min and (effective_min - len(plain) <= 50):
-        enrich = (
-            "\n\n💡 实践心得：\n建议大家结合自己的实际情况灵活参考，"
-            "把关键步骤拆解成每天的执行清单，循序渐进推进才能更稳更扎实。"
-        )
+    # 若字数略微不足（差值<=60字），按篇号轮换提供符合小红书真诚分享风格的拓展引导，拒绝单一机械套话
+    if len(plain) < effective_min and (effective_min - len(plain) <= 60):
+        enrich_pool = [
+            "\n\n💡 亲测心得：\n每个人的研究方向和基础不同，建议大家结合自己的实际场景灵活参考，把核心要点落实为每天的执行清单，循序渐进才能走得更稳。",
+            "\n\n🚨 避坑提示：\n很多同学刚开始容易陷入完美主义焦虑，其实只要先迈出第一步完成框架搭建，后续对照清单迭代优化，效率会成倍提升。",
+            "\n\n✨ 实操复盘：\n复盘比盲目努力更重要，推进过程中建议多做笔记留痕，把阶段性结论梳理清晰，后续写报告或论文时会省心很多。",
+            "\n\n📌 关键备忘：\n把复杂任务拆解成可量化的微习惯，每天专注突破一个小难点，不知不觉就能啃下硬骨头，大家一起加油！"
+        ]
+        enrich = enrich_pool[(idx - 1) % len(enrich_pool)]
         full_text += enrich
         plain = plain_text(full_text)
 
@@ -224,8 +281,8 @@ def build_note(doc, idx, min_words=200, brand_name="", require_brand=False, forb
     clean_brand = sanitize_brand_for_xhs(brand_name)
     if require_brand and clean_brand:
         if clean_brand not in plain:
-            # 自动自然融入文末合规互动语，避免直接报硬中断
-            interaction = "\n\n📌 本期分享来自【%s】，持续分享干货技巧，欢迎在评论区一起交流探讨哦~" % clean_brand
+            inter_text = HUMANIZED_INTERACTIONS[(idx - 1) % len(HUMANIZED_INTERACTIONS)]
+            interaction = "\n\n📌 本期分享来自【%s】。\n%s" % (clean_brand, inter_text)
             full_text += interaction
             plain = plain_text(full_text)
 

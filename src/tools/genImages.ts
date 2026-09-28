@@ -40,8 +40,8 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
     name: 'gzh_generate_images',
     description:
       'AI 生图：封面、正文信息图及小绿书卡片图。多线程并发生图加速，支持同接口备用模型与本地优雅降级保底。' +
-      '公众号长文封面比例头条 ' + cfg.image_api.headline_cover_ratio + ' / 次条 ' +
-      cfg.image_api.secondary_cover_ratio + '；小绿书卡片图（kind: pic）统一按账号配置比例生成；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
+      '公众号长文封面比例头条 ' + (cfg.image_api?.headline_cover_ratio || '2.35:1') + ' / 次条 ' +
+      (cfg.image_api?.secondary_cover_ratio || '1:1') + '；小绿书卡片图（kind: pic）统一按账号配置比例生成；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
       '按生图接口优先级执行：任何接口级失败自动切换下一个接口，成功后保持该接口；全网接口失败自动触发本地优雅保底。演练模式（dry_run）只校验不联网。',
     parameters: {
       items_json: {
@@ -106,24 +106,51 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
           const ratio = isXhs ? '3:4' : ((account.profile.content.newspic_image_ratio || '3:4') as CoverRatio)
           const picSize = COVER_SIZES[ratio] || COVER_SIZES['3:4']
           const titleForPic = titles[index - 1]
+
+          // 小红书 4 大视觉美学矩阵（去模板化、多样化画风）
+          const XHS_AESTHETICS = [
+            {
+              name: 'editorial',
+              cover: '小红书极简杂志封面大片，米白高级质感背景，充裕呼吸感留白，精致中文字体排版构图，高级低饱和配色，现代画报质感',
+              card: '小红书极简杂志排版风格，模块化卡片布局，清晰的留白与文字呼吸感，全中文排版，高级现代排版',
+            },
+            {
+              name: 'journal',
+              cover: '小红书手账日记便签封面海报，浅色网格纸底纹，手绘便签贴纸点缀，马克笔高亮手写标记感，真实记录感与生活感',
+              card: '小红书手账便签记录风格，浅色网格背景，模块化便利贴分段，生动手绘小图标，全中文排版',
+            },
+            {
+              name: 'infographic',
+              cover: '小红书现代信息图谱封面海报，结构分明，现代科技感与学术信息图表融合，高饱和对比色块聚焦核心痛点，高级现代设计',
+              card: '小红书现代信息图谱风格，模块化卡片布局，清晰的图表层级与逻辑指示箭头，干净整洁的背景，全中文排版',
+            },
+            {
+              name: 'still_life',
+              cover: '沉浸式学术学习书桌场景封面，温暖自然光影，翻开的书籍、笔记本电脑与咖啡杯，真实摄影质感，自然散景，高级生活方式',
+              card: '温暖书桌场景结合半透明磨砂玻璃卡片悬浮排版，柔和光影，图文层次清晰，全中文标注',
+            },
+          ]
+          const aesthetic = XHS_AESTHETICS[(index - 1) % XHS_AESTHETICS.length]
+
           let picPrompt = prompt
-          // 关键：每一张图都必须绑定所属笔记的主题，不能只给封面绑定。
-          // 旧逻辑仅在 sub<=1 时注入主题，导致 pic_{i}_2..N 只拿到通用提示词
-          // （如「要点卡片」），生图模型于是自由发挥，产出「轻松养成好习惯」
-          // 这类与选题无关的通用鸡汤内容，且跨笔记高度雷同。
           if (titleForPic) {
             if (sub <= 1) {
               picPrompt =
                 prompt +
+                (isXhs ? '；【美学风格：' + aesthetic.cover + '】' : '') +
                 '；封面卡片需体现标题「' + titleForPic + '」的主题意象，画面中心预留标题文字排版空间'
             } else {
               picPrompt =
                 prompt +
+                (isXhs ? '；【美学风格：' + aesthetic.card + '】' : '') +
                 '；本卡片属于笔记「' + titleForPic + '」，必须紧扣该选题展开：' +
                 '画面文字与图表内容都要围绕「' + titleForPic + '」的核心信息，' +
                 '禁止出现与选题无关的通用内容（如生活习惯养成、时间管理、读书学习等泛化主题）'
             }
+          } else if (isXhs) {
+            picPrompt = prompt + '；【美学风格：' + (sub <= 1 ? aesthetic.cover : aesthetic.card) + '】'
           }
+
           if (isXhs) {
             picPrompt +=
               '；【小红书社区规范合规约束】：' +

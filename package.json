@@ -12,7 +12,7 @@
   "scripts": {
     "start": "node src/standalone-server.ts",
     "serve": "node src/standalone-server.ts",
-    "test": "npx tsx tests/test_xhs_config.ts && npx tsx tests/test_xhs_publish_confirm.ts && npx tsx tests/test_xhs_compliance.ts"
+    "test": "npx tsx tests/test_xhs_config.ts && npx tsx tests/test_xhs_publish_confirm.ts && npx tsx tests/test_xhs_compliance.ts && npx tsx tests/test_xhs_anti_template.ts"
   },
   "files": [
     "src",
