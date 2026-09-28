@@ -106,8 +106,22 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
           const picSize = COVER_SIZES[ratio] || COVER_SIZES['3:4']
           const titleForPic = titles[index - 1]
           let picPrompt = prompt
-          if (titleForPic && sub <= 1) {
-            picPrompt = prompt + '；封面卡片需体现标题「' + titleForPic + '」的主题意象，画面中心预留标题文字排版空间'
+          // 关键：每一张图都必须绑定所属笔记的主题，不能只给封面绑定。
+          // 旧逻辑仅在 sub<=1 时注入主题，导致 pic_{i}_2..N 只拿到通用提示词
+          // （如「要点卡片」），生图模型于是自由发挥，产出「轻松养成好习惯」
+          // 这类与选题无关的通用鸡汤内容，且跨笔记高度雷同。
+          if (titleForPic) {
+            if (sub <= 1) {
+              picPrompt =
+                prompt +
+                '；封面卡片需体现标题「' + titleForPic + '」的主题意象，画面中心预留标题文字排版空间'
+            } else {
+              picPrompt =
+                prompt +
+                '；本卡片属于笔记「' + titleForPic + '」，必须紧扣该选题展开：' +
+                '画面文字与图表内容都要围绕「' + titleForPic + '」的核心信息，' +
+                '禁止出现与选题无关的通用内容（如生活习惯养成、时间管理、读书学习等泛化主题）'
+            }
           }
           return {
             kind: 'pic', index, sub, prompt: picPrompt,

@@ -174,6 +174,7 @@ function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
       'content → 纯文案正文（' + minWords + '~' + XHS_CONTENT_MAX + '字，分段+emoji导读+文末引导）',
       'images → 生图提示词列表（每张 sub 从 1 到 ' + imgPerNote + '）',
       '  图片角色分工：sub1=cover（封面吸睛）→ sub2~' + (imgPerNote - 1) + '=content（干货要点）→ sub' + imgPerNote + '=cta（引导关注）',
+      '  生图提示词铁律：每张图的 prompt 都必须写出【本篇标题的具体主题关键词】，不能只写「要点卡片」「步骤图解」这类通用描述——否则模型会自由发挥，产出与选题无关的通用内容。同一批多篇笔记之间，各篇提示词的主题词必须不同。',
       'tags → 话题标签列表（如 ["学术干货", "论文发表"]），自动追加到正文末尾',
     ],
     hard_rules: [
