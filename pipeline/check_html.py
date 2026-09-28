@@ -135,7 +135,12 @@ def check_file_newspic(path, min_words, forbidden, brand_name, img_count, requir
 
 
 def check_file_xhs(path, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders):
-    """小红书纯文本笔记校验：标题≤20字、正文≤1000字、字数下限、禁词、图片数。"""
+    """小红书纯文本笔记校验：标题≤20字、正文≤1000字、字数下限、禁词、图片数。
+
+    重要：小红书正文是【纯文本】，图片通过上传区单独提交，正文里【不允许】出现
+    IMG_A{i}_{j} 占位符（旧逻辑要求正文含 N 个占位符，导致占位符被当正文发给读者）。
+    因此这里的图片数校验以磁盘上真实存在的 pic_{index}_{sub}.png 为准。
+    """
     text = open(path, encoding="utf-8").read()
     problems = []
     if "\\u" in text:
@@ -152,12 +157,25 @@ def check_file_xhs(path, min_words, forbidden, brand_name, img_count, require_br
             problems.append("含禁词: " + w)
     if require_brand and brand_name and brand_name not in plain:
         problems.append("缺少品牌引导语: " + brand_name)
-    imgs = re.findall(r"IMG_A\d+_\d+", text)
-    if len(imgs) != img_count:
-        problems.append("图片占位符数量 %d != %d（按设置的每篇笔记图片数）" % (len(imgs), img_count))
-    if not allow_placeholders and ("IMG_A" in text or "__BRAND" in text):
-        problems.append("仍有占位符残留（IMG_A*、__BRAND_*）")
-    return {"file": path, "plain_chars": len(plain), "img_count": len(imgs), "problems": problems}
+    # 正文中不得残留任何图片占位符
+    leftover = re.findall(r"IMG_A\d+_\d+", text)
+    if leftover:
+        problems.append("正文残留图片占位符 %d 个（%s）：小红书正文为纯文本，占位符不得出现在正文中"
+                        % (len(leftover), ",".join(sorted(set(leftover))[:4])))
+    # 图片数按磁盘真实文件统计：pic_{index}_{sub}.png
+    m = re.search(r"article_v2_(\d+)_xhs", os.path.basename(path))
+    idx = int(m.group(1)) if m else 0
+    scripts_dir = os.path.dirname(os.path.abspath(path))
+    real = 0
+    if idx:
+        sub = 1
+        while os.path.exists(os.path.join(scripts_dir, "pic_%d_%d.png" % (idx, sub))):
+            real += 1
+            sub += 1
+    if real != img_count:
+        problems.append("实际配图数量 %d != %d（按设置的每篇笔记图片数，查找 pic_%d_*.png）"
+                        % (real, img_count, idx))
+    return {"file": path, "plain_chars": len(plain), "img_count": real, "problems": problems}
 
 
 def check_file(path, min_words, forbidden, brand_name, img_count, allow_placeholders):

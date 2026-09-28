@@ -12,7 +12,9 @@ import { getCachedLoginState, setCachedLoginState, isLoginInFlight, setLoginInFl
 import { findBrowserExecutable, cleanStaleChromeLocks } from './zhihu.ts'
 
 const CREATOR_URL = 'https://creator.xiaohongshu.com'
-const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish'
+// 必须带 source/from 参数：裸 /publish/publish 进入时 SPA 未初始化 tab 状态，
+// 点击「上传图文」会被当成导航跳到 ?from=tab_switch（视频页），图文编辑器永不出现。
+const PUBLISH_URL = 'https://creator.xiaohongshu.com/publish/publish?source=official&from=menu'
 const RISK_PATTERNS = ['验证', '滑块', '安全检测', '账号异常', '环境异常']
 
 export const XHS_LOGIN_ROUTE = '/api/gzh-publisher/xhs-login'
@@ -71,7 +73,7 @@ async function launchXhsBrowser(cfg: Config, accountId: string, headless: boolea
       headless,
       userDataDir: profileDir,
       defaultViewport: headless ? { width: 1440, height: 900 } : null,
-      protocolTimeout: 240000,
+      protocolTimeout: 600000,
       args,
     })
   } catch (error) {
@@ -249,20 +251,117 @@ async function assertNoRiskPage(page: Page, debugDir: string, label: string): Pr
 }
 
 async function uploadImages(page: Page, filePaths: string[], debugDir: string): Promise<void> {
-  const fileInput = await page.waitForSelector('input[type="file"]', { timeout: 20000 })
-  if (!fileInput) throw new Error('未找到小红书图片上传入口')
-  await fileInput.uploadFile(...filePaths)
-  const deadline = Date.now() + 120000
-  while (Date.now() < deadline) {
-    const uploaded = await page.evaluate(() => {
-      const thumbnails = document.querySelectorAll('[class*="thumbnail"], [class*="image-item"], [class*="upload-item"]')
-      return thumbnails.length
-    })
-    if (uploaded >= filePaths.length) return
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+  // 小红书图文上传区含【两个】input[type=file]：
+  //   ① multiple + accept=.jpg,.jpeg,.png,.webp → 多图上传（图片列表）
+  //   ② 无 multiple，accept 同上                 → 单图（替换/封面）
+  // 旧代码用 DOM.querySelector('input[type="file"]') 取【第一个】匹配，且派发事件时
+  // 用 document.querySelector('input[type="file"]') 又取一次——两者在 SPA 重建节点后
+  // 可能指向不同 input，文件被投进错误的框，表现为「配图主题不对」；重复派发 change
+  // 则表现为「同一张图传了两次」。因此这里显式锁定「带 multiple 的图片 input」。
+  await page.waitForSelector('input[type="file"]', { timeout: 20000 })
+
+  /** 已进入图片列表的预览图数量 */
+  const countUploaded = () =>
+    page.evaluate(() => document.querySelectorAll('img.preview, .img-list img.preview').length).catch(() => -1)
+
+  /** 读取图片状态计数器 "N/18"，作为第二重校验 */
+  const readStatusCount = () =>
+    page
+      .evaluate(() => {
+        const m = (document.querySelector('.img-list .status')?.textContent || '').trim().match(/^(\d+)\s*\/\s*(\d+)$/)
+        return m ? Number(m[1]) : -1
+      })
+      .catch(() => -1)
+
+  const client = await page.createCDPSession()
+
+  /**
+   * 定位图片上传 input 的 CDP nodeId。
+   *
+   * 关键事实（实测）：小红书图片上传框是
+   *   <input class="upload-input" type="file" multiple accept=".jpg,.jpeg,.png,.webp">
+   * accept 是【扩展名列表】，并不含 "image" 字样，所以 [accept*="image"] 永远匹配不到。
+   * 该页面上「多图上传（图片列表）」与「单图（替换/封面）」是两个不同 input，
+   * 必须锁定带 multiple 的那个，否则文件会被投进错误的框（表现为配图主题不对/重复）。
+   *
+   * 坑：DOM.querySelectorAll 返回的 nodeId 在 SPA 重渲染后失效，故每轮都用
+   * DOM.querySelector 重新取一份新鲜 nodeId。
+   */
+  const locateImageInput = async (): Promise<number> => {
+    const { root } = await client.send('DOM.getDocument', { depth: -1 })
+    const candidates = [
+      'input[type="file"][multiple]', // 多图上传（首选）
+      'input.upload-input',
+      'input[type="file"]',
+    ]
+    for (const selector of candidates) {
+      const { nodeId } = await client.send('DOM.querySelector', { nodeId: root.nodeId, selector })
+      if (nodeId) return nodeId
+    }
+    return 0
   }
-  const shot = await debugScreenshot(page, debugDir, 'upload_timeout')
-  throw new Error('小红书图片上传超时（120s 内未完成 ' + filePaths.length + ' 张）。截图: ' + shot)
+
+  let injected = false
+  const startCount = Math.max(0, await countUploaded())
+  try {
+    for (let idx = 0; idx < filePaths.length; idx++) {
+      const nodeId = await locateImageInput()
+      if (!nodeId) break
+      // 只用 CDP 注入即可：小红书 SPA 自身会响应 DOM.setFileInputFiles（实测注入 3 张
+      // 精确得到 3 张）。旧代码额外 dispatch 了 input/change 事件，导致上一张被 SPA
+      // 二次处理 →「同一张配图上传了两次」（实测 4 张变 5 张）。因此这里绝不派发事件。
+      await client.send('DOM.setFileInputFiles', { files: [filePaths[idx]], nodeId })
+      // 逐张确认入库，避免「上传两张只进一张」被静默放过
+      const want = startCount + idx + 1
+      const dl = Date.now() + 30000
+      while (Date.now() < dl) {
+        const c = await countUploaded()
+        const s = await readStatusCount()
+        if (c >= want || (s >= 0 && s >= want)) break
+        await new Promise((resolve) => setTimeout(resolve, 500))
+      }
+      injected = true
+    }
+  } catch {
+    injected = false
+  } finally {
+    await client.detach().catch(() => undefined)
+  }
+
+  if (!injected) {
+    // 回退：单文件逐个 uploadFile（单文件不受 multiple 限制）
+    for (const p of filePaths) {
+      const handle = await page.evaluateHandle(() => {
+        const inputs = Array.from(document.querySelectorAll('input[type="file"]'))
+        return inputs.find((el) => el.hasAttribute('multiple')) || inputs[0] || null
+      })
+      const el = handle.asElement()
+      if (!el) throw new Error('未找到小红书图片上传入口')
+      await (el as any).uploadFile(p)
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+    }
+  }
+
+  // 严格校验：本次必须恰好新增 filePaths.length 张，多一张（重复）或少一张（漏传）
+  // 都判失败，绝不带着错误的图片数继续发布。
+  const expected = startCount + filePaths.length
+  const deadline = Date.now() + 120000
+  let actual = await countUploaded()
+  let statusCount = await readStatusCount()
+  while (Date.now() < deadline && (actual < expected || (statusCount >= 0 && statusCount < expected))) {
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    actual = await countUploaded()
+    statusCount = await readStatusCount()
+  }
+  // 页面自身的 "N/18" 计数器最权威，其次数预览节点
+  const finalCount = statusCount >= 0 ? statusCount : actual
+  if (finalCount !== expected) {
+    const shot = await debugScreenshot(page, debugDir, 'upload_count_mismatch')
+    throw new Error(
+      '小红书配图数量不符：期望 ' + expected + ' 张（原有 ' + startCount + ' + 本次 ' + filePaths.length +
+        '），实际 ' + finalCount + ' 张（预览节点 ' + actual + '，状态计数器 ' + statusCount + '）。截图: ' + shot,
+    )
+  }
 }
 
 function precheckContent(job: XhsPublishJob, index: number, text: string): string[] {
@@ -287,50 +386,219 @@ async function publishOneNote(
 ): Promise<XhsNote> {
   const title = job.titles[index - 1]
   const text = fs.readFileSync(job.article_files[index - 1], 'utf-8')
-  const imageKeys = job.image_files['IMG_A' + index] ?? []
-  const imagePaths = imageKeys.map((k) => {
-    const p = job.image_files[k]?.[0]
-    if (!p || !fs.existsSync(p)) throw new Error('缺少第' + index + '篇图片 ' + k)
-    return p
-  })
+  // image_files 由 publish.ts 以 'IMG_A{i}_1' 为键存放整篇的图片数组（见 publishXiaohongshu），
+  // 因此这里必须取 'IMG_A{i}_1'；旧代码取 'IMG_A{i}' 永远为空 → 图片被静默跳过，
+  // 编辑器不渲染标题框，最终报「等待标题选择器超时」。
+  const imagePaths: string[] = []
+  const bundle = job.image_files['IMG_A' + index + '_1'] ?? job.image_files['IMG_A' + index] ?? []
+  for (const entry of bundle) {
+    if (typeof entry !== 'string') continue
+    if (!fs.existsSync(entry)) throw new Error('缺少第' + index + '篇图片 ' + entry)
+    imagePaths.push(entry)
+  }
 
   await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await new Promise((resolve) => setTimeout(resolve, 2000))
+  // 页面需完成 hydration 后再切 tab，否则点击会被当成导航跳转
+  await page.waitForSelector('div.creator-tab', { timeout: 20000 }).catch(() => undefined)
+  await new Promise((resolve) => setTimeout(resolve, 3000))
   await assertNoRiskPage(page, debugDir, 'note' + index + '_entry')
 
-  const imageTab = await page.evaluate(() => {
-    const tabs = Array.from(document.querySelectorAll('[class*="tab"], [role="tab"]'))
-    const imageTab = tabs.find((el) => (el.textContent ?? '').includes('图文'))
-    if (imageTab) {
-      (imageTab as HTMLElement).click()
-      return true
-    }
-    return false
-  })
+  // 切换到「上传图文」：必须点击 div.creator-tab 容器。
+  // 注意两条历史坑：
+  //  1) 用 [class*="tab"] + includes('图文') 会命中把全部 tab 文本拼在一起的外层容器，点击无效；
+  //  2) 页面 hydration 未完成时点击内部 span/div 会被当成导航链接，跳到 ?from=tab_switch
+  //     （视频页），此时上传图片会失败且标题框永不出现。
+  // 因此：先等 creator-tab 渲染完成，再点容器本身，并校验最终 URL。
+  await page.waitForSelector('div.creator-tab', { timeout: 20000 }).catch(() => undefined)
+
+  const clickImageTab = async (): Promise<boolean> =>
+    page.evaluate(() => {
+      // 优先精确匹配 div.creator-tab 容器
+      const tabs = Array.from(document.querySelectorAll('div.creator-tab'))
+      const target = tabs.find((el) => (el.textContent ?? '').trim() === '上传图文')
+      if (target) {
+        ;(target as HTMLElement).click()
+        return true
+      }
+      // 兜底：任意标签中文本恰为「上传图文」的最深层元素
+      const all = Array.from(document.querySelectorAll('div, span, li, a, button'))
+      const exact = all.filter((el) => (el.textContent ?? '').trim() === '上传图文')
+      const deepest = exact.filter(
+        (el) => !Array.from(el.children).some((c) => (c.textContent ?? '').trim() === '上传图文'),
+      )
+      const el = deepest[0] ?? exact[0]
+      if (el) {
+        ;(el as HTMLElement).click()
+        return true
+      }
+      return false
+    })
+
+  let imageTab = await clickImageTab()
   if (!imageTab) {
     await debugScreenshot(page, debugDir, 'note' + index + '_no_tab')
   }
-  await new Promise((resolve) => setTimeout(resolve, 1000))
+
+  // 等待路由切到图文编辑器（URL 出现 target=image）；若被带偏到 tab_switch 则重试
+  const waitForImageRoute = async (): Promise<boolean> => {
+    const deadline = Date.now() + 15000
+    while (Date.now() < deadline) {
+      const u = page.url()
+      if (u.includes('target=image')) return true
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+    return false
+  }
+
+  let onImageRoute = await waitForImageRoute()
+  if (!onImageRoute) {
+    // 被当作导航链接跳走（?from=tab_switch）时重试一次
+    for (let attempt = 0; attempt < 2 && !onImageRoute; attempt++) {
+      await page.goto(PUBLISH_URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
+      await new Promise((resolve) => setTimeout(resolve, 3500))
+      await page.waitForSelector('div.creator-tab', { timeout: 15000 }).catch(() => undefined)
+      imageTab = (await clickImageTab()) || imageTab
+      onImageRoute = await waitForImageRoute()
+    }
+  }
+  if (!onImageRoute) {
+    await debugScreenshot(page, debugDir, 'note' + index + '_tab_switch_failed')
+    throw new Error('小红书未能切到「上传图文」编辑器（当前 URL: ' + page.url() + '）')
+  }
+  // URL 变为 target=image 后 SPA 仍需时间挂载上传组件；必须等到图片上传框
+  // （accept 含 image 的 input[type=file]）真正出现，否则 CDP 查不到 nodeId，
+  // 上传会被静默跳过，标题框永不出现。
+  const uploadReady = Date.now() + 30000
+  while (Date.now() < uploadReady) {
+    const ok = await page.evaluate(() =>
+      // accept 为 ".jpg,.jpeg,.png,.webp"，不含 "image"；按 multiple 判断图片上传框
+      Array.from(document.querySelectorAll('input[type="file"]')).some((el) => el.hasAttribute('multiple')),
+    )
+    if (ok) break
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1500))
 
   if (imagePaths.length > 0) {
     await uploadImages(page, imagePaths, debugDir)
     await new Promise((resolve) => setTimeout(resolve, 2000))
   }
 
-  const titleInput = await page.waitForSelector('[placeholder*="标题"], [class*="title"] input, [class*="title"] textarea', { timeout: 20000 })
+  const TITLE_SELECTOR = '[placeholder*="标题"], [class*="title"] input, [class*="title"] textarea'
+  let titleInput = await page.waitForSelector(TITLE_SELECTOR, { timeout: 30000 })
+  if (!titleInput) {
+    // 兜底：部分版本的标题框只有 class="d-text"，无 placeholder 关键字
+    titleInput = await page.waitForSelector('input.d-text', { timeout: 10000 })
+  }
   if (!titleInput) throw new Error('未找到小红书标题输入框')
   await titleInput.click()
   await page.keyboard.type(title, { delay: 20 })
 
-  const contentEditor = await page.waitForSelector('[contenteditable="true"], [class*="content"] textarea, [placeholder*="正文"]', { timeout: 20000 })
+  const contentEditor = await page.waitForSelector('[contenteditable="true"], [class*="content"] textarea, [placeholder*="正文"]', { timeout: 30000 })
   if (!contentEditor) throw new Error('未找到小红书正文编辑区')
   await contentEditor.click()
+  // 正文必须剥离 IMG_A{i}_{j} 图片占位符：小红书是图文笔记，图片通过上传区单独提交，
+  // 正文里若残留占位符会以纯文本形式显示给读者（旧代码直接 type(text)，导致
+  // 已发布笔记的正文里带着 "IMG_A1_1" 这类字样）。
+  const cleanBody = text
+    .replace(/^[ \t]*IMG_A\d+_\d+[ \t]*$/gm, '') // 独占一行的占位符整行删除
+    .replace(/IMG_A\d+_\d+/g, '') // 行内残留的占位符就地删除
+    .replace(/\n{3,}/g, '\n\n') // 收敛删行后产生的多余空行
+    .trim()
   const fullText = job.tags.length > 0
-    ? text.trimEnd() + '\n\n' + job.tags.map((t) => '#' + t + ' ').join('').trim()
-    : text
+    ? cleanBody.trimEnd() + '\n\n' + job.tags.map((t) => '#' + t + ' ').join('').trim()
+    : cleanBody
   await page.keyboard.type(fullText, { delay: 10 })
   await new Promise((resolve) => setTimeout(resolve, 1000))
   await assertNoRiskPage(page, debugDir, 'note' + index + '_content')
+
+  // 发布与存草稿是互斥动作：publish_immediately=true 时必须点「发布」，
+  // 若先点「保存草稿」会跳离编辑器，导致随后找不到「发布」按钮（旧代码因此
+  // 只存了草稿却把 published 置为 true，属于假成功）。
+  if (job.publish_immediately) {
+    const clicked = await page.evaluate(() => {
+      // 小红书图片编辑器的发布按钮是自定义组件 <xhs-publish-btn>，它的内部按钮
+      // 渲染在 closed shadow root 里，任何 DOM 选择器（<button>、按文本、坐标）
+      // 都点不到；元素上的事件监听也不是标准 click。
+      // 该组件实例直接暴露 _onPublish() / _onSave() 方法，调用 _onPublish()
+      // 即触发 POST /web_api/sns/v2/note 并跳转到 ?published=true。
+      const bar = document.querySelector('xhs-publish-btn') as
+        | (HTMLElement & { _onPublish?: () => void })
+        | null
+      if (!bar) return 'no_button'
+      if (typeof bar._onPublish === 'function') {
+        bar._onPublish()
+        return 'clicked'
+      }
+      // 兜底：组件未暴露方法时，点它内部含「发布」文本的节点
+      for (const el of Array.from(bar.querySelectorAll('*'))) {
+        const own = Array.from(el.childNodes)
+          .filter((n) => n.nodeType === 3)
+          .map((n) => n.textContent)
+          .join('')
+          .trim()
+        if (own === '发布' || own === '发布笔记') {
+          ;(el as HTMLElement).click()
+          return 'clicked'
+        }
+      }
+      return 'no_button'
+    })
+
+    if (clicked === 'no_button') {
+      const shot = await debugScreenshot(page, debugDir, 'note' + index + '_no_publish_button')
+      throw new Error('小红书未找到「发布」按钮，已中止（避免误报发布成功）。截图: ' + shot)
+    }
+
+    // 「发布」后可能弹出二次确认
+    await new Promise((resolve) => setTimeout(resolve, 2500))
+    await page
+      .evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button, div[role="button"]'))
+        const confirmBtn = buttons.find((el) => {
+          const label = (el.textContent ?? '').trim()
+          return (label === '确认' || label === '确认发布' || label === '确定') &&
+            (el as HTMLElement).offsetParent !== null
+        })
+        if (confirmBtn) (confirmBtn as HTMLElement).click()
+      })
+      .catch(() => undefined)
+
+    // 等跳转到发布成功页或笔记详情，确认真的发布出去了
+    const deadline = Date.now() + 45000
+    let liveUrl = ''
+    let sawPublishedFlag = false
+    while (Date.now() < deadline) {
+      const u = page.url()
+      // 发布成功后 SPA 会带上 published=true
+      if (/[?&]published=true/.test(u)) sawPublishedFlag = true
+      const m = u.match(/\/explore\/([a-f0-9]+)/i) || u.match(/note_id=([a-f0-9]+)/i)
+      if (m) { liveUrl = m[1]; break }
+      const done = await page
+        .evaluate(() => /发布成功|已发布|审核中/.test(document.body?.innerText || ''))
+        .catch(() => false)
+      if (done) break
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+    await assertNoRiskPage(page, debugDir, 'note' + index + '_publish')
+
+    const confirmedByText = await page
+      .evaluate(() => /发布成功|已发布|审核中/.test(document.body?.innerText || ''))
+      .catch(() => false)
+    const published = Boolean(liveUrl) || sawPublishedFlag || confirmedByText
+    if (!published) {
+      const shot = await debugScreenshot(page, debugDir, 'note' + index + '_publish_unconfirmed')
+      throw new Error('小红书点击发布后未能确认发布成功（当前 URL: ' + page.url() + '）。截图: ' + shot)
+    }
+
+    await debugScreenshot(page, debugDir, 'note' + index + '_published')
+    return {
+      note_id: liveUrl || 'pending_' + index,
+      title,
+      url: liveUrl ? 'https://www.xiaohongshu.com/explore/' + liveUrl : '',
+      published: true,
+    }
+  }
 
   const saveBtn = await page.evaluate(() => {
     const buttons = Array.from(document.querySelectorAll('button'))
@@ -359,35 +627,6 @@ async function publishOneNote(
     title,
     url: noteId ? 'https://www.xiaohongshu.com/explore/' + noteId : '',
     published: false,
-  }
-
-  if (job.publish_immediately) {
-    const clicked = await page.evaluate(() => {
-      const buttons = Array.from(document.querySelectorAll('button'))
-      const publishBtn = buttons.find((el) => {
-        const label = (el.textContent ?? '').trim()
-        return label === '发布' || label === '发布笔记'
-      })
-      if (publishBtn) {
-        (publishBtn as HTMLElement).click()
-        return true
-      }
-      return false
-    })
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    if (clicked) {
-      await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('button'))
-        const confirmBtn = buttons.find((el) => {
-          const label = (el.textContent ?? '').trim()
-          return (label === '确认' || label === '确认发布') && (el as HTMLElement).offsetParent !== null
-        })
-        if (confirmBtn) (confirmBtn as HTMLElement).click()
-      })
-      await new Promise((resolve) => setTimeout(resolve, 3000))
-    }
-    await assertNoRiskPage(page, debugDir, 'note' + index + '_publish')
-    note.published = true
   }
 
   await debugScreenshot(page, debugDir, 'note' + index + '_done')
@@ -698,3 +937,5 @@ function resolveAccountSafe(cfg: Config, accountId: string) {
   if (!profile) throw new Error('账号不存在: ' + accountId)
   return { id: accountId, profile }
 }
+
+
