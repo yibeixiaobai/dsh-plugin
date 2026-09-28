@@ -40,6 +40,10 @@ export interface ContentConfig {
   content_images_per_article?: number
   image_lang_zh_only?: boolean
 
+  // 动态热点与搜索追踪
+  enable_hot_tracking?: boolean
+  preferred_topic_angles?: string[]
+
   // 小红书专属配置
   xhs_images_per_note?: number
   xhs_min_words?: number
@@ -245,6 +249,8 @@ export const DEFAULT_CONTENT: ContentConfig = {
   secondary_cover_ratio: '1:1',
   content_images_per_article: 2,
   image_lang_zh_only: true,
+  enable_hot_tracking: true,
+  preferred_topic_angles: ['policy', 'trap', 'guide', 'myth', 'tools'],
 }
 
 const ContentSchema = Schema.object({
@@ -254,6 +260,8 @@ const ContentSchema = Schema.object({
   newspic_articles_per_day: Schema.number().min(1).max(20).step(1).default(1).description('小绿书每日篇数（每篇独立为1个草稿，不组合发布；默认1篇）'),
   min_words: Schema.number().min(50).max(10000).step(50).default(2000).description('长文纯文字下限（字）'),
   topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('核心业务关键词（用于检索关联选题，严禁直接作为标题开头词）'),
+  enable_hot_tracking: Schema.boolean().default(true).description('启用多源搜索热点与行业时令日历追踪'),
+  preferred_topic_angles: Schema.array(Schema.string()).role('table').default(['policy', 'trap', 'guide', 'myth', 'tools']).description('偏好的爆款切角矩阵（policy=政策解读, trap=痛点避坑, guide=保姆清单, myth=认知反转, tools=效率神器）'),
   forbidden_words: Schema.array(Schema.string()).role('table').default(DEFAULT_FORBIDDEN_WORDS).description('禁词表（任何一篇出现即失败）'),
   ending_guide_required: Schema.boolean().default(true).description('结尾必须自然引导关注品牌'),
   newspic_images_per_article: Schema.number().min(1).max(20).step(1).default(4).description('小绿书：每篇轮播图片张数（1-20，默认4）'),

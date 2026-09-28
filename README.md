@@ -109,7 +109,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 
 旧版 `wechat`、`content`、`brand_images`、`image_api` 配置会自动归入 `default` 账号和默认接口；首次保存后优先使用新模型，同时保留旧字段兼容现有脚本。
 
-## 工具（8 个）
+## 工具（9 个）
 
 ### 快捷指令（基于空格识别符）
 
@@ -140,6 +140,7 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 
 | 工具 | 作用 |
 |---|---|
+| `gzh_discover_topics` | 动态热点选题雷达与搜索聚合：结合多源搜索引擎实时资讯、知乎/百度/360高频搜索联想、行业时令日历与5大原生爆款切角矩阵，生成高点击率候选选题池 |
 | `gzh_check_topics` | 选题查重：候选选题（围绕核心关键词关联拓展，禁止作为开头词） vs 本账号 + 其它账号历史标题，返回 high/medium/low 风险与来源 |
 | `gzh_get_style_guide` | 写作规范（按账号平台返回）：公众号=主题色板/doc_spec/13px 铁律/theme_plan；知乎=Markdown doc_spec 与硬性规则 |
 | `gzh_build_article` | 按 doc spec 构建并落盘：公众号单行 HTML（`article_v2_{i}.html`，断言 + lint）；知乎标准 Markdown（`article_v2_{i}.md`） |
@@ -153,11 +154,12 @@ node "D:\DeepSeek Harness Desktop\resources\app.asar.unpacked\node_modules\@deep
 
 ### 每日流程示例（Agent 视角）
 
-1. `gzh_check_topics` 查重选题（高风险则换；多账号时跨账号互斥）
-2. `gzh_get_style_guide` 取规范（文章数/配图数/theme_plan 以返回值为准）→ 逐篇 `gzh_build_article`
-3. `gzh_generate_images` 生成封面 + 正文图
-4. `gzh_validate_html` 全量校验
-5. `gzh_publish_draft`（titles/digests）→ 草稿箱
+1. `gzh_discover_topics` 嗅探全网最新搜索热点、时令风向与行业动态，确立高点击率爆款候选选题
+2. `gzh_check_topics` 查重防重（高风险则换；多账号时跨账号互斥）
+3. `gzh_get_style_guide` 取规范（文章数/配图数/theme_plan 以返回值为准）→ 逐篇 `gzh_build_article`
+4. `gzh_generate_images` 生成封面 + 正文图
+5. `gzh_validate_html` 全量校验
+6. `gzh_publish_draft`（titles/digests）→ 草稿箱
 6. `gzh_verify_draft` 核验 → 人工确认后群发
 
 ## 自测（零写盘、零联网）

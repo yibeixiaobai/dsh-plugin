@@ -61,12 +61,34 @@ export interface StyleGuide {
   articles_per_day: number
   newspic_articles_per_day?: number
   topics: string[]
+  enable_hot_tracking?: boolean
+  seasonal_context?: { month: number; focus: string; seasonal_keywords: string[] }
   content_images_per_article: number
   theme_plan: Record<string, ThemeKey>
   references: string[]
   sync_newspic?: boolean
   newspic_spec?: unknown
   recent_titles?: string[]
+}
+
+export function getSeasonalContext(): { month: number; focus: string; seasonal_keywords: string[] } {
+  const month = new Date().getMonth() + 1
+  const map: Record<number, { focus: string; keywords: string[] }> = {
+    1: { focus: '国自然基金申报冲刺期、考研初试结束复盘、春招科研岗启动', keywords: ['基金申报', '开题立项', '春招', '课题标书'] },
+    2: { focus: '基金标书形式审查与打磨、考研初试查分前瞻、寒假论文集中修改', keywords: ['基金评审', '考研查分', '论文润色', '降重误区'] },
+    3: { focus: '国自然基金系统提交截止、考研国家线与复试线出炉、毕业论文预答辩', keywords: ['基金截止', '考研复试', '调剂策略', '毕业答辩'] },
+    4: { focus: '高校春季职称申报材料摸底、硕士博士毕业论文盲审送审高峰、夏令营通知', keywords: ['盲审送审', '毕业查重', '职称材料', '保研夏令营'] },
+    5: { focus: '毕业论文正式答辩季、学术不端倒查与抽检预警、各省软课题申报', keywords: ['答辩问答', '抽检预警', '毕业致谢', '课题申报'] },
+    6: { focus: '年中毕业离校季、最新JCR期刊影响因子(IF)年度重磅发布、年中科研总结', keywords: ['影响因子', 'JCR分区', 'IF暴涨', '中科院分区'] },
+    7: { focus: '暑期集中写论文攻关、高校保研夏令营考核、国家社科基金评审动向', keywords: ['暑期攻关', '夏令营考核', '论文撰写', '文献精读'] },
+    8: { focus: '国家自然科学基金/国家社科放榜月、开学前投稿准备、专著书号申报窗口', keywords: ['基金放榜', '专著出版', '专著书号', 'SCI催稿'] },
+    9: { focus: '秋季新学期开学、各省市高校职称评审材料申报启动高峰、考研大纲发布', keywords: ['职称评审', '职称论文', '专著截稿', '考研大纲'] },
+    10: { focus: '职称评审公示与答辩期、考研正式报名缴费、秋招名企/高校教师试讲', keywords: ['职称答辩', '考研报名', '高校教师招聘', '核心版面'] },
+    11: { focus: '各省职称评审结果公示期、年终专著出版赶末班车、中科院新分区前瞻', keywords: ['职称公示', '出版截稿', '分区预测', '预警期刊名单'] },
+    12: { focus: '中科院最新《期刊分区表》与预警名单重磅发布、全国硕士研究生统考、年终科研绩效核算', keywords: ['中科院分区', '预警名单公布', '考研初试', '科研绩效'] },
+  }
+  const curr = map[month] || { focus: '常规科研成果推进与发表规划', keywords: ['期刊发表', '专著出版'] }
+  return { month, focus: curr.focus, seasonal_keywords: curr.keywords }
 }
 
 function getRecentTitles(cfg: Config, accountId: string, limit = 20): string[] {
@@ -255,11 +277,14 @@ function xhsStyleGuide(cfg: Config, accountId: string): StyleGuide {
         : '正文结尾引导语可选，须为纯净社区互动语',
       '配图规格：每篇 ' + imgPerNote + ' 张，尺寸统一 1080×1440px（3:4 竖版），第 1 张为封面海报，画面中心预留标题文字排版空间',
       '禁词表全文生效：严禁出现任何违规禁词与敏感导流词',
+      '【动态热点与搜索雷达铁律】：若用户未在任务中指定具体选题，必须优先调用 gzh_discover_topics 嗅探当前领域的全网搜索热点、时令节点与实时行业突发，选取高评分爆款切角；若宿主环境具备通用网络搜索工具（如 search_web），可先检索行业最新资讯并传入 gzh_discover_topics 进行转化；确立候选题目后再提交 gzh_check_topics 查重。',
       '选题避让铁律：recent_titles 列出了本账号最近已发布的文章标题，新选题必须在主题角度、核心论点、实操方法上与之显著区分',
     ],
     forbidden_words: content.forbidden_words,
     articles_per_day: n,
     topics: [...content.topics],
+    enable_hot_tracking: content.enable_hot_tracking !== false,
+    seasonal_context: getSeasonalContext(),
     content_images_per_article: imgPerNote,
     theme_plan: archetypePlan as any,
     references: [],
@@ -295,6 +320,7 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
     ],
     hard_rules: [
       '【最高第一优先级】：若本次任务包含补充要求（如指定特定选题/主题、篇数、文章形态、字数、配图、主题色板等），补充要求具有最高裁决权，优先于本规范返回的默认配置值！未被补充要求修改的底层合规与格式规则（如单行HTML零换行、禁词表、防重复发布、生图尺寸比例等）继续严格生效。',
+      '【动态热点与搜索雷达铁律】：若用户未在任务中指定具体选题，必须优先调用 gzh_discover_topics 嗅探当前领域的全网搜索热点、时令节点与实时行业突发，选取高评分爆款切角；若宿主环境具备通用网络搜索工具（如 search_web），可先检索行业最新资讯并传入 gzh_discover_topics 进行转化；确立候选题目后再提交 gzh_check_topics 查重。',
       '平台形态：微信公众号小绿书（图片消息 newspic）',
       '标题严格 ≤ 32 字，超出微信接口报错拒绝；标题须含数字或痛点词，避免纯陈述句',
       '作者名固定 ' + account.profile.author_name,
@@ -314,6 +340,8 @@ function newspicStyleGuide(cfg: Config, accountId: string): StyleGuide {
     forbidden_words: content.forbidden_words,
     articles_per_day: n,
     topics: [...content.topics],
+    enable_hot_tracking: content.enable_hot_tracking !== false,
+    seasonal_context: getSeasonalContext(),
     content_images_per_article: cardCount,
     theme_plan: {},
     references: [],
@@ -350,6 +378,7 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
       '作者名固定 ' + account.profile.author_name,
       '数量铁律：默认本次正好 ' + n + ' 篇（index 1~' + n + '）；若用户在补充要求中指定了篇数，以补充要求为准；知乎每篇是独立文章草稿（不是多图文组合）；每篇正好 ' + contentImgs + ' 张正文配图' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动自愈补齐）'),
       '选题铁律（全账号统一）：若用户在本次任务补充要求中明确给出了特定主题/选题或业务方向，以补充要求为最高第一优先级执行；仅在未指定特定选题时，才必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛',
+      '【动态热点与搜索雷达铁律】：若用户未在任务中指定具体选题，必须优先调用 gzh_discover_topics 嗅探当前领域的全网搜索热点、时令节点与实时行业突发，选取高评分爆款切角；若宿主环境具备通用网络搜索工具（如 search_web），可先检索行业最新资讯并传入 gzh_discover_topics 进行转化；确立候选题目后再提交 gzh_check_topics 查重。',
       '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（构建时严格去除标记与空白统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 400, Math.ceil(content.min_words * 1.2)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/清单深度展开，确保纯汉字充实达标，杜绝断言失败重写浪费 token（构建工具设有容差底线）',
       '标题不超过 100 字，禁词表全文生效（构建与校验时断言）',
       content.ending_guide_required
@@ -361,6 +390,8 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
     forbidden_words: content.forbidden_words,
     articles_per_day: n,
     topics: [...content.topics],
+    enable_hot_tracking: content.enable_hot_tracking !== false,
+    seasonal_context: getSeasonalContext(),
     content_images_per_article: contentImgs,
     theme_plan: {},
     references: [],
@@ -460,6 +491,7 @@ export function styleGuideTool(cfg: Config) {
             ? ['小绿书同步更新铁律：当前账号已配置「长文 + 小绿书」同步更新（article_type: both 或 sync_newspic: true）。在生成长文 article_v2_{index}.html（共 ' + n + ' 篇合并为1个草稿）的同时，必须从长文提炼核心干货并同步生成 ' + (content.newspic_articles_per_day || 1) + ' 篇小绿书卡片图文 article_v2_{index}_pic.json（规范参考 newspic_spec），生成 3:4 竖版卡片图（kind: "pic"）。发布时，小绿书严格只需调用 1 次 gzh_publish_draft(article_type: "newspic") 单次提交（底层会自动逐篇创建草稿并完成官方核验），严禁由 Agent 循环或多次重复发布！']
             : []),
           '选题铁律（全账号统一）：若用户在本次任务补充要求中明确给出了特定主题/选题或业务方向，以补充要求为最高第一优先级执行；仅在未指定特定选题时，才必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛',
+          '【动态热点与搜索雷达铁律】：若用户未在任务中指定具体选题，必须优先调用 gzh_discover_topics 嗅探当前领域的全网搜索热点、时令节点与实时行业突发，选取高评分爆款切角；若宿主环境具备通用网络搜索工具（如 search_web），可先检索行业最新资讯并传入 gzh_discover_topics 进行转化；确立候选题目后再提交 gzh_check_topics 查重。',
           '主题铁律：默认按 theme_plan 对应主题撰写；若用户在补充要求或 doc spec 中指定了有效主题（如 "moyu"、"olive" 等），以指定主题为准',
           '每篇正文共 ' + expectedArticleImageCount(cfg, account.profile) + ' 张 img' +
             (account.profile.brand_images.header.enabled ? '，含头部品牌图' : '') +
@@ -474,6 +506,8 @@ export function styleGuideTool(cfg: Config) {
         articles_per_day: n,
         newspic_articles_per_day: isBoth ? (content.newspic_articles_per_day || 1) : undefined,
         topics: [...content.topics],
+        enable_hot_tracking: content.enable_hot_tracking !== false,
+        seasonal_context: getSeasonalContext(),
         content_images_per_article: contentImgs,
         theme_plan: themePlan,
         references,

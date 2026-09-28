@@ -111,6 +111,8 @@ export function normalizeConfig(config: Config): Config {
             ? (profile.content.xhs_tags as string).split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean)
             : []),
         image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
+        enable_hot_tracking: profile.content?.enable_hot_tracking ?? config.content?.enable_hot_tracking ?? true,
+        preferred_topic_angles: profile.content?.preferred_topic_angles ?? config.content?.preferred_topic_angles ?? ['policy', 'trap', 'guide', 'myth', 'tools'],
       }
     } else {
       profile.content = {
@@ -129,6 +131,8 @@ export function normalizeConfig(config: Config): Config {
           ? Number(profile.content!.content_images_per_article)
           : (Number.isFinite(config.image_api?.content_images_per_article) ? Number(config.image_api.content_images_per_article) : 2),
         image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
+        enable_hot_tracking: profile.content?.enable_hot_tracking ?? config.content?.enable_hot_tracking ?? true,
+        preferred_topic_angles: profile.content?.preferred_topic_angles ?? config.content?.preferred_topic_angles ?? ['policy', 'trap', 'guide', 'myth', 'tools'],
       }
     }
     profile.brand_images = {

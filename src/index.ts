@@ -16,6 +16,7 @@ import { registerQuickCommand, PLUGIN_NAME } from './command.ts'
 import { ensureWorkspace, hydrateConfigFromWx, syncConfig, workspaceDir } from './sync.ts'
 import { buildArticleTool } from './tools/buildArticle.ts'
 import { checkTopicsTool } from './tools/checkTopics.ts'
+import { discoverTopicsTool } from './tools/discoverTopics.ts'
 import { genImagesTool } from './tools/genImages.ts'
 import { publishTool } from './tools/publish.ts'
 import { styleGuideTool } from './tools/styleGuide.ts'
@@ -196,6 +197,7 @@ export function apply(ctx: Context, config: ConfigT) {
 
   ctx.inject(['tools'], (toolsCtx) => {
     if (!toolsCtx.tools) return
+    toolsCtx.tools.register(discoverTopicsTool(liveConfig))
     toolsCtx.tools.register(checkTopicsTool(liveConfig))
     toolsCtx.tools.register(styleGuideTool(liveConfig))
     toolsCtx.tools.register(buildArticleTool(liveConfig))
@@ -204,7 +206,7 @@ export function apply(ctx: Context, config: ConfigT) {
     toolsCtx.tools.register(publishTool(liveConfig))
     toolsCtx.tools.register(verifyTool(liveConfig))
     toolsCtx.tools.register(enableOriginalTool(liveConfig))
-    ctx.logger?.info?.('[social-publisher] 8 个社媒自动化生产与发布工具已就绪')
+    ctx.logger?.info?.('[social-publisher] 9 个社媒自动化生产与发布工具已就绪')
   })
 
   ctx.inject(['commands'], (cmdCtx) => {
