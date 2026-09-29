@@ -39,10 +39,10 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
   return defineTool<{ items_json?: string | any[]; items?: any[]; account_id?: string; titles?: string[] }, GenReport>({
     name: 'gzh_generate_images',
     description:
-      'AI 生图：封面、正文信息图及小绿书卡片图。多线程并发生图加速，支持同接口备用模型与本地优雅降级保底。' +
+      'AI 生图：封面、正文信息图及小绿书卡片图。多线程并发生图加速，支持同接口备用模型与接口池自动轮换。' +
       '公众号长文封面比例头条 ' + (cfg.image_api?.headline_cover_ratio || '2.35:1') + ' / 次条 ' +
       (cfg.image_api?.secondary_cover_ratio || '1:1') + '；小绿书卡片图（kind: pic）统一按账号配置比例生成；知乎账号统一 ' + ZHIHU_COVER_RATIO + '。' +
-      '按生图接口优先级执行：任何接口级失败自动切换下一个接口，成功后保持该接口；全网接口失败自动触发本地优雅保底。演练模式（dry_run）只校验不联网。',
+      '按生图接口优先级执行：任何接口级失败自动切换下一个接口，成功后保持该接口。演练模式（dry_run）只校验不联网。',
     parameters: {
       items_json: {
         type: 'string',
@@ -222,9 +222,8 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         }
       }
 
-      const enableFallback = cfg.image_api.enable_local_fallback ?? true
-      if (!dryRun && providers.length === 0 && !enableFallback) {
-        throw new Error('没有启用的生图接口，且未开启本地降级保底')
+      if (!dryRun && providers.length === 0) {
+        throw new Error('没有启用的生图接口，请先在配置中添加并启用生图 API（需填写 base_url 与 api_key）')
       }
 
       syncConfig(cfg)
@@ -239,7 +238,6 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
         dry_run: dryRun,
         zh_only: account.profile.content.image_lang_zh_only ?? cfg.image_api.image_lang_zh_only,
         concurrency,
-        enable_local_fallback: enableFallback,
         timeout_sec: timeoutSecPerItem,
       }
       // job 落临时文件而非 --job-json 内联：批量图片（25+ 项，含 providers 配置与绝对路径）内联会逼近 Windows argv 上限

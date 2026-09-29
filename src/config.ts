@@ -68,7 +68,6 @@ export interface ImageApiConfig {
   content_images_per_article: number
   image_lang_zh_only: boolean
   concurrency?: number
-  enable_local_fallback?: boolean
 }
 
 export type BrandImageFit = 'contain' | 'cover' | 'fill'
@@ -359,7 +358,6 @@ export const Config: Schema<Config> = Schema.object({
     content_images_per_article: Schema.number().min(0).max(4).step(1).default(2).description('每篇正文配图数（第1张AI信息图+第2张真实图）'),
     image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
     concurrency: Schema.number().min(1).max(10).step(1).default(3).description('生图并发数（多线程同时生图以大幅提速，推荐 3）'),
-    enable_local_fallback: Schema.boolean().default(true).description('接口全部失效时启用本地优雅降级保底图（保证流程不中断）'),
   }).description('④ AI 配图'),
   brand_images: Schema.object({
     header: Schema.object({

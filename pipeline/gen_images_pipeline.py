@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""参数化生图流水线（封面/正文信息图/小绿书卡片）：多线程并发 + 接口轮换 + 本地优雅保底 + PIL 缩放。
+"""参数化生图流水线（封面/正文信息图/小绿书卡片）：多线程并发 + 接口轮换 + PIL 缩放。
 
 - 凭据读 scripts/wx_config.json 的 image_api_providers（由插件 syncConfig 同步）
 - 输出路径由 TS 侧在 job.items[].out 中给定（绝对路径），本脚本做边界校验后落盘
@@ -9,7 +9,7 @@
   * 支持多线程并发（ThreadPoolExecutor），大幅缩短批量生图耗时；
   * 同接口候选模型降级（遇到特定 400/404 模型错误时尝试通用备选模型）；
   * 接口池优先级自动轮换与故障熔断；
-  * 全网络接口耗尽时的本地优雅降级保底图（PIL 高质感学术卡片，保证任务不中断）。
+  * 严格线上 AI 生图，接口故障如实上报，不使用本地代码绘制伪装保底图。
 
 安全约定：API 返回的图片下载 URL 必须是 http(s)、主机经 DNS 解析后不得指向
 私网/环回/链路本地/保留地址，且不自动跟随重定向（手动重定向时重新校验）。
@@ -31,7 +31,7 @@ import time
 from urllib.parse import urlparse
 
 import requests
-from PIL import Image, ImageDraw
+from PIL import Image
 
 MARKER = "###RESULT### "
 
@@ -155,55 +155,6 @@ def enhance_prompt(prompt, kind, zh_only=True, sub=1):
     return enhanced
 
 
-def create_local_fallback_image(out_path, size, item, prompt=""):
-    """当所有网络生图接口均不可用时，在本地动态生成高质感学术风格卡片保底图，保证流水线不中断。"""
-    w, h = int(size[0]), int(size[1])
-    if h <= 0:
-        h = max(1, round(w * 9 / 16))
-
-    target_w = max(640, min(w, 2048))
-    target_h = max(360, min(h, 2048))
-
-    img = Image.new("RGB", (target_w, target_h), (40, 16, 20))
-    draw = ImageDraw.Draw(img)
-
-    for y in range(target_h):
-        ratio = y / max(1, target_h)
-        r = int(45 - ratio * 18)
-        g = int(18 - ratio * 8)
-        b = int(22 - ratio * 10)
-        draw.line([(0, y), (target_w, y)], fill=(max(0, r), max(0, g), max(0, b)))
-
-    margin = int(min(target_w, target_h) * 0.05)
-    gold = (218, 165, 32)
-    soft_gold = (150, 115, 35)
-    draw.rectangle([margin, margin, target_w - margin, target_h - margin], outline=soft_gold, width=2)
-    inner_margin = margin + 8
-    draw.rectangle([inner_margin, inner_margin, target_w - inner_margin, target_h - inner_margin], outline=gold, width=1)
-
-    cx, cy = target_w // 2, target_h // 2
-    box_w = int(target_w * 0.72)
-    box_h = int(target_h * 0.45)
-    box = [cx - box_w // 2, cy - box_h // 2, cx + box_w // 2, cy + box_h // 2]
-    draw.rectangle(box, fill=(25, 10, 12), outline=gold, width=1)
-
-    corner_len = int(min(target_w, target_h) * 0.08)
-    for x, y, dx, dy in [
-        (margin, margin, 1, 1),
-        (target_w - margin, margin, -1, 1),
-        (margin, target_h - margin, 1, -1),
-        (target_w - margin, target_h - margin, -1, -1)
-    ]:
-        draw.line([(x, y), (x + dx * corner_len, y)], fill=gold, width=3)
-        draw.line([(x, y), (x, y + dy * corner_len)], fill=gold, width=3)
-
-    final_img = img.resize((w, h), Image.LANCZOS)
-    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-    final_img.save(out_path, "PNG")
-    print("【本地保底】已生成高质感保底图落盘：" + out_path + "（" + str(w) + "x" + str(h) + "）")
-    return (w, h)
-
-
 def generate_raw(base_url, api_key, model, prompt, timeout, size=None):
     url = base_url.rstrip("/") + "/v1/images/generations"
     connect_timeout = 15
@@ -298,7 +249,7 @@ def generate_raw(base_url, api_key, model, prompt, timeout, size=None):
         raise RetryableProviderError("图片下载被阻断: " + str(e)[:240])
 
 
-def provider_pool(conf, selected_ids, enable_fallback=True):
+def provider_pool(conf, selected_ids):
     raw = conf.get("image_api_providers")
     if not isinstance(raw, list) or not raw:
         base = conf.get("image_api_base")
@@ -336,7 +287,7 @@ def provider_pool(conf, selected_ids, enable_fallback=True):
     else:
         providers.sort(key=lambda item: (int(item.get("priority", 0)), str(item.get("id", ""))))
 
-    if not providers and not enable_fallback:
+    if not providers:
         raise SystemExit("没有可用的生图接口（需启用并填写 base_url / api_key）")
     return providers
 
@@ -352,33 +303,18 @@ def save_resized(raw_bytes, out_path, size):
 
 
 def generate_item_with_pool(item, providers, active, disabled, prompt, out_abs,
-                            timeout, fallback_model, enable_fallback=False):
-    """单项生图：任何接口失败自动轮换下一个，池子耗尽时若开启保底则生成本地图。"""
+                            timeout, fallback_model):
+    """单项生图：任何接口失败自动轮换下一个，池子耗尽时如实返回失败。"""
     attempts = []
     disabled = set(disabled)
     while True:
         available = [index for index in range(len(providers)) if index not in disabled]
         if not available:
-            if enable_fallback:
-                try:
-                    w, h = create_local_fallback_image(out_abs, item.get("size", [1080, 0]), item, prompt)
-                    return {
-                        "generated": [{
-                            "out": out_abs, "w": w, "h": h, "kind": item.get("kind"),
-                            "index": item.get("index"), "sub": item.get("sub"),
-                            "provider_id": "local_fallback", "fallback": True,
-                        }],
-                        "failed": [],
-                        "provider_used": "local_fallback", "active": active, "disabled": disabled,
-                        "attempts": attempts, "terminal": "fallback",
-                    }
-                except Exception as fb_e:
-                    attempts.append({"provider_id": "local_fallback", "error": str(fb_e)})
             return {
                 "generated": [], "failed": [{
                     "index": item.get("index"), "sub": item.get("sub"),
-                    "error": "全部生图接口失败；最近错误: " +
-                             str(attempts[-1]["error"] if attempts else "unknown"),
+                    "error": "全部生图接口均失败；最近错误: " +
+                             str(attempts[-1]["error"] if attempts else "无可用生图接口"),
                 }],
                 "provider_used": None, "active": active, "disabled": disabled,
                 "attempts": attempts, "terminal": "exhausted",
@@ -461,14 +397,14 @@ class ConcurrentCoordinator:
         self.used_providers = set()
         self.attempts = []
 
-    def run_item(self, item, prompt, out_abs, timeout, fallback_model, enable_fallback):
+    def run_item(self, item, prompt, out_abs, timeout, fallback_model):
         with self.lock:
             curr_active = self.active
             curr_disabled = set(self.disabled)
 
         outcome = generate_item_with_pool(
             item, self.providers, curr_active, curr_disabled,
-            prompt, out_abs, timeout, fallback_model, enable_fallback=enable_fallback
+            prompt, out_abs, timeout, fallback_model
         )
 
         with self.lock:
@@ -502,7 +438,6 @@ def main():
 
     timeout = int(job.get("timeout_sec", 120))
     concurrency = max(1, min(10, int(job.get("concurrency", 3))))
-    enable_fallback = bool(job.get("enable_local_fallback", True))
     zh_only = bool(job.get("zh_only", True))
     items = job.get("items", [])
 
@@ -510,11 +445,11 @@ def main():
     providers = []
     if not job.get("dry_run"):
         if job.get("providers"):
-            providers = provider_pool({"image_api_providers": job["providers"]}, job.get("provider_ids", []), enable_fallback=enable_fallback)
+            providers = provider_pool({"image_api_providers": job["providers"]}, job.get("provider_ids", []))
         else:
             conf_path = os.path.join(base_abs, "wx_config.json")
             conf = json.load(open(conf_path, encoding="utf-8")) if os.path.exists(conf_path) else {}
-            providers = provider_pool(conf, job.get("provider_ids", []), enable_fallback=enable_fallback)
+            providers = provider_pool(conf, job.get("provider_ids", []))
 
     if job.get("dry_run"):
         for item in items:
@@ -534,7 +469,7 @@ def main():
             prompt = enhance_prompt(str(item.get("prompt", "")), item.get("kind"), zh_only=zh_only, sub=item.get("sub", 1))
             outcome = coordinator.run_item(
                 item, prompt, out_abs, timeout,
-                job.get("model", "gpt-image-2"), enable_fallback
+                job.get("model", "gpt-image-2")
             )
             generated.extend(outcome["generated"])
             failed.extend(outcome["failed"])
@@ -548,7 +483,7 @@ def main():
                 f = executor.submit(
                     coordinator.run_item,
                     item, prompt, out_abs, timeout,
-                    job.get("model", "gpt-image-2"), enable_fallback
+                    job.get("model", "gpt-image-2")
                 )
                 futures[f] = idx
 

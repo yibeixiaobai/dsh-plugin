@@ -500,7 +500,7 @@ def main():
         gp.save_resized = lambda raw, out, size: (64, 64)
         t_start = time.time()
         with ThreadPoolExecutor(max_workers=3) as executor:
-            futs = [executor.submit(coordinator.run_item, it, it["prompt"], os.path.join(scripts_abs, it["out"]), 10, "m", False) for it in concurrent_job["items"]]
+            futs = [executor.submit(coordinator.run_item, it, it["prompt"], os.path.join(scripts_abs, it["out"]), 10, "m") for it in concurrent_job["items"]]
             results_c = [f.result() for f in futs]
         t_elapsed = time.time() - t_start
         conc_ok = (
@@ -513,13 +513,12 @@ def main():
         gp.generate_raw, gp.save_resized = original_raw_c, original_save_c
     results.append(("gen_images 并发加速演练", conc_ok, {"exit": 0, "result": {"data": {"results": results_c, "elapsed": t_elapsed}}}))
 
-    # 15. 本地优雅降级保底图演练（全接口失效时触发本地动态生成）
+    # 15. 生图接口全失效严格拦截演练（全接口失效时严格报错，绝不使用本地代码绘制图片）
     fb_job = {
         "items": [
             {"kind": "cover", "index": 1, "prompt": "保底测试封面", "out": "cover_fb_test.png", "size": [640, 360]},
         ],
         "providers": [{"id": "p_dead", "name": "PD", "base_url": "https://dead.example", "api_key": "k", "model": "m"}],
-        "enable_local_fallback": True,
         "timeout_sec": 10,
     }
     fb_out_file = os.path.join(scripts_abs, "cover_fb_test.png")
@@ -530,17 +529,18 @@ def main():
         r_fb = run_script(os.path.join(here, "gen_images_pipeline.py"), [
             "--job-json", json.dumps(fb_job, ensure_ascii=False), "--scripts-dir", scripts_abs])
         fb_ok = (
-            r_fb["exit"] == 0 and r_fb["result"] and r_fb["result"].get("ok")
-            and len(r_fb["result"]["data"].get("generated", [])) == 1
-            and r_fb["result"]["data"]["generated"][0].get("fallback") is True
-            and os.path.exists(fb_out_file)
+            r_fb["exit"] == 0 and r_fb["result"]
+            and r_fb["result"].get("ok") is False
+            and len(r_fb["result"].get("data", {}).get("generated", [])) == 0
+            and len(r_fb["result"].get("data", {}).get("failed", [])) == 1
+            and not os.path.exists(fb_out_file)
         )
     finally:
         gp.generate_raw = original_raw_c
         if os.path.exists(fb_out_file):
             try: os.remove(fb_out_file)
             except: pass
-    results.append(("gen_images 本地优雅降级保底演练", fb_ok, r_fb))
+    results.append(("gen_images 接口全失效严格拦截（不本地画图）", fb_ok, r_fb))
 
     print("=" * 60)
     failed = 0
