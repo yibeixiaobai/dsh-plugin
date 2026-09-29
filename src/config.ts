@@ -150,6 +150,8 @@ export interface RuntimeConfig {
   gzh_headless?: boolean
   xhs_headless?: boolean
   baijiahao_headless?: boolean
+  /** 无头运行时，遇到人机验证才把窗口显示出来交给人工；默认关（保持全程无头） */
+  baijiahao_reveal_on_challenge?: boolean
 }
 
 export interface Config {
@@ -404,5 +406,6 @@ export const Config: Schema<Config> = Schema.object({
     gzh_headless: Schema.boolean().default(true).description('公众号批量开启原创用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
     xhs_headless: Schema.boolean().default(true).description('小红书发布用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
     baijiahao_headless: Schema.boolean().default(true).description('百家号发布用无头浏览器（排障或首次登录时可关闭以观察自动化过程）'),
+    baijiahao_reveal_on_challenge: Schema.boolean().default(false).description('百家号全程无头，仅在遇到人机验证（滑块）时把浏览器窗口显示出来交给人工完成，验证后自动收回；默认关'),
   }).description('⑥ 运行'),
 }) as Schema<Config>

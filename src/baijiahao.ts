@@ -89,22 +89,30 @@ async function launchBaijiahaoBrowser(cfg: Config, accountId: string, headless: 
   const profileDir = baijiahaoProfileDir(cfg, accountId)
   fs.mkdirSync(profileDir, { recursive: true })
   cleanStaleChromeLocks(profileDir)
+  // 「按需显示」模式：有头启动但停靠在屏幕外，用户默认看不到；遇到人机验证时再移回屏内。
+  // 必须 headless:false —— headless 的浏览器没有真实窗口，事后无法变得可见（实测）。
+  const offscreen = headless && cfg.runtime.baijiahao_reveal_on_challenge === true
+  const effectiveHeadless = headless && !offscreen
   const args = [
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-blink-features=AutomationControlled',
   ]
-  if (!headless) {
+  if (!effectiveHeadless) {
     args.push('--start-maximized')
   } else {
     args.push('--window-size=1440,900')
   }
+  if (offscreen) {
+    // 覆盖 --start-maximized 的摆放：停到主屏外，保持不可见
+    args.push('--window-position=-2400,-2400', '--window-size=1440,900')
+  }
   try {
     return await puppeteer.launch({
       executablePath: findBrowserExecutable(cfg),
-      headless,
+      headless: effectiveHeadless,
       userDataDir: profileDir,
-      defaultViewport: headless ? { width: 1440, height: 900 } : null,
+      defaultViewport: effectiveHeadless ? { width: 1440, height: 900 } : null,
       protocolTimeout: 240000,
       args,
     })
@@ -146,22 +154,97 @@ async function assertNoRiskPage(page: Page, debugDir: string, label: string): Pr
   }
 }
 
+/** 当前页面是否停在人机验证（滑块/扫码）上 */
+async function hasChallenge(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const text = document.body ? document.body.innerText.replace(/\s+/g, ' ') : ''
+    if (/请完成下方验证|拖动左侧滑块|百度安全验证|扫码验证/.test(text)) return true
+    // 验证弹层常挂在 iframe / 独立容器里，补一道结构探测
+    return Boolean(document.querySelector('[class*="vcode"], [class*="captcha"], [id*="captcha"]'))
+  }).catch(() => false)
+}
+
+/**
+ * 无头运行下遇到人机验证时，把浏览器窗口"显示"出来交给人工完成。
+ *
+ * 关键约束（实测）：以 headless:true 启动的浏览器**没有真实 OS 窗口**，CDP 的
+ * Browser.setWindowBounds 对它无效，事后无法变可见。因此采用「有头 + 屏外停靠」：
+ * 有头启动但用 --window-position=-2400,-2400 把窗口停在屏幕外（用户看不到），
+ * 需要时再用 CDP 把它移回屏内并置前。
+ */
+async function revealForHuman(page: Page, debugDir: string, label: string): Promise<boolean> {
+  await debugScreenshot(page, debugDir, label + '_challenge')
+  try {
+    const session = await page.target().createCDPSession()
+    const { windowId } = await session.send('Browser.getWindowForTarget')
+    await session.send('Browser.setWindowBounds', {
+      windowId,
+      bounds: { windowState: 'normal', left: 80, top: 60, width: 1440, height: 900 },
+    })
+    await session.detach().catch(() => undefined)
+    await page.bringToFront().catch(() => undefined)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** 验证完成后把窗口移回屏外停靠，恢复"用户看不到"的默认状态 */
+async function hideAfterHuman(page: Page): Promise<void> {
+  try {
+    const session = await page.target().createCDPSession()
+    const { windowId } = await session.send('Browser.getWindowForTarget')
+    await session.send('Browser.setWindowBounds', {
+      windowId,
+      bounds: { left: -2400, top: -2400 },
+    })
+    await session.detach().catch(() => undefined)
+  } catch {
+    /* 收不回不影响主流程 */
+  }
+}
+
+/**
+ * 等待人工完成验证：轮询直到验证弹层消失，或超时。
+ * 返回 true 表示已通过（或本来就没有验证），false 表示等待超时。
+ */
+async function waitForChallengeCleared(page: Page, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!(await hasChallenge(page))) return true
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+  return false
+}
+
 /** 点击第一个可见的、文案匹配的按钮（发布/保存面板按钮文案候选轮询） */
 async function clickButtonByLabel(page: Page, labels: string[]): Promise<boolean> {
   return page.evaluate((labels) => {
     const wanted = labels as string[]
     const nodes = [...document.querySelectorAll('button, span, a, div')]
     for (const label of wanted) {
-      const hit = nodes.find((el) => {
+      const hits = nodes.filter((el) => {
         const text = (el.textContent ?? '').trim()
         if (text !== label) return false
         const rect = el.getBoundingClientRect()
         return rect.width > 0 && rect.height > 0 && (el as HTMLElement).offsetParent !== null
       })
-      if (hit) {
-        ;(hit as HTMLElement).click()
-        return true
-      }
+      if (hits.length === 0) continue
+      // 实测：百家号工具栏里"发布"外层是可点的 <button>，内层还有一个 <span> 文案节点。
+      // 若直接点内层 span，事件不会冒泡成有效点击（面板不展开）。因此优先点击真正的
+      // 可交互祖先（button / [role=button] / 带 data-testid 的元素），取不到再退回首个命中项。
+      const pick =
+        hits.find((el) => el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') ??
+        hits.find((el) => el.hasAttribute('data-testid')) ??
+        hits.find((el) => {
+          const p = el.closest('button, [role="button"], [data-testid]')
+          return p !== null && p !== el
+        })
+      const target = pick ?? hits[0]
+      const clickable =
+        (target.closest('button, [role="button"], [data-testid]') as HTMLElement | null) ?? (target as HTMLElement)
+      ;(clickable as HTMLElement).click()
+      return true
     }
     return false
   }, labels)
@@ -424,7 +507,15 @@ async function publishOneArticle(
 
   // 保存草稿（按钮优先、Ctrl+S 兜底）；以编辑器底部状态「已保存」为成功判据（网络层不可靠，见 waitForEditorSaved）
   await triggerSaveDraft(page)
-  const savedOk = await waitForEditorSaved(page, 60000)
+  let savedOk = await waitForEditorSaved(page, 60000)
+  // 保存过程可能弹人机验证：无头下按开关把窗口交给人工，通过后重试一次保存
+  if (!savedOk) {
+    const relayed = await relayChallengeIfNeeded(cfg, page, debugDir, 'article' + index + '_save')
+    if (relayed) {
+      await triggerSaveDraft(page)
+      savedOk = await waitForEditorSaved(page, 60000)
+    }
+  }
   const savedById = watch.saves.find((s) => s.id && s.title === title.trim()) ?? watch.saves.find((s) => s.id)
   watch.stop()
   if (!savedOk) {
@@ -440,14 +531,36 @@ async function publishOneArticle(
 
   // 直发开关：发布面板上传封面（百家号发文封面必选）→ 确认发布；结果以 gzh_verify_draft 为准
   if (job.publish_immediately) {
-    await publishWithCover(page, debugDir, job, index, draft)
+    await publishWithCover(cfg, page, debugDir, job, index, draft)
   }
   await debugScreenshot(page, debugDir, 'article' + index + '_done')
   return draft
 }
 
+/**
+ * 人机验证接力：仅在开启 baijiahao_reveal_on_challenge 时生效。
+ * 把停靠在屏外的窗口移到屏内 → 等待人工拖滑块 → 通过后移回屏外，恢复"默认不显示"。
+ * 未开启该开关时不做任何事，保持原有"直接报错停止"的行为。
+ */
+async function relayChallengeIfNeeded(
+  cfg: Config,
+  page: Page,
+  debugDir: string,
+  label: string,
+): Promise<boolean> {
+  if (!(await hasChallenge(page))) return true
+  if (cfg.runtime.baijiahao_reveal_on_challenge !== true) return false
+  const revealed = await revealForHuman(page, debugDir, label)
+  if (!revealed) return false
+  // 人工完成滑块通常需要几十秒，给足 5 分钟
+  const cleared = await waitForChallengeCleared(page, 300000)
+  await hideAfterHuman(page)
+  return cleared
+}
+
 /** 发布面板：上传封面图并确认发布。封面自动化失败时绝不静默——降级为仅存草稿并在结果中注明 */
 async function publishWithCover(
+  cfg: Config,
   page: Page,
   debugDir: string,
   job: BaijiahaoPublishJob,
@@ -466,23 +579,82 @@ async function publishWithCover(
     return
   }
   await new Promise((resolve) => setTimeout(resolve, 2000))
-  await assertNoRiskPage(page, debugDir, 'article' + index + '_panel')
+  // 点"发布"后百家号常弹滑块人机验证：开启接力开关时把窗口交给人工完成，再继续后续步骤
+  if (!(await relayChallengeIfNeeded(cfg, page, debugDir, 'article' + index + '_panel'))) {
+    await assertNoRiskPage(page, debugDir, 'article' + index + '_panel')
+  }
 
-  // 封面上传：优先找发布面板内的文件输入控件（面板渲染后 input[type=file] 通常挂在 DOM 上）
+  // 封面上传：面板里存在多个 input[type=file]（实测第 0 个是"视频"输入，accept="video/*"），
+  // 直接取 page.$('input[type=file]') 会把图片塞给视频控件，弹出"视频格式不正确"提示并卡住流程。
+  // 因此必须按 accept 精确挑选图片输入。
   if (coverPath && fs.existsSync(coverPath)) {
     let uploaded = false
     try {
-      // 1) 直接可见的文件输入
-      let fileInput = await page.$('input[type="file"]')
-      // 2) 点击"本地上传"类按钮后等待文件输入出现
+      // 先关掉可能存在的提示弹窗（例如上一轮误传视频留下的提示）
+      await page.evaluate(() => {
+        const btns = [...document.querySelectorAll('button, span, div')]
+        const ok = btns.find((el) => {
+          const t = (el.textContent ?? '').trim()
+          return (t === '确认' || t === '我知道了') && (el as HTMLElement).offsetParent !== null
+        })
+        if (ok) (ok as HTMLElement).click()
+      }).catch(() => undefined)
+      await new Promise((resolve) => setTimeout(resolve, 800))
+
+      // 关键：封面 file input 只在"选择封面"弹窗打开后才存在于 DOM，
+      // 不先点开弹窗就会判定"未找到封面上传控件"。实测弹窗入口文案为"选择封面"。
+      await page.evaluate(() => {
+        const nodes = [...document.querySelectorAll('*')]
+        const entry = nodes.find((el) => {
+          const t = (el.textContent ?? '').trim()
+          return t === '选择封面' && el.children.length === 0 && (el as HTMLElement).offsetParent !== null
+        })
+        if (entry) {
+          entry.scrollIntoView({ block: 'center' })
+          ;(entry as HTMLElement).click()
+        }
+      }).catch(() => undefined)
+      // 等弹窗内的图片输入出现
+      await page
+        .waitForFunction(
+          () => [...document.querySelectorAll('input[type="file"]')].some((el) => /image/i.test(el.getAttribute('accept') ?? '')),
+          { timeout: 15000, polling: 300 },
+        )
+        .catch(() => undefined)
+
+      const pickImageInput = async () =>
+        page.evaluateHandle(() => {
+          const inputs = [...document.querySelectorAll('input[type="file"]')] as HTMLInputElement[]
+          return (
+            inputs.find((el) => /image/i.test(el.getAttribute('accept') ?? '')) ??
+            inputs.find((el) => !/video/i.test(el.getAttribute('accept') ?? '')) ??
+            null
+          )
+        })
+
+      let handle = await pickImageInput()
+      let fileInput = handle ? (handle.asElement() as import('puppeteer-core').ElementHandle<HTMLInputElement> | null) : null
+      // 兜底：点"本地上传"让图片输入出现后再挑
       if (!fileInput) {
         await clickButtonByLabel(page, COVER_UPLOAD_LABELS)
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-        fileInput = await page.waitForSelector('input[type="file"]', { timeout: 8000 }).catch(() => null)
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        handle = await pickImageInput()
+        fileInput = handle ? (handle.asElement() as import('puppeteer-core').ElementHandle<HTMLInputElement> | null) : null
       }
       if (fileInput) {
         await fileInput.uploadFile(coverPath)
         uploaded = true
+        await new Promise((resolve) => setTimeout(resolve, 6000))
+        // 上传后弹窗内需要点"确定"确认封面选择
+        await page.evaluate(() => {
+          const btns = [...document.querySelectorAll('button, span, div')]
+          const cands = btns.filter((el) => {
+            const t = (el.textContent ?? '').trim()
+            return /^确定/.test(t) && (el as HTMLElement).offsetParent !== null
+          })
+          const last = cands[cands.length - 1]
+          if (last) (last as HTMLElement).click()
+        }).catch(() => undefined)
         await new Promise((resolve) => setTimeout(resolve, 5000))
       }
     } catch (error) {
