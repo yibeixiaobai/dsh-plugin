@@ -150,6 +150,21 @@ def _main_markdown(args, doc, forbidden, platform):
         brand_name=args.brand_name,
         require_brand=args.require_brand,
         forbidden=forbidden)
+    if platform == "baijiahao":
+        try:
+            b_images = json.loads(args.brand_images) if args.brand_images else {}
+        except Exception:
+            b_images = {}
+        if isinstance(b_images, dict):
+            header_spec = resolve_brand_spec(b_images["header"], "header") if b_images.get("header") else {"enabled": False}
+            footer_spec = resolve_brand_spec(b_images["footer"], "footer") if b_images.get("footer") else {"enabled": False}
+            if header_spec.get("enabled"):
+                md = "![头部品牌图](__BRAND_TOP__)\n\n" + md
+                img_count += 1
+            if footer_spec.get("enabled"):
+                md = md.rstrip() + "\n\n![尾部品牌图](__BRAND_BOT__)\n"
+                img_count += 1
+
     emit({"ok": len(problems) == 0,
           "data": {"index": idx, "platform": platform, "markdown": md,
                    "plain_chars": plain_chars, "img_count": img_count, "problems": problems}})

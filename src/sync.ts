@@ -114,64 +114,41 @@ function restoreAccountsFromDisk(
   if (!cfg.accounts || typeof cfg.accounts !== 'object') (cfg as any).accounts = {}
   let changed = false
 
-  // 容灾自愈（加固版）：仅当根 wx_config.json 账号少于等于 1 时，才扫描各账号子目录中的镜像备份。
-  // 只采纳「写入时间晚于根文件」的最新一份快照——根配置与镜像由同一轮 syncConfig 写出，时间戳接近；
-  // 早于根文件的陈旧镜像是已被删除的历史账号（如测试账号）残留，绝不能借此复活（曾导致测试账号反复出现）。
-  const accountsDir = path.join(workspaceDir, 'accounts')
-  if ((!Array.isArray(existing.accounts) || existing.accounts.length <= 1) && fs.existsSync(accountsDir)) {
-    try {
-      const currentCount = Array.isArray(existing.accounts) ? existing.accounts.length : 0
-      const rootWxPath = path.join(workspaceDir, 'scripts', 'wx_config.json')
-      const rootMtimeMs = fs.existsSync(rootWxPath) ? fs.statSync(rootWxPath).mtimeMs : 0
-      let best: { mtimeMs: number; data: Record<string, unknown> } | null = null
-      for (const sub of fs.readdirSync(accountsDir)) {
-        const subWx = path.join(accountsDir, sub, 'scripts', 'wx_config.json')
-        if (!fs.existsSync(subWx)) continue
-        const mtimeMs = fs.statSync(subWx).mtimeMs
-        if (mtimeMs <= rootMtimeMs) continue
-        const subData = JSON.parse(fs.readFileSync(subWx, 'utf-8')) as Record<string, unknown>
-        if (!Array.isArray(subData.accounts) || (subData.accounts as unknown[]).length <= currentCount) continue
-        if (!best || mtimeMs > best.mtimeMs) best = { mtimeMs, data: subData }
-      }
-      if (best) {
-        existing.accounts = best.data.accounts
-        if (Array.isArray(best.data.image_api_providers) && (!Array.isArray(existing.image_api_providers) || existing.image_api_providers.length < best.data.image_api_providers.length)) {
-          existing.image_api_providers = best.data.image_api_providers
-        }
-        changed = true
-      }
-    } catch {}
-  }
-
   if (Array.isArray(existing.accounts)) {
     for (const item of existing.accounts as Array<Record<string, any>>) {
       if (item && typeof item.id === 'string' && item.id.trim()) {
         const id = item.id.trim()
+        const platform = item.platform === 'zhihu' ? 'zhihu' : item.platform === 'xiaohongshu' ? 'xiaohongshu' : item.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
         if (!cfg.accounts[id]) {
           cfg.accounts[id] = {
-            platform: item.platform === 'zhihu' ? 'zhihu' : item.platform === 'xiaohongshu' ? 'xiaohongshu' : item.platform === 'baijiahao' ? 'baijiahao' : 'gzh',
+            platform,
             name: String(item.name || id),
             enabled: item.enabled !== false,
-            publish_mode: item.publish_mode === 'browser' ? 'browser' : 'api',
-            appid: String(item.appid ?? ''),
-            app_secret: String(item.app_secret ?? ''),
-            author_name: String(item.author_name ?? cfg.wechat.author_name ?? ''),
-            brand_name: String(item.brand_name ?? cfg.wechat.brand_name ?? ''),
+            publish_mode: platform === 'gzh' ? (item.publish_mode === 'browser' ? 'browser' : 'api') : 'browser',
+            appid: platform === 'gzh' ? String(item.appid ?? '') : '',
+            app_secret: platform === 'gzh' ? String(item.app_secret ?? '') : '',
+            author_name: String(item.author_name ?? cfg.wechat?.author_name ?? '文映学术win00.cn'),
+            brand_name: String(item.brand_name ?? cfg.wechat?.brand_name ?? '文映千秋学术网'),
             publish_immediately: Boolean(item.publish_immediately),
-            auto_enable_original: Boolean(item.auto_enable_original),
-            content: (item.content && typeof item.content === 'object') ? { ...cfg.content, ...item.content } : { ...cfg.content },
-            brand_images: (item.brand_images && typeof item.brand_images === 'object') ? { ...cfg.brand_images, ...item.brand_images } : { ...cfg.brand_images },
-          }
+            auto_enable_original: platform === 'gzh' && Boolean(item.auto_enable_original),
+            content: (item.content && typeof item.content === 'object') ? { ...item.content } : {},
+            brand_images: (item.brand_images && typeof item.brand_images === 'object') ? { ...item.brand_images } : {
+              header: { enabled: platform === 'gzh' || platform === 'baijiahao', file: 'brand_top.jpg', width: 100, height: 0, fit: 'contain', position: 'center', radius: 0, margin_top: 0, margin_bottom: 0, frame: false },
+              footer: { enabled: platform === 'gzh' || platform === 'baijiahao', file: 'brand_bot.jpg', width: 0, height: 0, fit: 'contain', position: 'center', radius: 0, margin_top: 20, margin_bottom: 0, frame: false },
+            },
+          } as any
           changed = true
         } else {
           const acc = cfg.accounts[id]
-          if (!acc.app_secret && item.app_secret) {
-            acc.app_secret = String(item.app_secret)
-            changed = true
-          }
-          if (!acc.appid && item.appid) {
-            acc.appid = String(item.appid)
-            changed = true
+          if (acc.platform === 'gzh') {
+            if (!acc.app_secret && item.app_secret) {
+              acc.app_secret = String(item.app_secret)
+              changed = true
+            }
+            if (!acc.appid && item.appid) {
+              acc.appid = String(item.appid)
+              changed = true
+            }
           }
         }
       }
@@ -307,15 +284,16 @@ export function hydrateConfigFromWx(cfg?: Partial<Config>): { config: Config; ch
   if (!result.image_api.api_key && legacyImageKey) { result.image_api.api_key = legacyImageKey; changed = true }
 
   const defaultAccount = result.accounts[result.default_account]
-  if (defaultAccount) {
+  if (defaultAccount && defaultAccount.platform === 'gzh') {
     if (!defaultAccount.appid && legacyAppid) { defaultAccount.appid = legacyAppid; changed = true }
     if (!defaultAccount.app_secret && legacySecret) { defaultAccount.app_secret = legacySecret; changed = true }
   } else if (Object.keys(result.accounts).length > 0) {
-    const pick = Object.keys(result.accounts).find((k) => result.accounts[k]?.enabled) ?? Object.keys(result.accounts)[0]
-    result.default_account = pick
-    const only = result.accounts[pick]
-    if (!only.appid && legacyAppid) { only.appid = legacyAppid; changed = true }
-    if (!only.app_secret && legacySecret) { only.app_secret = legacySecret; changed = true }
+    const pickGzh = Object.keys(result.accounts).find((k) => result.accounts[k]?.enabled && result.accounts[k]?.platform === 'gzh')
+    if (pickGzh) {
+      const only = result.accounts[pickGzh]
+      if (!only.appid && legacyAppid) { only.appid = legacyAppid; changed = true }
+      if (!only.app_secret && legacySecret) { only.app_secret = legacySecret; changed = true }
+    }
   }
 
   const firstProvider = providerPool(result)[0]?.provider
@@ -367,24 +345,22 @@ export function syncConfig(cfg: Config): SyncReport {
     const previous = Array.isArray(existing.accounts)
       ? (existing.accounts as Array<Record<string, unknown>>).find((item) => item.id === id)
       : undefined
+    const isGzh = account.platform === 'gzh'
     return {
       id,
       name: account.name,
       enabled: account.enabled,
       platform: account.platform === 'zhihu' ? 'zhihu' : account.platform === 'xiaohongshu' ? 'xiaohongshu' : account.platform === 'baijiahao' ? 'baijiahao' : 'gzh',
-      publish_mode: account.publish_mode === 'browser' ? 'browser' : 'api',
+      publish_mode: isGzh ? (account.publish_mode === 'browser' ? 'browser' : 'api') : 'browser',
       publish_immediately: account.publish_immediately === true,
-      appid: account.appid.trim()
-        || (id === defaultAccount.id ? String(existing.appid ?? '') : ''),
-      app_secret: account.app_secret.trim()
-        || String(previous?.app_secret ?? '')
-        || (id === defaultAccount.id ? String(existing.app_secret ?? '') : ''),
+      appid: isGzh ? (account.appid.trim() || (id === defaultAccount.id && defaultAccount.profile.platform === 'gzh' ? String(existing.appid ?? '') : '')) : '',
+      app_secret: isGzh ? (account.app_secret.trim() || String(previous?.app_secret ?? '') || (id === defaultAccount.id && defaultAccount.profile.platform === 'gzh' ? String(existing.app_secret ?? '') : '')) : '',
       author_name: account.author_name,
       brand_name: account.brand_name,
       content: account.content,
       // 账号级发布增强配置必须持久化，否则每次 apply/热重载都会丢失，
       // 导致品牌图被静默禁用、草稿自动开启原创失效。
-      auto_enable_original: account.auto_enable_original === true,
+      auto_enable_original: isGzh && account.auto_enable_original === true,
       brand_images: account.brand_images,
     }
   })
@@ -404,17 +380,18 @@ export function syncConfig(cfg: Config): SyncReport {
     }
   })
   const firstProvider = providers[0]
-  const appidFromPlugin = defaultAccount.profile.appid.trim() !== ''
+  const defaultIsGzh = defaultAccount.profile.platform === 'gzh'
+  const appidFromPlugin = defaultIsGzh && defaultAccount.profile.appid.trim() !== ''
   const keyFromPlugin = Boolean(firstProvider?.api_key)
   const merged = {
     ...existing,
     accounts: accountRecords,
     image_api_providers: providers,
-    appid: appidFromPlugin ? defaultAccount.profile.appid.trim() : existing.appid ?? '',
+    appid: appidFromPlugin ? defaultAccount.profile.appid.trim() : (defaultIsGzh ? existing.appid ?? '' : ''),
     app_secret:
-      defaultAccount.profile.app_secret.trim() !== ''
+      defaultIsGzh && defaultAccount.profile.app_secret.trim() !== ''
         ? defaultAccount.profile.app_secret.trim()
-        : existing.app_secret ?? '',
+        : (defaultIsGzh ? existing.app_secret ?? '' : ''),
     image_api_base: firstProvider?.base_url ?? cfg.image_api.base_url,
     image_api_key: firstProvider?.api_key ?? existing.image_api_key ?? '',
   }
@@ -437,11 +414,21 @@ export function syncConfig(cfg: Config): SyncReport {
     }
   } catch {}
 
-  // 每个账号目录下发同一份 wx_config.json：Python 侧从该账号自己的 --scripts-dir 读取凭据
-  for (const id of Object.keys(cfg.accounts)) {
+  // 每个账号目录下发属于该账号自身的 wx_config.json：Python 侧从该账号自己的 --scripts-dir 读取凭据
+  for (const [id, account] of Object.entries(cfg.accounts)) {
     const accountDir = accountScriptsDir(cfg, id)
     fs.mkdirSync(accountDir, { recursive: true })
-    fs.writeFileSync(path.join(accountDir, 'wx_config.json'), serialized, 'utf-8')
+    const accountSpecific = {
+      ...merged,
+      platform: account.platform,
+      publish_mode: account.publish_mode,
+      appid: account.platform === 'gzh' ? account.appid : '',
+      app_secret: account.platform === 'gzh' ? account.app_secret : '',
+      author_name: account.author_name,
+      brand_name: account.brand_name,
+      current_account_id: id,
+    }
+    fs.writeFileSync(path.join(accountDir, 'wx_config.json'), JSON.stringify(accountSpecific, null, 2) + '\n', 'utf-8')
   }
   // 清理已删除账号的子目录镜像：陈旧全量快照是「已删除/测试账号复活」的根源
   // （容灾自愈会扫描 accounts/*/scripts/wx_config.json，删号后残留的快照会让账号重启后重新出现）。

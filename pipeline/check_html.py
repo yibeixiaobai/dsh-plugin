@@ -67,9 +67,9 @@ def check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand
     if require_brand and brand_name and brand_name not in plain:
         problems.append("缺少品牌引导语: " + brand_name)
     imgs = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", md)
-    bad_src = [s for s in imgs if not re.fullmatch(r"IMG_A\d+_\d+", s)]
+    bad_src = [s for s in imgs if not (re.fullmatch(r"IMG_A\d+_\d+", s) or (allow_placeholders and s in ("__BRAND_TOP__", "__BRAND_BOT__")))]
     if bad_src:
-        problems.append("图片占位符格式非法（应为 IMG_A{index}_{j}）: %s" % bad_src[:3])
+        problems.append("图片占位符格式非法（应为 IMG_A{index}_{j} 或 __BRAND_*）: %s" % bad_src[:3])
     if len(imgs) != img_count:
         problems.append("图片占位符数量 %d != %d（按设置的每篇配图数）" % (len(imgs), img_count))
     if not allow_placeholders and ("IMG_" in md or "__BRAND" in md):

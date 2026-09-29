@@ -265,7 +265,7 @@ const ContentSchema = Schema.object({
   sync_newspic: Schema.boolean().default(false).description('公众号更新时长文与小绿书同步执行（一文双发：长文草稿 + 对应提炼的小绿书卡片草稿）'),
   articles_per_day: Schema.number().min(1).max(10).step(1).default(6).description('长文每日篇数（长文组合为 1 个多图文草稿包）'),
   newspic_articles_per_day: Schema.number().min(1).max(20).step(1).default(1).description('小绿书每日篇数（每篇独立为1个草稿，不组合发布；默认1篇）'),
-  min_words: Schema.number().min(50).max(10000).step(50).default(2000).description('长文纯文字下限（字）'),
+  min_words: Schema.number().min(0).max(10000).step(10).default(2000).description('长文纯文字下限（字）'),
   topics: Schema.array(Schema.string()).role('table').default(DEFAULT_TOPICS).description('核心业务关键词（用于检索关联选题，严禁直接作为标题开头词）'),
   enable_hot_tracking: Schema.boolean().default(true).description('启用多源搜索热点与行业时令日历追踪'),
   preferred_topic_angles: Schema.array(Schema.string()).role('table').default(['policy', 'trap', 'guide', 'myth', 'tools']).description('偏好的爆款切角矩阵（policy=政策解读, trap=痛点避坑, guide=保姆清单, myth=认知反转, tools=效率神器）'),
@@ -273,9 +273,9 @@ const ContentSchema = Schema.object({
   ending_guide_required: Schema.boolean().default(true).description('结尾必须自然引导关注品牌'),
   newspic_images_per_article: Schema.number().min(1).max(20).step(1).default(4).description('小绿书：每篇轮播图片张数（1-20，默认4）'),
   newspic_image_ratio: Schema.union(['3:4', '1:1', '16:9']).default('3:4').description('小绿书卡片比例（默认 3:4 竖版）'),
-  newspic_min_words: Schema.number().min(30).max(1000).step(10).default(100).description('小绿书：纯文字文案下限（字，推荐 80~300）'),
+  newspic_min_words: Schema.number().min(0).max(1000).step(10).default(100).description('小绿书：纯文字文案下限（字，推荐 80~300）'),
   // 融合排版设计（一号一配置）
-  headline_theme: Schema.union([...THEME_KEYS]).default('wenying').description('头条主题（wenying=文映学术品牌专属）'),
+  headline_theme: Schema.union([...THEME_KEYS, 'rotate']).default('wenying').description('头条主题（wenying=文映学术品牌专属，rotate=自动轮换）'),
   secondary_theme: Schema.union([...THEME_KEYS, 'rotate']).default('rotate').description('次条主题：rotate=按篇顺序轮换各主题'),
   font_size: Schema.string().default('13px').description('正文字号铁律'),
   line_height: Schema.string().default('20px').description('正文行高铁律'),
@@ -288,7 +288,7 @@ const ContentSchema = Schema.object({
   image_lang_zh_only: Schema.boolean().default(true).description('图中文字仅中文（提示词自动附加约束）'),
   // 小红书专属配置
   xhs_images_per_note: Schema.number().min(1).max(18).step(1).default(4).description('小红书：每篇笔记图片数（1~18张，默认4）'),
-  xhs_min_words: Schema.number().min(50).max(1000).step(10).default(200).description('小红书：正文最低字数（默认200，上限1000）'),
+  xhs_min_words: Schema.number().min(0).max(1000).step(10).default(200).description('小红书：正文最低字数（默认200，上限1000）'),
   xhs_tags: Schema.array(Schema.string()).role('table').default([]).description('小红书：话题标签（#话题# 格式，自动追加到正文末尾）'),
 })
 
@@ -306,15 +306,15 @@ const BrandImageSchema = Schema.object({
 })
 
 const AccountSchema = Schema.object({
-  platform: Schema.string().default('gzh').description('平台：gzh=公众号（凭据或扫码登录），zhihu=知乎专栏（扫码登录），xiaohongshu=小红书（扫码登录）'),
+  platform: Schema.string().default('gzh').description('平台：gzh=公众号（凭据或扫码登录），zhihu=知乎专栏（扫码登录），xiaohongshu=小红书（扫码登录），baijiahao=百家号（扫码/账密登录）'),
   name: Schema.string().default('默认账号').description('账号显示名称'),
   enabled: Schema.boolean().default(true).description('是否启用'),
-  publish_mode: Schema.union(['api', 'browser']).default('api').description('公众号发布模式：api=官方 API 接口（需 AppID/Secret/IP 白名单）；browser=免 API 浏览器自动化（扫码登录，后台自动创建草稿）'),
-  appid: Schema.string().default('').description('公众号 AppID（知乎账号或免 API 模式留空）'),
-  app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（知乎账号或免 API 模式留空）'),
+  publish_mode: Schema.union(['api', 'browser']).default('api').description('发布模式：api=官方 API 接口；browser=免 API 浏览器自动化（扫码登录，后台自动创建草稿）'),
+  appid: Schema.string().default('').description('公众号 AppID（非公众号或免 API 模式留空）'),
+  app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（非公众号或免 API 模式留空）'),
   author_name: Schema.string().default('文映学术win00.cn').description('文章作者名'),
   brand_name: Schema.string().default('文映千秋学术网').description('品牌名（结尾引导语必须包含）'),
-  publish_immediately: Schema.boolean().default(false).description('知乎：保存后直接发布（默认只存草稿箱，公众号不受影响）'),
+  publish_immediately: Schema.boolean().default(false).description('知乎/百家号/小红书：保存后直接发布（默认只存草稿箱）'),
   auto_enable_original: Schema.boolean().default(false).description('公众号：草稿创建后自动通过浏览器模拟打开草稿箱批量开启原创并保存草稿'),
   content: ContentSchema,
   brand_images: Schema.object({

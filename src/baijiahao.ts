@@ -63,6 +63,10 @@ export interface BaijiahaoPublishJob {
   content_img_count: number
   cover_files: Record<string, string> // String(index) → cover_N.png 绝对路径（publish_immediately 时上传）
   publish_immediately: boolean
+  brand_image_files?: {
+    header?: string
+    footer?: string
+  }
   dry_run: boolean
   min_words: number
   forbidden: string[]
@@ -475,9 +479,13 @@ async function publishOneArticle(
   await page.keyboard.type(title, { delay: 20 })
   await new Promise((resolve) => setTimeout(resolve, 800))
 
-  // 正文图：先逐张粘给编辑器自己上传，收集真实 CDN src 后替换占位符
+  // 正文图与品牌图：先逐张粘给编辑器自己上传，收集真实 CDN src 后替换占位符
   const keys: string[] = []
   const files: string[] = []
+  if (job.brand_image_files?.header) {
+    keys.push('__BRAND_TOP__')
+    files.push(job.brand_image_files.header)
+  }
   for (let j = 1; j <= job.content_img_count; j++) {
     const key = 'IMG_A' + index + '_' + j
     const file = job.content_files[key]
@@ -485,13 +493,18 @@ async function publishOneArticle(
     keys.push(key)
     files.push(file)
   }
-  const srcs = await pasteUploadImages(page, files, debugDir)
-  for (let j = 0; j < keys.length; j++) {
-    html = html.split('src="' + keys[j] + '"').join('src="' + srcs[j].replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"')
+  if (job.brand_image_files?.footer) {
+    keys.push('__BRAND_BOT__')
+    files.push(job.brand_image_files.footer)
   }
-
-  // 清空试传图片，粘贴带真实 src 的正式正文（正文在 UEditor iframe 内）
-  await clearEditor(page)
+  if (files.length > 0) {
+    const srcs = await pasteUploadImages(page, files, debugDir)
+    for (let j = 0; j < keys.length; j++) {
+      html = html.split('src="' + keys[j] + '"').join('src="' + srcs[j].replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"')
+    }
+    // 清空试传图片，粘贴带真实 src 的正式正文（正文在 UEditor iframe 内）
+    await clearEditor(page)
+  }
   const editorFrame = await getEditorFrame(page)
   await editorFrame.evaluate((html, sel) => {
     const editor = document.querySelector<HTMLElement>(sel)
@@ -700,6 +713,12 @@ export async function runBaijiahaoPublish(cfg: Config, accountId: string, job: B
     const problems = precheckMarkdown(job, i, fs.readFileSync(job.article_files[i - 1], 'utf-8'))
     if (problems.length > 0) throw new Error('发布前校验未通过：\n' + problems.join('\n'))
     if (!job.dry_run) {
+      if (job.brand_image_files?.header && !fs.existsSync(job.brand_image_files.header)) {
+        throw new Error('缺少百家号头部品牌图: ' + job.brand_image_files.header)
+      }
+      if (job.brand_image_files?.footer && !fs.existsSync(job.brand_image_files.footer)) {
+        throw new Error('缺少百家号尾部品牌图: ' + job.brand_image_files.footer)
+      }
       for (let j = 1; j <= job.content_img_count; j++) {
         const file = job.content_files['IMG_A' + i + '_' + j]
         if (!file || !fs.existsSync(file)) {

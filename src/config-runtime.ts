@@ -84,60 +84,155 @@ export function normalizeConfig(config: Config): Config {
   for (const profile of Object.values(accounts)) {
     profile.name = profile.name || '未命名账号'
     profile.enabled = profile.enabled !== false
-    // 老配置无 platform 字段：一律视为公众号，知乎/小红书/百家号需在设置中显式切换
     profile.platform = profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
-    profile.publish_mode = profile.publish_mode === 'browser' ? 'browser' : (profile.platform === 'xiaohongshu' || profile.platform === 'zhihu' || profile.platform === 'baijiahao' ? 'browser' : 'api')
-    profile.appid = profile.appid || ''
-    profile.app_secret = profile.app_secret || ''
+    profile.publish_mode = profile.platform === 'gzh'
+      ? (profile.publish_mode === 'browser' ? 'browser' : 'api')
+      : 'browser'
+
+    // 凭据严格隔离：非公众号账号绝不混入微信 AppID/Secret
+    if (profile.platform === 'gzh') {
+      profile.appid = profile.appid || ''
+      profile.app_secret = profile.app_secret || ''
+      profile.auto_enable_original = profile.auto_enable_original === true || (profile.auto_enable_original === undefined && config.wechat?.auto_enable_original === true)
+    } else {
+      profile.appid = profile.appid || ''
+      profile.app_secret = profile.app_secret || ''
+      profile.auto_enable_original = false
+    }
+
     profile.author_name = profile.author_name || config.wechat?.author_name || '文映学术win00.cn'
     profile.brand_name = profile.brand_name || config.wechat?.brand_name || '文映千秋学术网'
     profile.publish_immediately = profile.publish_immediately === true
-    profile.auto_enable_original = profile.platform === 'gzh' && (profile.auto_enable_original === true || (profile.auto_enable_original === undefined && config.wechat?.auto_enable_original === true))
+
+    // 内容配置精确归一化（区分 0、false 与 undefined，杜绝默认值强制反冲）
+    const existingContent = (profile.content && typeof profile.content === 'object') ? profile.content : {}
+    const commonTopics = Array.isArray(existingContent.topics)
+      ? existingContent.topics
+      : (typeof existingContent.topics === 'string' && existingContent.topics
+        ? (existingContent.topics as string).split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean)
+        : (Array.isArray(config.content?.topics) ? config.content.topics : DEFAULT_CONTENT.topics))
+    const commonForbidden = Array.isArray(existingContent.forbidden_words)
+      ? existingContent.forbidden_words
+      : (typeof existingContent.forbidden_words === 'string' && existingContent.forbidden_words
+        ? (existingContent.forbidden_words as string).split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean)
+        : (Array.isArray(config.content?.forbidden_words) ? config.content.forbidden_words : DEFAULT_CONTENT.forbidden_words))
+    const commonEndingGuide = existingContent.ending_guide_required !== undefined
+      ? Boolean(existingContent.ending_guide_required)
+      : (config.content?.ending_guide_required !== undefined ? Boolean(config.content.ending_guide_required) : true)
+    const commonHotTracking = existingContent.enable_hot_tracking !== undefined
+      ? Boolean(existingContent.enable_hot_tracking)
+      : (config.content?.enable_hot_tracking !== undefined ? Boolean(config.content.enable_hot_tracking) : true)
+    const commonAngles = Array.isArray(existingContent.preferred_topic_angles) && existingContent.preferred_topic_angles.length > 0
+      ? existingContent.preferred_topic_angles
+      : (Array.isArray(config.content?.preferred_topic_angles) && config.content.preferred_topic_angles.length > 0
+        ? config.content.preferred_topic_angles
+        : ['policy', 'trap', 'guide', 'myth', 'tools'])
+    const commonLangZh = existingContent.image_lang_zh_only !== undefined
+      ? Boolean(existingContent.image_lang_zh_only)
+      : (config.image_api?.image_lang_zh_only !== undefined ? Boolean(config.image_api.image_lang_zh_only) : true)
+    const commonContentImgs = Number.isFinite(existingContent.content_images_per_article)
+      ? Math.max(0, Math.min(4, Math.floor(Number(existingContent.content_images_per_article))))
+      : (Number.isFinite(config.image_api?.content_images_per_article) ? Math.max(0, Math.min(4, Math.floor(Number(config.image_api.content_images_per_article)))) : 2)
+
     if (profile.platform === 'xiaohongshu') {
-      profile.publish_mode = 'browser'
-      profile.auto_enable_original = false
       profile.content = {
         ...clone(DEFAULT_CONTENT),
-        ...(config.content ?? {}),
-        ...(profile.content ?? {}),
-        articles_per_day: Number.isFinite(profile.content?.articles_per_day) ? Number(profile.content.articles_per_day) : 1,
-        headline_cover_ratio: profile.content?.headline_cover_ratio || '3:4',
-        secondary_cover_ratio: profile.content?.secondary_cover_ratio || '3:4',
-        xhs_images_per_note: Number.isFinite(profile.content?.xhs_images_per_note) ? Number(profile.content.xhs_images_per_note) : 4,
-        xhs_min_words: Number.isFinite(profile.content?.xhs_min_words) ? Number(profile.content.xhs_min_words) : 200,
-        xhs_tags: Array.isArray(profile.content?.xhs_tags)
-          ? profile.content.xhs_tags
-          : (typeof profile.content?.xhs_tags === 'string' && profile.content.xhs_tags
-            ? (profile.content.xhs_tags as string).split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean)
+        ...existingContent,
+        articles_per_day: Number.isFinite(existingContent.articles_per_day) ? Math.max(1, Math.min(10, Math.floor(Number(existingContent.articles_per_day)))) : 1,
+        headline_cover_ratio: '3:4',
+        secondary_cover_ratio: '3:4',
+        xhs_images_per_note: Number.isFinite(existingContent.xhs_images_per_note) ? Math.max(1, Math.min(18, Math.floor(Number(existingContent.xhs_images_per_note)))) : 4,
+        xhs_min_words: Number.isFinite(existingContent.xhs_min_words) ? Math.max(0, Math.min(1000, Math.floor(Number(existingContent.xhs_min_words)))) : 200,
+        xhs_tags: Array.isArray(existingContent.xhs_tags)
+          ? existingContent.xhs_tags
+          : (typeof existingContent.xhs_tags === 'string' && existingContent.xhs_tags
+            ? (existingContent.xhs_tags as string).split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean)
             : []),
-        image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
-        enable_hot_tracking: profile.content?.enable_hot_tracking ?? config.content?.enable_hot_tracking ?? true,
-        preferred_topic_angles: profile.content?.preferred_topic_angles ?? config.content?.preferred_topic_angles ?? ['policy', 'trap', 'guide', 'myth', 'tools'],
+        topics: commonTopics,
+        forbidden_words: commonForbidden,
+        ending_guide_required: commonEndingGuide,
+        enable_hot_tracking: commonHotTracking,
+        preferred_topic_angles: commonAngles,
+        image_lang_zh_only: commonLangZh,
+      }
+      profile.brand_images = {
+        header: normalizeBrandImage(profile.brand_images?.header, { ...DEFAULT_BRAND_IMAGES.header, enabled: false }),
+        footer: normalizeBrandImage(profile.brand_images?.footer, { ...DEFAULT_BRAND_IMAGES.footer, enabled: false }),
+      }
+    } else if (profile.platform === 'zhihu') {
+      profile.content = {
+        ...clone(DEFAULT_CONTENT),
+        ...existingContent,
+        articles_per_day: Number.isFinite(existingContent.articles_per_day) ? Math.max(1, Math.min(10, Math.floor(Number(existingContent.articles_per_day)))) : 1,
+        min_words: Number.isFinite(existingContent.min_words) ? Math.max(0, Math.floor(Number(existingContent.min_words))) : 2000,
+        headline_cover_ratio: '16:9',
+        secondary_cover_ratio: '16:9',
+        content_images_per_article: commonContentImgs,
+        topics: commonTopics,
+        forbidden_words: commonForbidden,
+        ending_guide_required: commonEndingGuide,
+        enable_hot_tracking: commonHotTracking,
+        preferred_topic_angles: commonAngles,
+        image_lang_zh_only: commonLangZh,
+      }
+      profile.brand_images = {
+        header: normalizeBrandImage(profile.brand_images?.header, { ...DEFAULT_BRAND_IMAGES.header, enabled: false }),
+        footer: normalizeBrandImage(profile.brand_images?.footer, { ...DEFAULT_BRAND_IMAGES.footer, enabled: false }),
+      }
+    } else if (profile.platform === 'baijiahao') {
+      profile.content = {
+        ...clone(DEFAULT_CONTENT),
+        ...existingContent,
+        articles_per_day: Number.isFinite(existingContent.articles_per_day) ? Math.max(1, Math.min(10, Math.floor(Number(existingContent.articles_per_day)))) : 1,
+        min_words: Number.isFinite(existingContent.min_words) ? Math.max(0, Math.floor(Number(existingContent.min_words))) : 2000,
+        headline_cover_ratio: '2.35:1',
+        secondary_cover_ratio: '2.35:1',
+        content_images_per_article: commonContentImgs,
+        topics: commonTopics,
+        forbidden_words: commonForbidden,
+        ending_guide_required: commonEndingGuide,
+        enable_hot_tracking: commonHotTracking,
+        preferred_topic_angles: commonAngles,
+        image_lang_zh_only: commonLangZh,
+      }
+      // 百家号完整支持首尾品牌图
+      profile.brand_images = {
+        header: normalizeBrandImage(profile.brand_images?.header, DEFAULT_BRAND_IMAGES.header),
+        footer: normalizeBrandImage(profile.brand_images?.footer, DEFAULT_BRAND_IMAGES.footer),
       }
     } else {
+      // 微信公众号
       profile.content = {
         ...clone(DEFAULT_CONTENT),
-        ...(config.content ?? {}),
-        ...(profile.content ?? {}),
-        headline_theme: profile.content?.headline_theme ?? config.typography?.headline_theme ?? DEFAULT_CONTENT.headline_theme ?? 'wenying',
-        secondary_theme: profile.content?.secondary_theme ?? config.typography?.secondary_theme ?? DEFAULT_CONTENT.secondary_theme ?? 'rotate',
-        font_size: profile.content?.font_size ?? config.typography?.font_size ?? DEFAULT_CONTENT.font_size ?? '13px',
-        line_height: profile.content?.line_height ?? config.typography?.line_height ?? DEFAULT_CONTENT.line_height ?? '20px',
-        paragraph_margin: profile.content?.paragraph_margin ?? config.typography?.paragraph_margin ?? DEFAULT_CONTENT.paragraph_margin ?? '25px',
-        text_indent: profile.content?.text_indent ?? config.typography?.text_indent ?? DEFAULT_CONTENT.text_indent ?? '2em',
-        headline_cover_ratio: profile.content?.headline_cover_ratio ?? config.image_api?.headline_cover_ratio ?? DEFAULT_CONTENT.headline_cover_ratio ?? (profile.platform === 'zhihu' ? '16:9' : '2.35:1'),
-        secondary_cover_ratio: profile.content?.secondary_cover_ratio ?? config.image_api?.secondary_cover_ratio ?? DEFAULT_CONTENT.secondary_cover_ratio ?? (profile.platform === 'zhihu' ? '16:9' : '1:1'),
-        content_images_per_article: Number.isFinite(profile.content?.content_images_per_article)
-          ? Number(profile.content!.content_images_per_article)
-          : (Number.isFinite(config.image_api?.content_images_per_article) ? Number(config.image_api.content_images_per_article) : 2),
-        image_lang_zh_only: profile.content?.image_lang_zh_only ?? config.image_api?.image_lang_zh_only ?? DEFAULT_CONTENT.image_lang_zh_only ?? true,
-        enable_hot_tracking: profile.content?.enable_hot_tracking ?? config.content?.enable_hot_tracking ?? true,
-        preferred_topic_angles: profile.content?.preferred_topic_angles ?? config.content?.preferred_topic_angles ?? ['policy', 'trap', 'guide', 'myth', 'tools'],
+        ...existingContent,
+        article_type: existingContent.article_type ?? config.content?.article_type ?? 'news',
+        sync_newspic: existingContent.sync_newspic !== undefined ? Boolean(existingContent.sync_newspic) : (config.content?.sync_newspic !== undefined ? Boolean(config.content.sync_newspic) : false),
+        articles_per_day: Number.isFinite(existingContent.articles_per_day) ? Math.max(1, Math.min(10, Math.floor(Number(existingContent.articles_per_day)))) : 6,
+        newspic_articles_per_day: Number.isFinite(existingContent.newspic_articles_per_day) ? Math.max(1, Math.min(20, Math.floor(Number(existingContent.newspic_articles_per_day)))) : 1,
+        min_words: Number.isFinite(existingContent.min_words) ? Math.max(0, Math.floor(Number(existingContent.min_words))) : 2000,
+        newspic_images_per_article: Number.isFinite(existingContent.newspic_images_per_article) ? Math.max(1, Math.min(20, Math.floor(Number(existingContent.newspic_images_per_article)))) : 4,
+        newspic_image_ratio: existingContent.newspic_image_ratio ?? '3:4',
+        newspic_min_words: Number.isFinite(existingContent.newspic_min_words) ? Math.max(0, Math.floor(Number(existingContent.newspic_min_words))) : 100,
+        headline_theme: existingContent.headline_theme ?? config.typography?.headline_theme ?? 'wenying',
+        secondary_theme: existingContent.secondary_theme ?? config.typography?.secondary_theme ?? 'rotate',
+        font_size: existingContent.font_size ?? config.typography?.font_size ?? '13px',
+        line_height: existingContent.line_height ?? config.typography?.line_height ?? '20px',
+        paragraph_margin: existingContent.paragraph_margin ?? config.typography?.paragraph_margin ?? '25px',
+        text_indent: existingContent.text_indent ?? config.typography?.text_indent ?? '2em',
+        headline_cover_ratio: existingContent.headline_cover_ratio ?? config.image_api?.headline_cover_ratio ?? '2.35:1',
+        secondary_cover_ratio: existingContent.secondary_cover_ratio ?? config.image_api?.secondary_cover_ratio ?? '1:1',
+        content_images_per_article: commonContentImgs,
+        topics: commonTopics,
+        forbidden_words: commonForbidden,
+        ending_guide_required: commonEndingGuide,
+        enable_hot_tracking: commonHotTracking,
+        preferred_topic_angles: commonAngles,
+        image_lang_zh_only: commonLangZh,
       }
-    }
-    profile.brand_images = {
-      header: normalizeBrandImage(profile.brand_images?.header, DEFAULT_BRAND_IMAGES.header),
-      footer: normalizeBrandImage(profile.brand_images?.footer, DEFAULT_BRAND_IMAGES.footer),
+      profile.brand_images = {
+        header: normalizeBrandImage(profile.brand_images?.header, DEFAULT_BRAND_IMAGES.header),
+        footer: normalizeBrandImage(profile.brand_images?.footer, DEFAULT_BRAND_IMAGES.footer),
+      }
     }
   }
 

@@ -2,7 +2,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import { THEME_NAMES, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
-  accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveTheme, resolveTypography, runPipeline,
+  accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, expectedBrandImageCount, renderJson, resolveTheme, resolveTypography, runPipeline,
   runtimeResourceDir, writeTextFile,
 } from './shared.ts'
 
@@ -100,7 +100,14 @@ export function buildArticleTool(cfg: Config) {
               '--brand-name', account.profile.brand_name,
               ...(content.ending_guide_required ? ['--require-brand'] : []),
             ]
-            : platform === 'zhihu' || platform === 'baijiahao'
+            : platform === 'baijiahao'
+              ? [
+                '--content-img-count', String(contentImgCount),
+                ...(content.ending_guide_required ? ['--require-brand'] : []),
+                '--brand-name', account.profile.brand_name,
+                '--brand-images', JSON.stringify(account.profile.brand_images),
+              ]
+            : platform === 'zhihu'
               ? [
                 '--content-img-count', String(contentImgCount),
                 ...(content.ending_guide_required ? ['--require-brand'] : []),
@@ -137,8 +144,10 @@ export function buildArticleTool(cfg: Config) {
       // 完整发布级校验（占位符阶段）；gzh-design lint 仅对公众号 HTML 有意义
       const expectedImgs = isNewspic
         ? built.img_count
-        : platform === 'zhihu' || platform === 'baijiahao'
+        : platform === 'zhihu'
           ? contentImagesPerArticle(cfg, account.profile)
+          : platform === 'baijiahao'
+            ? contentImagesPerArticle(cfg, account.profile) + expectedBrandImageCount(account.profile)
           : platform === 'xiaohongshu'
             ? built.img_count
             : expectedArticleImageCount(cfg, account.profile)

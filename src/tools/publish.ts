@@ -338,7 +338,8 @@ async function publishZhihu(
 async function publishBaijiahao(
   cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number,
 ): Promise<PublishOk> {
-  const contentImgs = contentImagesPerArticle(cfg, resolveAccount(cfg, accountId).profile)
+  const account = resolveAccount(cfg, accountId)
+  const contentImgs = contentImagesPerArticle(cfg, account.profile)
   const articlePaths = defaultArticleFiles(sdir, n, '.md', args.article_files)
   const contentFiles: Record<string, string> = {}
   for (let i = 1; i <= n; i++) {
@@ -351,12 +352,29 @@ async function publishBaijiahao(
   }
   // 直发时每篇需要封面（百家号发文封面必选）：cover_{i}.png，dry_run 直接按约定名拼路径
   const coverFiles: Record<string, string> = {}
-  if (cfg.accounts[accountId]?.publish_immediately === true) {
+  if (account.profile.publish_immediately === true) {
     for (let i = 1; i <= n; i++) {
       coverFiles[String(i)] = cfg.runtime.dry_run
         ? path.resolve(sdir, 'cover_' + i + '.png')
         : findImage(sdir, 'cover_' + i)
     }
+  }
+
+  const brandImages = account.profile.brand_images
+  const brandImageFiles: { header?: string; footer?: string } = {}
+  if (brandImages?.header?.enabled) {
+    const headerPath = brandImagePath(cfg, brandImages.header.file, 'brand_top.jpg')
+    if (!cfg.runtime.dry_run && !fs.existsSync(headerPath)) {
+      throw new Error('缺少百家号头部品牌图: ' + headerPath)
+    }
+    brandImageFiles.header = headerPath
+  }
+  if (brandImages?.footer?.enabled) {
+    const footerPath = brandImagePath(cfg, brandImages.footer.file, 'brand_bot.jpg')
+    if (!cfg.runtime.dry_run && !fs.existsSync(footerPath)) {
+      throw new Error('缺少百家号尾部品牌图: ' + footerPath)
+    }
+    brandImageFiles.footer = footerPath
   }
 
   const job = {
@@ -366,10 +384,11 @@ async function publishBaijiahao(
     content_files: contentFiles,
     content_img_count: contentImgs,
     cover_files: coverFiles,
-    publish_immediately: cfg.accounts[accountId]?.publish_immediately === true,
+    publish_immediately: account.profile.publish_immediately === true,
+    brand_image_files: brandImageFiles,
     dry_run: cfg.runtime.dry_run === true,
-    min_words: cfg.accounts[accountId]?.content.min_words ?? 0,
-    forbidden: cfg.accounts[accountId]?.content.forbidden_words ?? [],
+    min_words: account.profile.content.min_words ?? 0,
+    forbidden: account.profile.content.forbidden_words ?? [],
   }
   const result = await runBaijiahaoPublish(cfg, accountId, job)
 
@@ -380,7 +399,7 @@ async function publishBaijiahao(
     }
   }
   const now = stampNow()
-  const authorName = cfg.accounts[accountId]?.author_name ?? ''
+  const authorName = account.profile.author_name ?? ''
   const warnings = result.drafts.filter((d) => d.warning)
   const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
     status: 'success',
