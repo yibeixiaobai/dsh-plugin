@@ -27,12 +27,12 @@ export function validateHtmlTool(cfg: Config) {
     name: 'gzh_validate_html',
     description:
       '发布前机器校验：公众号校验换行/unicode 转义/占位符/纯文字字数/禁词/品牌引导语/图片数量/CDN 域名，' +
-      '可选叠加 gzh-design 合规 lint（ERROR 清零才能交付）；知乎账号校验 Markdown 文章的字数/禁词/图片占位符。' +
+      '可选叠加 gzh-design 合规 lint（ERROR 清零才能交付）；知乎/百家号账号校验 Markdown 文章的字数/禁词/图片占位符（百家号另查导流红线）。' +
       '支持通过 min_words / img_count 自定义校验阈值（优先支持用户补充要求的特殊设置）。发布前对全部文章跑一遍。',
     parameters: {
       files: {
         type: 'array',
-        description: '可选：文章文件名列表（scripts 目录内；公众号长文为 .html，小绿书为 _pic.json，知乎为 .md；缺省或留空自动校验该账号全部文章）',
+        description: '可选：文章文件名列表（scripts 目录内；公众号长文为 .html，小绿书为 _pic.json，知乎/百家号为 .md；缺省或留空自动校验该账号全部文章）',
         items: { type: 'string' },
       },
       article_type: {
@@ -61,14 +61,14 @@ export function validateHtmlTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : account.profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
       const isNewspic = platform === 'gzh' && (
         args.article_type === 'newspic' ||
         (!args.article_type && content.article_type === 'newspic') ||
         Boolean(args.files && args.files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
       )
       const count = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
-      const requiredExt = platform === 'zhihu' ? '.md' : platform === 'xiaohongshu' ? '_xhs.txt' : isNewspic ? '_pic.json' : '.html'
+      const requiredExt = platform === 'zhihu' || platform === 'baijiahao' ? '.md' : platform === 'xiaohongshu' ? '_xhs.txt' : isNewspic ? '_pic.json' : '.html'
       let files = Array.isArray(args.files) ? args.files.filter(Boolean).map(String) : []
       if (files.length === 0) {
         files = Array.from({ length: count }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
@@ -87,7 +87,7 @@ export function validateHtmlTool(cfg: Config) {
       }
       const defaultExpectedImgs = filesAreNewspic
         ? (content.newspic_images_per_article || 4)
-        : platform === 'zhihu'
+        : platform === 'zhihu' || platform === 'baijiahao'
           ? contentImagesPerArticle(cfg)
           : platform === 'xiaohongshu'
             ? (content.xhs_images_per_note || 4)
@@ -116,7 +116,7 @@ export function validateHtmlTool(cfg: Config) {
         '--platform', platform,
         '--article-type', filesAreNewspic ? 'newspic' : 'news',
       ]
-      if ((platform === 'zhihu' || platform === 'xiaohongshu' || filesAreNewspic) && content.ending_guide_required) cmd.push('--require-brand')
+      if ((platform === 'zhihu' || platform === 'baijiahao' || platform === 'xiaohongshu' || filesAreNewspic) && content.ending_guide_required) cmd.push('--require-brand')
       if (platform === 'gzh' && !filesAreNewspic) cmd.push('--lint')
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')
       const report = await runPipeline<Omit<ValidateReport, 'account_id'>>(cfg, 'check_html.py', cmd, 120000)

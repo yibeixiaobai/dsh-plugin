@@ -7,6 +7,7 @@ import type { Config } from './config.ts'
 import { handleCors, sendJson } from './http-helpers.ts'
 import { handleXhsLoginRoute, XHS_LOGIN_ROUTE } from './xiaohongshu.ts'
 import { handleZhihuLoginRoute, ZHIHU_LOGIN_ROUTE } from './zhihu.ts'
+import { handleBaijiahaoLoginRoute, BAIJIAHAO_LOGIN_ROUTE } from './baijiahao.ts'
 import { handleWechatLoginRoute, WECHAT_LOGIN_ROUTE } from './wechat-browser.ts'
 import {
   handleConfigSaveRoute,
@@ -93,6 +94,11 @@ export async function startEmbeddedServer(options: EmbeddedServerOptions): Promi
 
       if (pathname === ZHIHU_LOGIN_ROUTE) {
         await handleZhihuLoginRoute(req, res, getConfig)
+        return
+      }
+
+      if (pathname === BAIJIAHAO_LOGIN_ROUTE) {
+        await handleBaijiahaoLoginRoute(req, res, getConfig)
         return
       }
 

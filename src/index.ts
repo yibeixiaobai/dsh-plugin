@@ -7,6 +7,7 @@ import { normalizeConfig, applyNormalizedConfig, hasRealAccounts, hasRealProvide
 import { registerBrandImageRoutes } from './brand-images.ts'
 import { registerImageTestRoute } from './image-test.ts'
 import { registerZhihuRoutes } from './zhihu.ts'
+import { registerBaijiahaoRoutes } from './baijiahao.ts'
 import { registerXhsRoutes } from './xiaohongshu.ts'
 import { registerWechatRoutes, enableOriginalTool } from './wechat-browser.ts'
 import { registerPublishHistoryRoutes } from './publish-history.ts'
@@ -69,6 +70,7 @@ export function apply(ctx: Context, config: ConfigT) {
   registerBrandImageRoutes(ctx, () => liveConfig)
   registerImageTestRoute(ctx, () => liveConfig)
   registerZhihuRoutes(ctx, () => liveConfig)
+  registerBaijiahaoRoutes(ctx, () => liveConfig)
   registerXhsRoutes(ctx, () => liveConfig)
   registerWechatRoutes(ctx, () => liveConfig)
   registerPublishHistoryRoutes(ctx, () => liveConfig)

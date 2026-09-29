@@ -29,6 +29,7 @@ export interface ConfigSummary {
   gzh_accounts: number
   zhihu_accounts: number
   xhs_accounts: number
+  baijiahao_accounts: number
   account_ids: string[]
   provider_count: number
   provider_ids: string[]
@@ -196,7 +197,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
           continue
         }
         const accObj = acc as Record<string, unknown>
-        const platform: Platform = accObj.platform === 'zhihu' ? 'zhihu' : accObj.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+        const platform: Platform = accObj.platform === 'zhihu' ? 'zhihu' : accObj.platform === 'xiaohongshu' ? 'xiaohongshu' : accObj.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
         const name = String(accObj.name || id).trim()
         const enabled = accObj.enabled !== false
 
@@ -211,7 +212,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
           platform,
           name,
           enabled,
-          publish_mode: accObj.publish_mode === 'browser' ? 'browser' : (platform === 'xiaohongshu' || platform === 'zhihu' ? 'browser' : 'api'),
+          publish_mode: accObj.publish_mode === 'browser' ? 'browser' : (platform === 'xiaohongshu' || platform === 'zhihu' || platform === 'baijiahao' ? 'browser' : 'api'),
           appid: String(accObj.appid ?? '').trim(),
           app_secret: String(accObj.app_secret ?? '').trim(),
           author_name: String(accObj.author_name ?? '文映学术win00.cn').trim(),
@@ -305,9 +306,11 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
   let gzhCount = 0
   let zhihuCount = 0
   let xhsCount = 0
+  let baijiahaoCount = 0
   for (const acc of Object.values(resultData.accounts ?? {})) {
     if (acc.platform === 'zhihu') zhihuCount++
     else if (acc.platform === 'xiaohongshu') xhsCount++
+    else if (acc.platform === 'baijiahao') baijiahaoCount++
     else gzhCount++
   }
 
@@ -316,6 +319,7 @@ export function validateImportConfig(rawInput: unknown): ValidationResult {
     gzh_accounts: gzhCount,
     zhihu_accounts: zhihuCount,
     xhs_accounts: xhsCount,
+    baijiahao_accounts: baijiahaoCount,
     account_ids: accountKeys,
     provider_count: providerKeys.length,
     provider_ids: providerKeys,

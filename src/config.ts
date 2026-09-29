@@ -91,12 +91,17 @@ export interface BrandImagesConfig {
   footer: BrandImageConfig
 }
 
-// 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化），xiaohongshu=小红书（浏览器自动化）
-export type Platform = 'gzh' | 'zhihu' | 'xiaohongshu' | (string & {})
-export const PLATFORMS: Platform[] = ['gzh', 'zhihu', 'xiaohongshu']
+// 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化），xiaohongshu=小红书（浏览器自动化），baijiahao=百家号（浏览器自动化）
+export type Platform = 'gzh' | 'zhihu' | 'xiaohongshu' | 'baijiahao' | (string & {})
+export const PLATFORMS: Platform[] = ['gzh', 'zhihu', 'xiaohongshu', 'baijiahao']
 
 /** 知乎文章封面比例（编辑器按内容图自动取封面，生成尺寸用 16:9） */
 export const ZHIHU_COVER_RATIO: CoverRatio = '16:9'
+
+/** 百家号单图封面比例（发布面板封面位，宽幅 2.35:1） */
+export const BAIJIAHAO_COVER_RATIO: CoverRatio = '2.35:1'
+/** 百家号标题字数上限（编辑器硬限 64 字；风格指南层面另建议 8~30 字防标题党） */
+export const BAIJIAHAO_TITLE_MAX = 64
 
 /** 小红书笔记封面比例（3:4 竖版） */
 export const XHS_COVER_RATIO: CoverRatio = '3:4'
@@ -144,6 +149,7 @@ export interface RuntimeConfig {
   zhihu_headless: boolean
   gzh_headless?: boolean
   xhs_headless?: boolean
+  baijiahao_headless?: boolean
 }
 
 export interface Config {
@@ -397,5 +403,6 @@ export const Config: Schema<Config> = Schema.object({
     zhihu_headless: Schema.boolean().default(true).description('知乎发布用无头浏览器（排障时可关闭以观察自动化过程）'),
     gzh_headless: Schema.boolean().default(true).description('公众号批量开启原创用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
     xhs_headless: Schema.boolean().default(true).description('小红书发布用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
+    baijiahao_headless: Schema.boolean().default(true).description('百家号发布用无头浏览器（排障或首次登录时可关闭以观察自动化过程）'),
   }).description('⑥ 运行'),
 }) as Schema<Config>

@@ -39,6 +39,7 @@ export function ensureWorkspace(cfg: Config): string {
     fs.mkdirSync(wechatProfileDir(cfg, id), { recursive: true })
     fs.mkdirSync(zhihuProfileDir(cfg, id), { recursive: true })
     fs.mkdirSync(xhsProfileDir(cfg, id), { recursive: true })
+    fs.mkdirSync(baijiahaoProfileDir(cfg, id), { recursive: true })
   }
   const defaults = path.join(runtimeResourceDir(), 'default-brand')
   for (const name of ['brand_top.jpg', 'brand_bot.jpg']) {
@@ -80,6 +81,11 @@ export function xhsProfileDir(cfg: Config, accountId: string): string {
   return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'xhs_profile')
 }
 
+/** 百家号账号的浏览器用户数据目录（百度账号登录态持久化；扫码/账密一次后长期有效） */
+export function baijiahaoProfileDir(cfg: Config, accountId: string): string {
+  return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'baijiahao_profile')
+}
+
 export function brandDir(cfg: Config): string {
   return path.join(workspaceDir(cfg), 'brand_assets')
 }
@@ -108,23 +114,31 @@ function restoreAccountsFromDisk(
   if (!cfg.accounts || typeof cfg.accounts !== 'object') (cfg as any).accounts = {}
   let changed = false
 
-  // 容灾自愈：若根 wx_config.json 账号少于等于 1，自动扫描各账号子目录中的完整备份
+  // 容灾自愈（加固版）：仅当根 wx_config.json 账号少于等于 1 时，才扫描各账号子目录中的镜像备份。
+  // 只采纳「写入时间晚于根文件」的最新一份快照——根配置与镜像由同一轮 syncConfig 写出，时间戳接近；
+  // 早于根文件的陈旧镜像是已被删除的历史账号（如测试账号）残留，绝不能借此复活（曾导致测试账号反复出现）。
   const accountsDir = path.join(workspaceDir, 'accounts')
   if ((!Array.isArray(existing.accounts) || existing.accounts.length <= 1) && fs.existsSync(accountsDir)) {
     try {
+      const currentCount = Array.isArray(existing.accounts) ? existing.accounts.length : 0
+      const rootWxPath = path.join(workspaceDir, 'scripts', 'wx_config.json')
+      const rootMtimeMs = fs.existsSync(rootWxPath) ? fs.statSync(rootWxPath).mtimeMs : 0
+      let best: { mtimeMs: number; data: Record<string, unknown> } | null = null
       for (const sub of fs.readdirSync(accountsDir)) {
         const subWx = path.join(accountsDir, sub, 'scripts', 'wx_config.json')
-        if (fs.existsSync(subWx)) {
-          const subData = JSON.parse(fs.readFileSync(subWx, 'utf-8')) as Record<string, unknown>
-          if (Array.isArray(subData.accounts) && subData.accounts.length > (Array.isArray(existing.accounts) ? existing.accounts.length : 0)) {
-            existing.accounts = subData.accounts
-            if (Array.isArray(subData.image_api_providers) && (!Array.isArray(existing.image_api_providers) || existing.image_api_providers.length < subData.image_api_providers.length)) {
-              existing.image_api_providers = subData.image_api_providers
-            }
-            changed = true
-            break
-          }
+        if (!fs.existsSync(subWx)) continue
+        const mtimeMs = fs.statSync(subWx).mtimeMs
+        if (mtimeMs <= rootMtimeMs) continue
+        const subData = JSON.parse(fs.readFileSync(subWx, 'utf-8')) as Record<string, unknown>
+        if (!Array.isArray(subData.accounts) || (subData.accounts as unknown[]).length <= currentCount) continue
+        if (!best || mtimeMs > best.mtimeMs) best = { mtimeMs, data: subData }
+      }
+      if (best) {
+        existing.accounts = best.data.accounts
+        if (Array.isArray(best.data.image_api_providers) && (!Array.isArray(existing.image_api_providers) || existing.image_api_providers.length < best.data.image_api_providers.length)) {
+          existing.image_api_providers = best.data.image_api_providers
         }
+        changed = true
       }
     } catch {}
   }
@@ -135,7 +149,7 @@ function restoreAccountsFromDisk(
         const id = item.id.trim()
         if (!cfg.accounts[id]) {
           cfg.accounts[id] = {
-            platform: item.platform === 'zhihu' ? 'zhihu' : item.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh',
+            platform: item.platform === 'zhihu' ? 'zhihu' : item.platform === 'xiaohongshu' ? 'xiaohongshu' : item.platform === 'baijiahao' ? 'baijiahao' : 'gzh',
             name: String(item.name || id),
             enabled: item.enabled !== false,
             publish_mode: item.publish_mode === 'browser' ? 'browser' : 'api',
@@ -357,7 +371,7 @@ export function syncConfig(cfg: Config): SyncReport {
       id,
       name: account.name,
       enabled: account.enabled,
-      platform: account.platform === 'zhihu' ? 'zhihu' : account.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh',
+      platform: account.platform === 'zhihu' ? 'zhihu' : account.platform === 'xiaohongshu' ? 'xiaohongshu' : account.platform === 'baijiahao' ? 'baijiahao' : 'gzh',
       publish_mode: account.publish_mode === 'browser' ? 'browser' : 'api',
       publish_immediately: account.publish_immediately === true,
       appid: account.appid.trim()
@@ -429,6 +443,19 @@ export function syncConfig(cfg: Config): SyncReport {
     fs.mkdirSync(accountDir, { recursive: true })
     fs.writeFileSync(path.join(accountDir, 'wx_config.json'), serialized, 'utf-8')
   }
+  // 清理已删除账号的子目录镜像：陈旧全量快照是「已删除/测试账号复活」的根源
+  // （容灾自愈会扫描 accounts/*/scripts/wx_config.json，删号后残留的快照会让账号重启后重新出现）。
+  // 仅删除镜像文件本身，保留该目录下其余历史产物。
+  try {
+    const accountsRoot = path.join(workspaceDir(cfg), 'accounts')
+    if (fs.existsSync(accountsRoot)) {
+      for (const sub of fs.readdirSync(accountsRoot)) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(sub) || cfg.accounts[sub]) continue
+        const staleMirror = path.join(accountsRoot, sub, 'scripts', 'wx_config.json')
+        if (fs.existsSync(staleMirror)) fs.rmSync(staleMirror, { force: true })
+      }
+    }
+  } catch {}
   return {
     wx_config_path: wxPath,
     updated: true,

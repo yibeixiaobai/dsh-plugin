@@ -16,12 +16,13 @@ function enabledAccountIds(config: Config): string[] {
 }
 
 function normalizePlatform(profile: { platform?: string }): Platform {
-  return profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+  return profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
 }
 
 export function platformLabel(platform: Platform | 'all' | ''): string {
   if (platform === 'zhihu') return '知乎'
   if (platform === 'xiaohongshu') return '小红书'
+  if (platform === 'baijiahao') return '百家号'
   if (platform === 'gzh') return '公众号'
   if (platform === 'all') return '全平台社媒'
   return '社媒'
@@ -36,6 +37,10 @@ const PLATFORM_KEYWORD_MAP: Record<string, Platform | 'all'> = {
   小红书: 'xiaohongshu',
   xhs: 'xiaohongshu',
   red: 'xiaohongshu',
+  baijiahao: 'baijiahao',
+  百家号: 'baijiahao',
+  bjh: 'baijiahao',
+  baidu: 'baijiahao',
   gzh: 'gzh',
   wechat: 'gzh',
   wx: 'gzh',
@@ -300,7 +305,7 @@ export function taskPrompt(config: Config, accountIds: string[], request: string
     '     * 若用户在补充要求中已明确指定选题，则直接使用用户指定的选题；亦可调用 gzh_discover_topics 拓展该选题下的最佳爆款切角；',
     '     * 若用户未指定具体选题，宿主环境具备网络搜索工具（如 search_web）时，可先围绕账号关键词搜索当前最新的行业政策通知、预警动态或热搜事件；随后必须调用 gzh_discover_topics（可传入搜索摘要 search_snippets）综合全网搜索下拉、行业时令日历与5大爆款切角（政策解读/痛点避坑/保姆清单/认知反转/实用工具），智能获取高评分候选选题；',
     '   - 查重与句式把关：将确立的候选选题提交 gzh_check_topics 进行历史相似度与同批次句式查重，若遇 high 风险重复或冒号前缀违规，根据提示自愈更换；',
-    '   - 构建：根据规范、补充要求及附件材料撰写充实内容，调用 gzh_build_article 构建（公众号产出单行 HTML，知乎专栏产出富文本与封面，小红书产出原生合规文案）。',
+    '   - 构建：根据规范、补充要求及附件材料撰写充实内容，调用 gzh_build_article 构建（公众号产出单行 HTML，知乎/百家号产出 Markdown 文章，小红书产出原生合规文案）。',
     '   - 强制生图：必须完整调用 gzh_generate_images 生成全新图片（长文封面与配图、小绿书 3:4 竖版卡片），严禁复用旧图或跳过生图。',
     '   - 校验：调用 gzh_validate_html 进行合规校验，发现问题修复后复检。',
     '   - 草稿发布：调用 gzh_publish_draft 创建草稿（每个形态严格仅需调用 1 次，返回 media_id 或链接即代表完成）。若账号配置了 auto_enable_original=true，发布工具会自动通过浏览器模拟开启文字原创声明并保存草稿，无需额外操作。',
@@ -327,7 +332,7 @@ function handleCommandInvocation(
     return {
       kind: 'error',
       text: '没有可用的' + platformLabel(parsed.platform) + '账号（当前启用：公众号 ' + enabledCount('gzh') +
-        ' 个、知乎 ' + enabledCount('zhihu') + ' 个）。请先在社媒设置中启用对应平台的账号。',
+        ' 个、知乎 ' + enabledCount('zhihu') + ' 个、小红书 ' + enabledCount('xiaohongshu') + ' 个、百家号 ' + enabledCount('baijiahao') + ' 个）。请先在社媒设置中启用对应平台的账号。',
     }
   }
 
@@ -454,7 +459,20 @@ export function registerQuickCommand(ctx: Context, config: Config): void {
     },
   })
 
-  // 6. 社媒发布工作台卡片入口指令：/publish-config
+  // 6. 百家号快捷指令：/baijiahao
+  ctx.commands.register({
+    name: 'baijiahao',
+    description: '百家号发布任务（默认执行全部百家号已启用账号；可指定账号名/ID，空格分割）',
+    input: {
+      hint: '[账号名|账号ID] [选题/补充要求]',
+      attachments: true,
+    },
+    handler(invocation) {
+      return handleCommandInvocation(config, invocation, { fixedPlatform: 'baijiahao', commandName: 'baijiahao' })
+    },
+  })
+
+  // 7. 社媒发布工作台卡片入口指令：/publish-config
   ctx.commands.register({
     name: 'publish-config',
     description: '查看社媒发布工作台卡片入口与使用指引',

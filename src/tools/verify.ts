@@ -4,6 +4,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Config } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import { zhihuVerifyDrafts } from '../zhihu.ts'
+import { baijiahaoVerifyDrafts } from '../baijiahao.ts'
 import { xhsVerifyNotes } from '../xiaohongshu.ts'
 import { wechatVerifyDrafts } from '../wechat-browser.ts'
 import {
@@ -32,9 +33,9 @@ export interface VerifyReport {
 export function verifyTool(cfg: Config) {
   return defineTool<{ media_id?: string; account_id?: string; expected_count?: number; article_type?: 'news' | 'newspic' }, VerifyReport>({
     name: 'gzh_verify_draft',
-    description:
+      description:
       '草稿核验：公众号账号走 draft/get（POST）逐篇核对标题长度/作者/摘要长度/图片数量/CDN 域名/品牌引导语/禁词，' +
-      'media_id 来自 gzh_publish_draft 的返回（小绿书单篇草稿自动按1篇核对）；知乎账号打开草稿箱逐条核对标题（无 media_id 时以最近一次发布记录为准）。',
+      'media_id 来自 gzh_publish_draft 的返回（小绿书单篇草稿自动按1篇核对）；知乎/百家号账号回查平台内容列表逐条核对标题（无 media_id 时以最近一次发布记录为准）。',
     parameters: {
       media_id: { type: 'string', description: '草稿 media_id（公众号必填；知乎可省略）' },
       article_type: {
@@ -55,7 +56,7 @@ export function verifyTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : account.profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
       const isNewspic = platform === 'gzh' && (
         args.article_type === 'newspic' ||
         content.article_type === 'newspic' ||
@@ -63,6 +64,7 @@ export function verifyTool(cfg: Config) {
       )
       const expectedCount = args.expected_count ?? (isNewspic ? 1 : content.articles_per_day)
       if (platform === 'zhihu') return verifyZhihu(cfg, account.id, expectedCount)
+      if (platform === 'baijiahao') return verifyBaijiahao(cfg, account.id, expectedCount)
       if (platform === 'xiaohongshu') return verifyXhs(cfg, account.id, expectedCount)
       if (account.profile.publish_mode === 'browser') {
         return verifyWechatBrowser(cfg, account.id, expectedCount)
@@ -148,6 +150,53 @@ async function verifyZhihu(cfg: Config, accountId: string, expectedCount: number
     articles: report.articles.map((a) => ({
       ...a,
       problems: a.found ? [] : ['发布记录缺少 draft id（保存响应未捕获），无法远程核验；请在知乎草稿箱人工确认'],
+    })),
+  }
+}
+
+/** 百家号分支：期望标题与文章 id 取自最近一次发布记录（publish_result.json），回查内容管理页按标题匹配 */
+async function verifyBaijiahao(cfg: Config, accountId: string, expectedCount: number): Promise<VerifyReport> {
+  const sdir = accountScriptsDir(cfg, accountId)
+  // 读取发布记录：文件名为模块常量（无外部输入），沿用 writeTextFile 同款目录边界守卫
+  const base = path.resolve(sdir)
+  const resultPath = path.resolve(base, RESULT_FILE)
+  if (!resultPath.startsWith(base + path.sep)) throw new Error('路径越界: ' + RESULT_FILE)
+  let titles: string[] = []
+  let drafts: Array<{ draft_id?: string; title?: string }> = []
+  try {
+    const record = JSON.parse(fs.readFileSync(resultPath, 'utf-8')) as {
+      articles?: string[]
+      drafts?: Array<{ draft_id?: string; title?: string }>
+    }
+    titles = Array.isArray(record.articles) ? record.articles.filter((t) => typeof t === 'string') : []
+    drafts = Array.isArray(record.drafts) ? record.drafts : []
+  } catch {
+    throw new Error('没有可核验的发布记录（先运行 gzh_publish_draft）：' + resultPath)
+  }
+  if (titles.length === 0) throw new Error('发布记录中没有标题可核验: ' + resultPath)
+  if (cfg.runtime.dry_run) {
+    return {
+      account_id: accountId,
+      article_count: titles.length,
+      expected: expectedCount,
+      articles: titles.map((title) => ({ title, found: false, problems: ['演练模式：不启动浏览器核验'] })),
+    }
+  }
+  const expected = titles.map((title) => ({
+    title,
+    draft_id: drafts.find((d) => d.title === title)?.draft_id,
+  }))
+  const report = await baijiahaoVerifyDrafts(cfg, accountId, expected)
+  return {
+    account_id: accountId,
+    article_count: report.article_count,
+    expected: expectedCount,
+    articles: report.articles.map((a) => ({
+      title: a.title,
+      found: a.found,
+      ...(a.url ? { url: a.url } : {}),
+      ...(a.status ? { status: a.status } : {}),
+      problems: a.found ? [] : [a.note || '百家号内容管理页未匹配到该标题；请在百家号后台人工确认'],
     })),
   }
 }

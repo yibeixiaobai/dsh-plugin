@@ -84,9 +84,9 @@ export function normalizeConfig(config: Config): Config {
   for (const profile of Object.values(accounts)) {
     profile.name = profile.name || '未命名账号'
     profile.enabled = profile.enabled !== false
-    // 老配置无 platform 字段：一律视为公众号，知乎/小红书需在设置中显式切换
-    profile.platform = profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
-    profile.publish_mode = profile.publish_mode === 'browser' ? 'browser' : (profile.platform === 'xiaohongshu' || profile.platform === 'zhihu' ? 'browser' : 'api')
+    // 老配置无 platform 字段：一律视为公众号，知乎/小红书/百家号需在设置中显式切换
+    profile.platform = profile.platform === 'zhihu' ? 'zhihu' : profile.platform === 'xiaohongshu' ? 'xiaohongshu' : profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
+    profile.publish_mode = profile.publish_mode === 'browser' ? 'browser' : (profile.platform === 'xiaohongshu' || profile.platform === 'zhihu' || profile.platform === 'baijiahao' ? 'browser' : 'api')
     profile.appid = profile.appid || ''
     profile.app_secret = profile.app_secret || ''
     profile.author_name = profile.author_name || config.wechat?.author_name || '文映学术win00.cn'

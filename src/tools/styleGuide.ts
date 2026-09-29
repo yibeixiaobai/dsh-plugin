@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { THEME_NAMES, XHS_COVER_RATIO, XHS_CONTENT_MAX, XHS_IMAGES_MAX, XHS_TITLE_MAX, ZHIHU_COVER_RATIO, type Config, type ThemeKey } from '../config.ts'
+import { THEME_NAMES, XHS_COVER_RATIO, XHS_CONTENT_MAX, XHS_IMAGES_MAX, XHS_TITLE_MAX, ZHIHU_COVER_RATIO, BAIJIAHAO_COVER_RATIO, BAIJIAHAO_TITLE_MAX, type Config, type ThemeKey } from '../config.ts'
 import { resolveAccount } from '../config-runtime.ts'
 import {
   accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, resolveCoverRatio, resolveTheme, resolveTypography, runtimeResourceDir,
@@ -398,12 +398,65 @@ function zhihuStyleGuide(cfg: Config, accountId: string): StyleGuide {
   }
 }
 
+function baijiahaoStyleGuide(cfg: Config, accountId: string): StyleGuide {
+  const account = resolveAccount(cfg, accountId)
+  const content = account.profile.content
+  const n = content.articles_per_day
+  const contentImgs = contentImagesPerArticle(cfg, account.profile)
+  return {
+    account_id: account.id,
+    account_name: account.profile.name,
+    platform: 'baijiahao',
+    theme: 'markdown',
+    palette: {},
+    typography_rules: {
+      format: '标准 Markdown 多行文本（article_v2_{index}.md）',
+      heading: '章节标题构建为 "## 序号 标题"，禁止自行使用一级标题',
+      emphasis: 'kw/b/hl 标注一律渲染为 **加粗**（Markdown 无下划线/高亮语义）',
+      no_html: '禁止输出任何 HTML 标签或内联样式',
+    },
+    doc_spec: ZHIHU_DOC_SPEC_EXAMPLE,
+    parts_format: [
+      '字符串 → 普通文字',
+      '["kw", 文字] → **加粗关键词**（每段 1-3 个）',
+      '["b", 文字] → **加粗**',
+      '["hl", 文字] → **加粗强调**',
+    ],
+    hard_rules: [
+      '【最高第一优先级】：若本次任务包含补充要求（如指定特定选题/主题、篇数、文章形态、字数、配图、主题色板等），补充要求具有最高裁决权，优先于本规范返回的默认配置值！未被补充要求修改的底层合规与格式规则（如标准 Markdown、禁词表、防重复发布、生图尺寸比例等）继续严格生效。',
+      '平台：百家号（百度内容平台，机器审核制）；产出为标准 Markdown，无主题色板/引言卡/三列目录/品牌头尾图等公众号组件',
+      '作者名固定 ' + account.profile.author_name,
+      '数量铁律：默认本次正好 ' + n + ' 篇（index 1~' + n + '）；若用户在补充要求中指定了篇数，以补充要求为准；百家号每篇是独立文章草稿（不是多图文组合）；每篇正好 ' + contentImgs + ' 张正文配图' + (contentImgs === 0 ? '（本次为 0：不要生成任何 IMG_A* 占位）' : '（必须在 sections 中分布占位符 IMG_A{index}_1 ~ IMG_A{index}_' + contentImgs + '，系统构建会自动自愈补齐）'),
+      '选题铁律（全账号统一）：若用户在本次任务补充要求中明确给出了特定主题/选题或业务方向，以补充要求为最高第一优先级执行；仅在未指定特定选题时，才必须围绕下方 topics 业务关键词深度检索并拓展强相关联的优质选题（如直击读者痛点、实操避坑、政策解读、流程指南等）；严禁机械式将关键词直接作为标题开头词语或前缀（❌ 严禁出现“北大核心：...”、“【SCI】...”等冒号或括号前缀；✅ 必须是自然陈述句或疑问句，如“投稿前先看准这四项刊物信息，避开盲投陷阱”）；标题应自然吸睛',
+      '【动态热点与搜索雷达铁律】：若用户未在任务中指定具体选题，必须优先调用 gzh_discover_topics 嗅探当前领域的全网搜索热点、时令节点与实时行业突发，选取高评分爆款切角；若宿主环境具备通用网络搜索工具（如 search_web），可先检索行业最新资讯并传入 gzh_discover_topics 进行转化；确立候选题目后再提交 gzh_check_topics 查重。',
+      '字数铁律：每篇设定下限不少于 ' + content.min_words + ' 字（构建时严格去除标记与空白统计）。因大模型 token 估算普遍偏少，撰写时请务必按 ' + Math.max(content.min_words + 400, Math.ceil(content.min_words * 1.2)) + ' 字以上标准充分展开！规划 4~6 个长章节，每章节 3~5 个长段落，搭配 card/清单深度展开，确保纯汉字充实达标，杜绝断言失败重写浪费 token（构建工具设有容差底线）',
+      '标题 ' + BAIJIAHAO_TITLE_MAX + ' 字硬上限（建议 8~30 字），禁词表全文生效（构建与校验时断言）',
+      '【百家号标题党红线】：百度机器审核严打标题党——严禁"震惊/惊呆/吓死/99%的人不知道/速看/删前必看"等夸大恐吓体；严禁标题与正文不符的误导性表述；严禁绝对化断言（"一定/肯定/100%"）与医疗疗效承诺；违规将被拒稿或扣分限流',
+      '【百家号导流红线】：正文严禁出现任何外部链接、二维码、微信号/QQ/手机号等联系方式（构建与校验时断言），品牌引导语仅可提及品牌名',
+      '医疗/财经/时政等敏感领域表述谨慎，不提供诊断/投资建议类断言',
+      content.ending_guide_required
+        ? '结尾自然引导关注「' + account.profile.brand_name + '」（构建时断言）'
+        : '结尾引导语可选；如使用需自然融入，不堆砌广告感',
+      '封面比例统一 ' + BAIJIAHAO_COVER_RATIO + '（百家号单图封面固定，按账号平台机器强制）',
+      '图片中所有文字必须全部中文，禁止英文残留、禁止二维码',
+    ],
+    forbidden_words: content.forbidden_words,
+    articles_per_day: n,
+    topics: [...content.topics],
+    enable_hot_tracking: content.enable_hot_tracking !== false,
+    seasonal_context: getSeasonalContext(),
+    content_images_per_article: contentImgs,
+    theme_plan: {},
+    references: [],
+  }
+}
+
 export function styleGuideTool(cfg: Config) {
   return defineTool<{ theme?: string; account_id?: string; article_type?: 'news' | 'newspic' }, StyleGuide>({
     name: 'gzh_get_style_guide',
     description:
       '获取写作与排版规范（按账号平台返回）：公众号=主题色板/doc_spec 格式/13px 排版铁律/禁词表/硬性规则/' +
-      '主题计划 theme_plan；小绿书=图片消息 doc_spec 与硬性规则；知乎=Markdown 形态的 doc_spec 与硬性规则。' +
+      '主题计划 theme_plan；小绿书=图片消息 doc_spec 与硬性规则；知乎/百家号=Markdown 形态的 doc_spec 与硬性规则。' +
       '返回值自包含，写文无需读参考文档、源码或历史文章。每日写文前必读一次获取基础排版规范与默认参数。' +
       '注意：若本次任务包含用户补充要求（如指定选题、篇数、形态、字数、配图或主题等），补充要求为第一最高优先级，优先遵循补充要求执行；未被补充要求覆盖的基础合规与格式铁律按返回值严格执行。',
     parameters: {
@@ -434,6 +487,9 @@ export function styleGuideTool(cfg: Config) {
       }
       if (account.profile.platform === 'zhihu') {
         return zhihuStyleGuide(cfg, account.id)
+      }
+      if (account.profile.platform === 'baijiahao') {
+        return baijiahaoStyleGuide(cfg, account.id)
       }
       const content = account.profile.content
       const isBoth = content.article_type === 'both' || content.sync_newspic === true

@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { COVER_SIZES, type Config, XHS_COVER_RATIO, ZHIHU_COVER_RATIO, type CoverRatio } from '../config.ts'
+import { COVER_SIZES, type Config, XHS_COVER_RATIO, ZHIHU_COVER_RATIO, BAIJIAHAO_COVER_RATIO, type CoverRatio } from '../config.ts'
 import { providerPool, resolveAccount } from '../config-runtime.ts'
 import { discoverDshImageModels } from '../dsh-models.ts'
 import { syncConfig } from '../sync.ts'
@@ -179,7 +179,9 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
             ? ZHIHU_COVER_RATIO
             : account.profile.platform === 'xiaohongshu'
               ? XHS_COVER_RATIO
-              : resolveCoverRatio(cfg, index, account.profile)
+              : account.profile.platform === 'baijiahao'
+                ? BAIJIAHAO_COVER_RATIO
+                : resolveCoverRatio(cfg, index, account.profile)
           return {
             kind: 'cover', index, prompt: enhancedPrompt,
             out: 'cover_' + index + '.png', size: [...COVER_SIZES[ratio]] as [number, number],

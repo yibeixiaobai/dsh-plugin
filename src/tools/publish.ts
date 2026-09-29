@@ -8,6 +8,7 @@ import {
   readPublishAttempts, updateAttemptOutcome, updateAttemptReconcile, type PublishBatchRecord,
 } from '../publish-history.ts'
 import { runZhihuPublish } from '../zhihu.ts'
+import { runBaijiahaoPublish } from '../baijiahao.ts'
 import { runXhsPublish, xhsConfirmPublished } from '../xiaohongshu.ts'
 import {
   MEDIA_ID_FILE, RESULT_FILE, accountScriptsDir, assertWechatCreds, brandDir,
@@ -75,13 +76,13 @@ export function publishTool(cfg: Config) {
     name: 'gzh_publish_draft',
     description:
       '发布草稿：公众号账号支持 官方 API 接口模式（需 AppID/Secret/IP 白名单）或 免 API 浏览器自动化模式（扫码登录，后台自动创建草稿）；' +
-      '知乎账号走 浏览器自动化（登录态发布，N 篇 = N 个独立草稿，默认只存知乎草稿箱）。' +
+      '知乎/百家号账号走 浏览器自动化（登录态发布，N 篇 = N 个独立草稿，默认只存平台草稿箱）。' +
       '发布前请先对全部文章跑 gzh_validate_html。演练模式（设置中 dry_run）只校验不联网。',
     parameters: {
       titles: {
         type: 'array',
         required: true,
-        description: '每篇标题（长文 ≤64 字，小绿书 ≤32 字，知乎 ≤100 字），数量须与 digests 一致（支持补充要求自定义篇数 1~20 篇）',
+        description: '每篇标题（长文/百家号 ≤64 字，小绿书 ≤32 字，知乎 ≤100 字），数量须与 digests 一致（支持补充要求自定义篇数 1~20 篇）',
         items: { type: 'string' },
       },
       digests: {
@@ -92,7 +93,7 @@ export function publishTool(cfg: Config) {
       },
       article_files: {
         type: 'array',
-        description: '可选：自定义文章文件名（scripts 目录内）；缺省长文用 article_v2_1..N.html，小绿书用 article_v2_1..N_pic.json，知乎用 article_v2_1..N.md',
+        description: '可选：自定义文章文件名（scripts 目录内）；缺省长文用 article_v2_1..N.html，小绿书用 article_v2_1..N_pic.json，知乎/百家号用 article_v2_1..N.md',
         items: { type: 'string' },
       },
       article_type: {
@@ -122,7 +123,7 @@ export function publishTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : account.profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
       const publishMode = args.publish_mode || account.profile.publish_mode || 'api'
       const isNewspic = platform === 'gzh' && (
         (args.article_type === 'newspic') ||
@@ -139,12 +140,20 @@ export function publishTool(cfg: Config) {
         throw new Error('article_files 数量（' + args.article_files.length + '）必须与 titles 数量（' + args.titles.length + '）一致')
       }
       const n = args.titles.length
-      const maxTitle = platform === 'zhihu' ? 100 : platform === 'xiaohongshu' ? 20 : isNewspic ? 32 : 64
+      const maxTitle = platform === 'zhihu' ? 100 : platform === 'xiaohongshu' ? 20 : platform === 'baijiahao' ? 64 : isNewspic ? 32 : 64
       for (const t of args.titles) {
         if (typeof t !== 'string' || t.length > maxTitle) throw new Error('标题超 ' + maxTitle + ' 字: ' + String(t).slice(0, 40))
       }
       for (const d of args.digests) {
         if (typeof d !== 'string' || d.length > 120) throw new Error('摘要超 120 字: ' + String(d).slice(0, 40))
+      }
+      if (platform === 'baijiahao') {
+        // 百家号标题党机器断言（百度审核严打，与 style_guide 铁律对应）
+        const clickbait = ['震惊', '惊呆', '吓死', '删前必看', '速看', '99%的人不知道', '不看后悔', '必看必转']
+        for (const t of args.titles) {
+          const hit = clickbait.find((w) => t.includes(w))
+          if (hit) throw new Error('百家号标题含标题党词「' + hit + '」（百度机器审核将拒稿或扣分）: ' + t.slice(0, 40))
+        }
       }
       const sdir = accountScriptsDir(cfg, account.id)
 
@@ -231,6 +240,9 @@ export function publishTool(cfg: Config) {
       }
       if (platform === 'zhihu') {
         return publishZhihu(cfg, account.id, sdir, args, n)
+      }
+      if (platform === 'baijiahao') {
+        return publishBaijiahao(cfg, account.id, sdir, args, n)
       }
       if (publishMode === 'browser') {
         return publishGzhBrowser(cfg, account.id, sdir, args, n, isNewspic)
@@ -319,6 +331,96 @@ async function publishZhihu(
     account_id: accountId, platform: 'zhihu', dry_run: false,
     drafts: result.drafts, article_count: result.drafts.length, titles: args.titles,
     verify: { checked: false }, result_file: resultPath,
+  }
+}
+
+/** 百家号分支：浏览器自动化发布，N 篇 = N 个独立草稿；默认只存百家号草稿箱（publish_immediately 可直发，需封面） */
+async function publishBaijiahao(
+  cfg: Config, accountId: string, sdir: string, args: PublishArgs, n: number,
+): Promise<PublishOk> {
+  const contentImgs = contentImagesPerArticle(cfg, resolveAccount(cfg, accountId).profile)
+  const articlePaths = defaultArticleFiles(sdir, n, '.md', args.article_files)
+  const contentFiles: Record<string, string> = {}
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= contentImgs; j++) {
+      const key = 'IMG_A' + i + '_' + j
+      contentFiles[key] = cfg.runtime.dry_run
+        ? path.resolve(sdir, 'content_' + i + '_' + j + '.png')
+        : findImage(sdir, 'content_' + i + '_' + j)
+    }
+  }
+  // 直发时每篇需要封面（百家号发文封面必选）：cover_{i}.png，dry_run 直接按约定名拼路径
+  const coverFiles: Record<string, string> = {}
+  if (cfg.accounts[accountId]?.publish_immediately === true) {
+    for (let i = 1; i <= n; i++) {
+      coverFiles[String(i)] = cfg.runtime.dry_run
+        ? path.resolve(sdir, 'cover_' + i + '.png')
+        : findImage(sdir, 'cover_' + i)
+    }
+  }
+
+  const job = {
+    account_id: accountId,
+    titles: args.titles,
+    article_files: articlePaths,
+    content_files: contentFiles,
+    content_img_count: contentImgs,
+    cover_files: coverFiles,
+    publish_immediately: cfg.accounts[accountId]?.publish_immediately === true,
+    dry_run: cfg.runtime.dry_run === true,
+    min_words: cfg.accounts[accountId]?.content.min_words ?? 0,
+    forbidden: cfg.accounts[accountId]?.content.forbidden_words ?? [],
+  }
+  const result = await runBaijiahaoPublish(cfg, accountId, job)
+
+  if (result.dry_run) {
+    return {
+      account_id: accountId, platform: 'baijiahao', dry_run: true, article_count: n,
+      titles: args.titles, verify: { checked: false }, result_file: '',
+    }
+  }
+  const now = stampNow()
+  const authorName = cfg.accounts[accountId]?.author_name ?? ''
+  const warnings = result.drafts.filter((d) => d.warning)
+  const resultPath = writeTextFile(sdir, RESULT_FILE, JSON.stringify({
+    status: 'success',
+    account_id: accountId,
+    platform: 'baijiahao',
+    article_count: n,
+    author: authorName,
+    timestamp: now,
+    articles: args.titles,
+    drafts: result.drafts,
+    ...(warnings.length > 0 ? { warnings: warnings.map((d) => d.warning) } : {}),
+  }, null, 2) + '\n')
+  try {
+    appendPublishRecord(cfg, {
+      id: `batch_${now.replace(/[^0-9]/g, '').slice(0, 14)}_${Math.random().toString(36).slice(2, 6)}`,
+      account_id: accountId,
+      platform: 'baijiahao',
+      article_count: n,
+      author: authorName,
+      timestamp: now,
+      articles: args.titles,
+      digests: args.digests,
+      items: result.drafts.map((d, i) => ({
+        index: i + 1,
+        title: d.title,
+        digest: args.digests[i] || '',
+        draft_id: d.draft_id,
+        url: d.url,
+        published: d.published,
+      })),
+    })
+  } catch {
+    // best-effort history append
+  }
+  writeTextFile(sdir, 'draft_urls.txt', result.drafts.map((d) => d.url).join('\n') + '\n')
+  return {
+    account_id: accountId, platform: 'baijiahao', dry_run: false,
+    drafts: result.drafts, article_count: result.drafts.length, titles: args.titles,
+    verify: { checked: false }, result_file: resultPath,
+    ...(warnings.length > 0 ? { dedup_note: warnings.map((d) => d.title + ': ' + d.warning).join('；') } : {}),
   }
 }
 

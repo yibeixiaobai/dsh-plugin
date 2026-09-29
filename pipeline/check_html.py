@@ -10,6 +10,10 @@
 知乎分支（--platform zhihu，校验 article_v2_*.md）：字数/禁词/图片占位符数量，
 --require-brand 时要求含品牌名；不做单行约束、mmbiz CDN、gzh-design lint。
 
+百家号分支（--platform baijiahao）：知乎同款 Markdown 口径 + 百家号导流红线
+（外链/二维码/联系方式拦截）。百家号是百度机器审核制平台，正文外链与联系方式
+会直接导致审核不通过或限流；标题党红线在 publish 工具侧按标题断言。
+
 安全约定：
 - 所有文件路径规范化后必须位于 --scripts-dir（公众号任务包 scripts 目录）之内，
   拒绝任何形式的上级目录引用或指向目录之外的路径；
@@ -77,6 +81,34 @@ def check_file_md(path, min_words, forbidden, brand_name, img_count, require_bra
     """知乎 Markdown 文章校验：读文件后走 check_md_text，与 zhihu_components.plain_text 同口径。"""
     md = open(path, encoding="utf-8").read()
     r = check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders)
+    r["file"] = path
+    return r
+
+
+# 百家号导流红线词（对齐 xhs_components 导流口径）：正文出现即审核不通过或限流
+BAIJIAHAO_DIVERSION_WORDS = [
+    "微信", "微信号", "加微", "加v", "加V", "vx", "VX",
+    "手机号", "联系电话", "二维码", "扫码", "私信领", "QQ群", "qq群",
+]
+
+
+def check_baijiahao_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders):
+    """百家号 Markdown 校验核心（内存版，selftest 直接复用）：知乎同款口径 + 导流红线。"""
+    r = check_md_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders)
+    problems = r["problems"]
+    url_match = re.findall(r"(https?://\S+|www\.[^\s)]+|[a-zA-Z0-9-]+\.(?:cn|com|net|org|top|xyz)\b)", md, re.I)
+    if url_match:
+        problems.append("[百家号导流红线-禁止外链] 正文包含外部网址或域名: " + ", ".join(url_match[:2]))
+    for d in BAIJIAHAO_DIVERSION_WORDS:
+        if d in md:
+            problems.append("[百家号导流红线-禁止导流] 包含联系方式/导流词: 「%s」" % d)
+    return r
+
+
+def check_file_baijiahao(path, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders):
+    """百家号 Markdown 文章校验：知乎同款字数/禁词/占位符口径 + 百家号导流红线。"""
+    md = open(path, encoding="utf-8").read()
+    r = check_baijiahao_text(md, min_words, forbidden, brand_name, img_count, require_brand, allow_placeholders)
     r["file"] = path
     return r
 
@@ -287,9 +319,9 @@ def main():
     ap.add_argument("--img-count", type=int, default=4)
     ap.add_argument("--allow-placeholders", action="store_true", help="发布前阶段允许 IMG_*/__BRAND_* 占位符")
     ap.add_argument("--lint", action="store_true", help="同时运行 validate_gzh_html.py 校验")
-    ap.add_argument("--platform", choices=["gzh", "zhihu", "xiaohongshu"], default="gzh", help="发布平台分支")
+    ap.add_argument("--platform", choices=["gzh", "zhihu", "xiaohongshu", "baijiahao"], default="gzh", help="发布平台分支")
     ap.add_argument("--article-type", choices=["news", "newspic"], default="news", help="文章形态")
-    ap.add_argument("--require-brand", action="store_true", help="知乎/小绿书分支：结尾必须包含品牌名")
+    ap.add_argument("--require-brand", action="store_true", help="知乎/百家号/小绿书分支：结尾必须包含品牌名")
     ap.add_argument("--gzh-design-scripts", default="")
     ap.add_argument("--resource-dir", default="", help="插件内置运行资源目录")
     args = ap.parse_args()
@@ -309,6 +341,10 @@ def main():
         if args.platform == "zhihu":
             results.append(check_file_md(fp, args.min_words, forbidden, args.brand_name,
                                          args.img_count, args.require_brand, args.allow_placeholders))
+            continue
+        if args.platform == "baijiahao":
+            results.append(check_file_baijiahao(fp, args.min_words, forbidden, args.brand_name,
+                                                args.img_count, args.require_brand, args.allow_placeholders))
             continue
         if args.platform == "xiaohongshu":
             results.append(check_file_xhs(fp, args.min_words, forbidden, args.brand_name,

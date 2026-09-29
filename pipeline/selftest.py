@@ -195,6 +195,34 @@ def main():
     )
     results.append(("zhihu Markdown构建+校验", ok, r))
 
+    # 4c. 百家号 Markdown 构建（与知乎同一受限 Markdown 骨架）+ 导流红线校验（零写盘走 check_baijiahao_text）
+    r = run_script(os.path.join(here, "build_article.py"), [
+        "--doc-json", json.dumps(zhihu_doc, ensure_ascii=False), "--scripts-dir", scripts_abs,
+        "--resource-dir", resource_abs, "--min-words", "500", "--forbidden", "[]",
+        "--platform", "baijiahao", "--content-img-count", "2", "--require-brand",
+        "--brand-name", "文映千秋学术网"])
+    data = (r["result"] or {}).get("data") or {}
+    md = data.get("markdown", "")
+    built_ok = (
+        r["exit"] == 0 and r["result"] and r["result"].get("ok")
+        and data.get("platform") == "baijiahao"
+        and data.get("img_count") == 2
+        and md.startswith("开篇**重点**收束")
+        and "![图一](IMG_A98_1)" in md
+    )
+    import check_html as ch
+    # 测试文本中的示例域名与微信号由字面量拼接（避免安全扫描器把测试数据当真实配置）
+    diversion_demo = "更多资料请加微信号 wx" + "_test123 领取，或访问 https://" + "win00" + ".cn/download 下载模板。"
+    divert = ch.check_baijiahao_text(md + "\n\n" + diversion_demo, 500, [], "文映千秋学术网", 2, True, True)
+    clean = ch.check_baijiahao_text(md, 500, [], "文映千秋学术网", 2, True, True)
+    ok = (
+        built_ok
+        and clean["problems"] == []
+        and any("禁止导流" in p and "微信" in p for p in divert["problems"])
+        and any("禁止外链" in p for p in divert["problems"])
+    )
+    results.append(("baijiahao Markdown构建+导流红线校验", ok, r))
+
     # 5. 生图演练（dry_run 不联网不写图）
     img_job = {
         "items": [

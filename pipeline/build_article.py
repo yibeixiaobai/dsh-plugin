@@ -24,7 +24,7 @@ doc spec（gzh_build_article 工具的 doc_json 入参）:
 得到 2~4 img（正文图x2 + 可选的头/尾品牌图）、正文含品牌名。HTML 经 ###RESULT### JSON 返回，由 TS 侧落盘；
 落盘后的 gzh-design 合规校验由 check_html.py --lint 承担。
 
-知乎分支（--platform zhihu）：同一 doc spec 骨架交由 runtime/scripts/zhihu_components.py 构建
+知乎/百家号分支（--platform zhihu|baijiahao）：同一 doc spec 骨架交由 runtime/scripts/zhihu_components.py 构建
 标准 Markdown（多行、无主题/品牌图），返回 data.markdown，由 TS 侧落盘为 article_v2_{index}.md。
 
 安全约定：唯一读取的文件是 --doc（normpath + startswith 边界守卫，限制在 --scripts-dir 之内）。
@@ -129,8 +129,12 @@ def brand_image_html(kind, spec):
     )
 
 
-def main_zhihu(args, doc, forbidden):
-    """知乎专栏分支：同一 doc spec 骨架 → 标准 Markdown（无主题/品牌图/单行约束）。"""
+def _main_markdown(args, doc, forbidden, platform):
+    """知乎/百家号共用的 Markdown 分支：同一 doc spec 骨架 → 标准 Markdown（无主题/品牌图/单行约束）。
+
+    百家号与知乎的差异（标题党红线/导流红线/封面比例）由 style_guide 与 check_html.py 按平台约束，
+    构建层产物形态完全一致，复用 zhihu_components.build_markdown。
+    """
     idx = int(doc["index"])
     if not (1 <= idx <= 99):
         raise SystemExit("index 必须在 1~99")
@@ -147,8 +151,18 @@ def main_zhihu(args, doc, forbidden):
         require_brand=args.require_brand,
         forbidden=forbidden)
     emit({"ok": len(problems) == 0,
-          "data": {"index": idx, "platform": "zhihu", "markdown": md,
+          "data": {"index": idx, "platform": platform, "markdown": md,
                    "plain_chars": plain_chars, "img_count": img_count, "problems": problems}})
+
+
+def main_zhihu(args, doc, forbidden):
+    """知乎专栏分支：同一 doc spec 骨架 → 标准 Markdown（无主题/品牌图/单行约束）。"""
+    _main_markdown(args, doc, forbidden, platform="zhihu")
+
+
+def main_baijiahao(args, doc, forbidden):
+    """百家号分支：与知乎同一受限 Markdown 骨架（zhihu_components.build_markdown），平台差异在发布端适配层。"""
+    _main_markdown(args, doc, forbidden, platform="baijiahao")
 
 
 def main_xiaohongshu(args, doc, forbidden):
@@ -309,7 +323,7 @@ def main():
     ap.add_argument("--brand-name", default="文映千秋学术网")
     ap.add_argument("--typography", default="{}", help='{"font_size":"13px",...}')
     ap.add_argument("--brand-images", default="{}", help='{"header":{...},"footer":{...}}')
-    ap.add_argument("--platform", choices=["gzh", "zhihu", "xiaohongshu"], default="gzh", help="发布平台分支")
+    ap.add_argument("--platform", choices=["gzh", "zhihu", "xiaohongshu", "baijiahao"], default="gzh", help="发布平台分支")
     ap.add_argument("--article-type", choices=["news", "newspic"], default="news", help="文章形态")
     ap.add_argument("--content-img-count", type=int, default=2, help="每篇正文配图占位符数（0-4）")
     ap.add_argument("--require-brand", action="store_true", help="结尾必须包含品牌名")
@@ -327,8 +341,8 @@ def main():
         doc = json.load(open(doc_path, encoding="utf-8"))
     forbidden = json.loads(args.forbidden)
 
-    if args.platform == "zhihu":
-        main_zhihu(args, doc, forbidden)
+    if args.platform in ("zhihu", "baijiahao"):
+        _main_markdown(args, doc, forbidden, platform=args.platform)
         return
 
     if args.platform == "xiaohongshu":

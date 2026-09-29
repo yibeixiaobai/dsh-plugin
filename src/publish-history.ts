@@ -23,7 +23,7 @@ export interface PublishBatchRecord {
   id: string
   account_id: string
   account_name?: string
-  platform: 'gzh' | 'zhihu' | 'xiaohongshu'
+  platform: 'gzh' | 'zhihu' | 'xiaohongshu' | 'baijiahao'
   publish_mode?: 'api' | 'browser'
   article_type?: 'news' | 'newspic' | 'both'
   article_count: number
@@ -80,11 +80,11 @@ export function normalizeBatchItems(record: Partial<PublishBatchRecord>): Publis
     index: idx + 1,
     title,
     digest: digests[idx] || '',
-    draft_id: record.platform === 'zhihu'
+    draft_id: record.platform === 'zhihu' || record.platform === 'baijiahao'
       ? (rawDrafts[idx]?.draft_id ? String(rawDrafts[idx].draft_id) : undefined)
       : (mediaIds[idx] || record.draft_media_id),
-    url: record.platform === 'zhihu' ? (rawDrafts[idx]?.url ? String(rawDrafts[idx].url) : undefined) : undefined,
-    published: record.platform === 'zhihu' ? (rawDrafts[idx]?.published !== undefined ? Boolean(rawDrafts[idx].published) : undefined) : undefined,
+    url: record.platform === 'zhihu' || record.platform === 'baijiahao' ? (rawDrafts[idx]?.url ? String(rawDrafts[idx].url) : undefined) : undefined,
+    published: record.platform === 'zhihu' || record.platform === 'baijiahao' ? (rawDrafts[idx]?.published !== undefined ? Boolean(rawDrafts[idx].published) : undefined) : undefined,
   }))
 }
 
@@ -166,7 +166,7 @@ export const ATTEMPTS_FILE = 'publish_attempts.json'
 
 export interface PublishAttempt {
   account_id: string
-  platform: 'gzh' | 'zhihu' | 'xiaohongshu'
+  platform: 'gzh' | 'zhihu' | 'xiaohongshu' | 'baijiahao'
   titles: string[]
   /** 发布动作发起前的时间戳（ms） */
   attemptedAtMs: number
@@ -348,7 +348,7 @@ export function getPublishHistory(cfg: Config, targetAccountId?: string): Publis
   for (const rec of records) {
     const count = rec.article_count || rec.articles?.length || 0
     totalArticles += count
-    if (rec.platform === 'zhihu') {
+    if (rec.platform === 'zhihu' || rec.platform === 'baijiahao') {
       zhihuArticles += count
     } else {
       gzhArticles += count

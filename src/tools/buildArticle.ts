@@ -37,7 +37,7 @@ export function buildArticleTool(cfg: Config) {
     name: 'gzh_build_article',
     description:
       '把文章内容按 doc spec 构建为平台合规产物并落盘：公众号账号产出单行 HTML（gzh_components 融合版组件），' +
-      '知乎账号产出标准 Markdown（article_v2_{index}.md），小红书账号产出纯文本笔记（article_v2_{index}_xhs.txt）。' +
+      '知乎/百家号账号产出标准 Markdown（article_v2_{index}.md），小红书账号产出纯文本笔记（article_v2_{index}_xhs.txt）。' +
       '优先支持补充要求在 doc spec 中指定的 theme/min_words/content_img_count；' +
       '未指定时采用账号设置与轮换规则。自动断言字数/图片数/品牌引导语/禁词，随后跑平台对应的机器校验。',
     parameters: {
@@ -55,7 +55,7 @@ export function buildArticleTool(cfg: Config) {
     async execute(args) {
       const account = resolveAccount(cfg, args.account_id)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : 'gzh'
+      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : account.profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
       let doc: Record<string, unknown>
       try {
         doc = JSON.parse(args.doc_json) as Record<string, unknown>
@@ -70,7 +70,7 @@ export function buildArticleTool(cfg: Config) {
       const sdir = accountScriptsDir(cfg, account.id)
       // 主题优先支持 doc.theme（用户补充要求指定时生效）；未指定或非法时回退到默认设置轮换 resolveTheme
       const docTheme = typeof doc.theme === 'string' && doc.theme in THEME_NAMES ? (doc.theme as ThemeKey) : undefined
-      const theme = platform === 'zhihu' ? 'markdown' : platform === 'xiaohongshu' ? 'xhs' : isNewspic ? 'newspic' : (docTheme ?? resolveTheme(cfg, idx, account.profile))
+      const theme = platform === 'zhihu' || platform === 'baijiahao' ? 'markdown' : platform === 'xiaohongshu' ? 'xhs' : isNewspic ? 'newspic' : (docTheme ?? resolveTheme(cfg, idx, account.profile))
 
       // 字数与正文配图数：支持 doc spec 中用户补充要求自定义，缺省采用账号配置
       const docMinWords = typeof doc.min_words === 'number' && doc.min_words > 0 ? doc.min_words : undefined
@@ -88,7 +88,7 @@ export function buildArticleTool(cfg: Config) {
         cfg,
         'build_article.py',
         [
-          '--doc-json', JSON.stringify({ ...doc, index: idx, theme: platform === 'zhihu' ? 'wenying' : theme }),
+          '--doc-json', JSON.stringify({ ...doc, index: idx, theme: platform === 'zhihu' || platform === 'baijiahao' ? 'wenying' : theme }),
           '--scripts-dir', sdir,
           '--resource-dir', runtimeResourceDir(),
           '--min-words', String(minWords),
@@ -100,7 +100,7 @@ export function buildArticleTool(cfg: Config) {
               '--brand-name', account.profile.brand_name,
               ...(content.ending_guide_required ? ['--require-brand'] : []),
             ]
-            : platform === 'zhihu'
+            : platform === 'zhihu' || platform === 'baijiahao'
               ? [
                 '--content-img-count', String(contentImgCount),
                 ...(content.ending_guide_required ? ['--require-brand'] : []),
@@ -122,22 +122,22 @@ export function buildArticleTool(cfg: Config) {
       )
 
       // Python 纯构建返回产物，TS 侧落盘（文件名白名单 + 目录守卫）
-      const ext = platform === 'zhihu' ? '.md' : platform === 'xiaohongshu' ? '_xhs.txt' : isNewspic ? '_pic.json' : '.html'
+      const ext = platform === 'zhihu' || platform === 'baijiahao' ? '.md' : platform === 'xiaohongshu' ? '_xhs.txt' : isNewspic ? '_pic.json' : '.html'
       const name = 'article_v2_' + idx + ext
       const payload = isNewspic
         ? JSON.stringify(built, null, 2) + '\n'
-        : platform === 'zhihu'
+        : platform === 'zhihu' || platform === 'baijiahao'
           ? built.markdown
           : platform === 'xiaohongshu'
             ? (built as unknown as Record<string, unknown>).text as string
             : built.html
-      if (payload === undefined) throw new Error('构建结果缺少' + (platform === 'zhihu' ? 'markdown' : platform === 'xiaohongshu' ? 'text' : 'html') + '字段')
+      if (payload === undefined) throw new Error('构建结果缺少' + (platform === 'zhihu' || platform === 'baijiahao' ? 'markdown' : platform === 'xiaohongshu' ? 'text' : 'html') + '字段')
       const file = writeTextFile(sdir, name, payload)
 
       // 完整发布级校验（占位符阶段）；gzh-design lint 仅对公众号 HTML 有意义
       const expectedImgs = isNewspic
         ? built.img_count
-        : platform === 'zhihu'
+        : platform === 'zhihu' || platform === 'baijiahao'
           ? contentImagesPerArticle(cfg, account.profile)
           : platform === 'xiaohongshu'
             ? built.img_count
@@ -156,7 +156,7 @@ export function buildArticleTool(cfg: Config) {
           '--allow-placeholders',
           '--platform', platform,
           '--article-type', isNewspic ? 'newspic' : 'news',
-          ...((platform === 'zhihu' || platform === 'xiaohongshu' || isNewspic) && content.ending_guide_required ? ['--require-brand'] : []),
+          ...((platform === 'zhihu' || platform === 'baijiahao' || platform === 'xiaohongshu' || isNewspic) && content.ending_guide_required ? ['--require-brand'] : []),
           ...(platform === 'gzh' && !isNewspic ? ['--lint'] : []),
         ],
         180000,
