@@ -145,7 +145,7 @@ def enhance_prompt(prompt, kind, zh_only=True, sub=1):
         has_custom_aesthetic = ("美学风格" in prompt) or ("杂志" in prompt) or ("手账" in prompt) or ("信息图" in prompt) or ("书桌" in prompt)
         if not has_custom_aesthetic:
             if int(sub or 1) <= 1:
-                prefix = "3:4小红书/小绿书封面海报卡片，3:4竖版构图，画面中心预留标题文字排版空间，视觉冲击力强，吸睛排版，"
+                prefix = "3:4小红书封面海报卡片，3:4竖版构图，画面中心必须以醒目粗体中文大字艺术排版印刷笔记主标题，字体清晰粗壮，视觉冲击力强，吸睛排版，禁止留白无字，"
             else:
                 prefix = "3:4小红书/小绿书内容卡片，3:4竖版构图，模块化卡片布局，图文层次分明，全中文标注，"
 

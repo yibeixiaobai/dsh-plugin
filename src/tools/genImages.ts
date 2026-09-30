@@ -138,7 +138,7 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
               picPrompt =
                 prompt +
                 (isXhs ? '；【美学风格：' + aesthetic.cover + '】' : '') +
-                '；封面卡片需体现标题「' + titleForPic + '」的主题意象，画面中心预留标题文字排版空间'
+                '；封面卡片画面正中心必须以醒目大字艺术排版印刷中文主标题：「' + titleForPic + '」，字体粗壮清晰，排版层级分明，视觉冲击力强，绝不可只有背景框而无文字'
             } else {
               picPrompt =
                 prompt +
@@ -148,7 +148,10 @@ export function genImagesTool(cfg: Config, ctx?: Context) {
                 '禁止出现与选题无关的通用内容（如生活习惯养成、时间管理、读书学习等泛化主题）'
             }
           } else if (isXhs) {
-            picPrompt = prompt + '；【美学风格：' + (sub <= 1 ? aesthetic.cover : aesthetic.card) + '】'
+            picPrompt =
+              prompt +
+              '；【美学风格：' + (sub <= 1 ? aesthetic.cover : aesthetic.card) + '】' +
+              (sub <= 1 ? '；封面卡片画面正中心必须以醒目大字艺术排版印刷核心主题中文大字，绝不可只有背景框而无文字' : '')
           }
 
           if (isXhs) {
