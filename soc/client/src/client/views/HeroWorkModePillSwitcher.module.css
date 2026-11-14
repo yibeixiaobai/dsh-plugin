@@ -1,0 +1,80 @@
+.pillContainer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 9999px;
+  background-color: var(--dsw-fill-quaternary, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--dsw-border-subtle, rgba(0, 0, 0, 0.06));
+  gap: 4px;
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:global([data-ds-dark-theme="true"]) .pillContainer {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.pillItem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 18px;
+  border-radius: 9999px;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #6B7280);
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+
+:global([data-ds-dark-theme="true"]) .pillItem {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.pillItem:hover:not(.active) {
+  color: var(--dsw-alias-label-primary, #1F2937);
+  background: rgba(0, 0, 0, 0.025);
+}
+
+:global([data-ds-dark-theme="true"]) .pillItem:hover:not(.active) {
+  color: #FFFFFF;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* 激活状态：对标用户图1，白底 + 金橙色/微黄细边框高亮 + 轻微投影 */
+.pillItem.active {
+  background-color: #FFFFFF;
+  color: var(--dsw-alias-label-primary, #111827);
+  font-weight: 600;
+  border-color: #F59E0B;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+:global([data-ds-dark-theme="true"]) .pillItem.active {
+  background-color: #262629;
+  color: #F9FAFB;
+  border-color: #F59E0B;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(245, 158, 11, 0.4);
+}
+
+.pillIcon {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.active .pillIcon {
+  opacity: 1;
+  color: #D97706;
+}
+
+:global([data-ds-dark-theme="true"]) .active .pillIcon {
+  color: #FBBF24;
+}

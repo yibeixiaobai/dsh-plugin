@@ -1,0 +1,1 @@
+{"version":3,"file":"useModelProviders.js","sourceRoot":"","sources":["../../../../../src/client/compat/hooks/useModelProviders.ts"],"names":[],"mappings":"AAAA,MAAM,UAAU,iBAAiB,CAAC,QAAc;IAC9C,OAAO;QACL,cAAc,EAAE,EAAE;QAClB,SAAS,EAAE,EAAE;QACb,MAAM,EAAE,EAAE;QACV,OAAO,EAAE,KAAK;QACd,gBAAgB,EAAE,IAAI;QACtB,aAAa,EAAE,IAAI;KACpB,CAAA;AACH,CAAC"}

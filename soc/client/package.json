@@ -1,0 +1,90 @@
+{
+  "name": "@winkoo/client-ui-social-publisher",
+  "description": "Social Media Studio & Publisher Web Client UI for WinCast (WeChat, Xiaohongshu, Zhihu, Toutiao, Baijiahao)",
+  "version": "0.2.2-rc.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/ui-social-publisher"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./types": {
+      "types": "./lib/types/types.d.ts"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@winkoo/client-ui-layout",
+        "@winkoo/client-ui-sidebar",
+        "@winkoo/client-ui-sidebar-right",
+        "@winkoo/client-ui-conversation",
+        "@winkoo/client-ui-settings",
+        "@winkoo/client-ui-workspace",
+        "@winkoo/client-ui-tool"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "dependencies": {
+    "clsx": "^2.0.0",
+    "lucide-react": "^1.16.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@winkoo/brand": "workspace:*",
+    "@winkoo/client-locale": "workspace:*",
+    "@winkoo/client-shortcuts": "workspace:*",
+    "@winkoo/client-store": "workspace:*",
+    "@winkoo/client-ui-conversation": "workspace:*",
+    "@winkoo/client-ui-layout": "workspace:*",
+    "@winkoo/client-ui-primitives": "workspace:*",
+    "@winkoo/client-ui-renderer": "workspace:*",
+    "@winkoo/client-ui-session": "workspace:*",
+    "@winkoo/client-ui-settings": "workspace:*",
+    "@winkoo/client-ui-sidebar": "workspace:*",
+    "@winkoo/client-ui-sidebar-right": "workspace:*",
+    "@winkoo/client-ui-slots": "workspace:*",
+    "@winkoo/client-ui-tool": "workspace:*",
+    "@winkoo/client-ui-workspace": "workspace:*",
+    "@winkoo/session": "workspace:*",
+    "@winkoo/social-publisher": "workspace:*",
+    "@types/node": "^22.20.1",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
+}

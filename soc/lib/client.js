@@ -1,4376 +1,735 @@
-window.__ModuleLoader__.load({
-  id: "dsh-social-publisher",
-  factory: (require) => {
-    const React = require("react")
-    const UI = (() => {
-      try { return require("@deepseek-ai/dsh-client-ui-primitives") } catch { return {} }
-    })()
 
-    const NS = "social-publisher"
-    const BRAND_ROUTE = "/api/gzh-publisher/brand-image"
-    const ZHIHU_LOGIN_ROUTE = "/api/gzh-publisher/zhihu-login"
-    const WECHAT_LOGIN_ROUTE = "/api/gzh-publisher/wechat-login"
-    const XHS_LOGIN_ROUTE = "/api/gzh-publisher/xhs-login"
-    const BAIJIAHAO_LOGIN_ROUTE = "/api/gzh-publisher/baijiahao-login"
-    const PUBLISH_HISTORY_ROUTE = "/api/gzh-publisher/publish-history"
-    const CONFIG_EXPORT_ROUTE = "/api/gzh-publisher/config/export"
-    const CONFIG_VALIDATE_ROUTE = "/api/gzh-publisher/config/validate"
-    const CONFIG_IMPORT_ROUTE = "/api/gzh-publisher/config/import"
-    const CONFIG_SAVE_ROUTE = "/api/gzh-publisher/config/save"
-
-    let detectedApiOrigin = ""
-    try {
-      if (typeof sessionStorage !== "undefined") {
-        detectedApiOrigin = sessionStorage.getItem("dsh_publisher_api_origin") || ""
-      }
-    } catch {}
-
-    function resolveApiUrl(route) {
-      if (!route) return ""
-      if (/^https?:\/\//i.test(route)) return route
-      if (detectedApiOrigin) {
-        return detectedApiOrigin + (route.startsWith("/") ? route : "/" + route)
-      }
-      if (typeof window !== "undefined" && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
-        return route
-      }
-      return "http://127.0.0.1:3088" + (route.startsWith("/") ? route : "/" + route)
-    }
-
-    async function apiFetch(route, options = {}) {
-      const fetchOpts = {
-        credentials: "include",
-        ...options,
-        headers: {
-          ...options.headers,
-        },
-      }
-      const pathSuffix = route.startsWith("/") ? route : "/" + route
-      const candidates = []
-
-      // 1. 若曾成功探测并记录可用 origin，首推优先尝试
-      if (detectedApiOrigin) {
-        candidates.push(detectedApiOrigin + pathSuffix)
-      }
-      // 2. HTTP/HTTPS 下当前页面的同源与 origin
-      if (typeof window !== "undefined" && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
-        candidates.push(route)
-        if (window.location.origin) {
-          candidates.push(window.location.origin + pathSuffix)
-        }
-      }
-      // 3. 独立保底直通端口（3088、3089、3090）
-      candidates.push("http://127.0.0.1:3088" + pathSuffix)
-      candidates.push("http://127.0.0.1:3089" + pathSuffix)
-      candidates.push("http://127.0.0.1:3090" + pathSuffix)
-      // 4. 当前窗口端口（若存在且不是 3088）
-      if (typeof window !== "undefined" && window.location.port && window.location.port !== "3088") {
-        candidates.push("http://127.0.0.1:" + window.location.port + pathSuffix)
-      }
-      // 5. 常见宿主与直通服务端口（CLI 3080、独立守护进程 3088 等）
-      candidates.push("http://127.0.0.1:3080" + pathSuffix)
-      candidates.push("http://localhost:3080" + pathSuffix)
-      candidates.push("http://localhost:3088" + pathSuffix)
-
-      const uniqueUrls = Array.from(new Set(candidates))
-      let lastErr = null
-      let lastFailureRes = null
-
-      for (const targetUrl of uniqueUrls) {
+window.__ModuleLoader__.load({id:`@winkoo/client-ui-social-publisher`,factory:require=>{var module={exports:{}};var exports=module.exports;Object.defineProperty(exports,Symbol.toStringTag,{value:`Module`});var __create=Object.create;var __defProp=Object.defineProperty;var __getOwnPropDesc=Object.getOwnPropertyDescriptor;var __getOwnPropNames=Object.getOwnPropertyNames;var __getProtoOf=Object.getPrototypeOf;var __hasOwnProp=Object.prototype.hasOwnProperty;var __copyProps=(to,from,except,desc)=>{if(from&&typeof from===`object`||typeof from===`function`){for(var keys=__getOwnPropNames(from),i=0,n=keys.length,key;i<n;i++){key=keys[i];if(!__hasOwnProp.call(to,key)&&key!==except){__defProp(to,key,{get:(k=>from[k]).bind(null,key),enumerable:!(desc=__getOwnPropDesc(from,key))||desc.enumerable})}}}return to};var __toESM=(mod,isNodeMode,target)=>(target=mod!=null?__create(__getProtoOf(mod)):{},__copyProps(isNodeMode||!mod||!mod.__esModule?__defProp(target,`default`,{value:mod,enumerable:true}):target,mod));let react_jsx_runtime=require("react/jsx-runtime");let react=require("react");react=__toESM(react,1);let react_dom=require("react-dom");let _winkoo_client_ui_primitives=require("@winkoo/client-ui-primitives");const zh={nav:`社媒发布`,"panel.title":`社媒工作台`,"tab.articleReview":`文章排版预览`,"tab.studio":`矩阵创作中心`,"tab.schedule":`定时与草稿`,"tab.settings":`账号与配置`,"composer.openStudio":`打开社媒工作台`,"composer.placeholder":`输入社媒内容创作或发布指令...`,"turn.title":`社媒发布流水线`,"turn.completed":`已完成`,"turn.inProgress":`进行中`,"turn.failed":`失败`,"mode.general":`通用任务`,"mode.social":`社媒发布`,"mode.general.tooltip":`切换为通用对话任务`,"mode.social.tooltip":`切换为社媒发布专属模式`};const en={nav:`Social Publisher`,"panel.title":`Social Studio`,"tab.articleReview":`Article Preview & Style`,"tab.studio":`Matrix Studio`,"tab.schedule":`Schedule & Drafts`,"tab.settings":`Accounts & Config`,"composer.openStudio":`Open Social Studio`,"composer.placeholder":`Enter social publishing command...`,"turn.title":`Social Publishing Pipeline`,"turn.completed":`Completed`,"turn.inProgress":`In Progress`,"turn.failed":`Failed`,"mode.general":`General Task`,"mode.social":`Social Publisher`,"mode.general.tooltip":`Switch to General Task`,"mode.social.tooltip":`Switch to Social Publisher Mode`};var ScopedErrorBoundary=class extends react.Component{state={error:null};static getDerivedStateFromError(error){return{error:error instanceof Error?error:new Error(String(error))}}componentDidCatch(error,info){console.error(`[ScopedErrorBoundary:${this.props.scope}] crashed:`,error,info.componentStack)}componentDidUpdate(prevProps){if(this.state.error&&prevProps.resetKeys!==this.props.resetKeys)this.setState({error:null})}render(){if(this.state.error){if(this.props.fallback)return this.props.fallback;if(this.props.variant===`silent`)return null;return(0,react_jsx_runtime.jsxs)(`div`,{style:{padding:`8px 12px`,color:`var(--dsw-danger-text, #ef4444)`,fontSize:`12px`,background:`var(--dsw-danger-subtle, rgba(239,68,68,0.1))`,borderRadius:`6px`,margin:`4px 0`},children:[(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsxs)(`strong`,{children:[`[`,this.props.scope,`]`]}),` `,this.state.error.message]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,style:{marginTop:`4px`,fontSize:`11px`,padding:`2px 8px`,cursor:`pointer`,borderRadius:`4px`,border:`1px solid currentColor`,background:`transparent`,color:`inherit`},onClick:()=>this.setState({error:null}),children:`Retry`})]})}return this.props.children}};
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const toKebabCase=string=>string?.replace(/([a-z0-9])([A-Z])/g,`$1-$2`).toLowerCase();
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+function toLucideIconData(iconName,iconNode,aliases=[]){if(iconNode==null)throw new Error(`[lucide]: iconNode is required when icon name is used`);return{name:toKebabCase(iconName),size:24,node:iconNode,...aliases.length>0?{aliases}:{}}}
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const toCamelCase=string=>{let out=``;let upperNext=false;for(const ch of string){if(ch===`-`||ch===`_`||ch<=` `){upperNext=out.length>0;continue}if(out.length===0)out+=ch.toLowerCase();else out+=upperNext?ch.toUpperCase():ch;upperNext=false}return out};
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const toPascalCase=string=>{const camelCase=toCamelCase(string);return camelCase.charAt(0).toUpperCase()+camelCase.slice(1)};
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const mergeClasses=(...classes)=>classes.filter((className,index,array)=>{return Boolean(className)&&className.trim()!==``&&array.indexOf(className)===index}).join(` `).trim();
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const defaultAttributes={xmlns:`http://www.w3.org/2000/svg`,width:24,height:24,viewBox:`0 0 24 24`,fill:`none`,stroke:`currentColor`,"stroke-width":2,"stroke-linecap":`round`,"stroke-linejoin":`round`};
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+function isDefined(value){return value!==null&&value!==void 0}function buildLucideIconNode(icon,params={}){const attributeNames=params.attributeNames??{};const getAttributeName=attributeName=>attributeNames[attributeName]??attributeName;const viewBoxWidth=icon.size??icon.width??defaultAttributes[`width`];const viewBoxHeight=icon.size??icon.height??defaultAttributes[`height`];const aliasClassNames=icon.aliases?.filter(alias=>typeof alias===`string`&&alias.trim()!==``).map(alias=>`lucide-${alias}`)??[];const iconClassNames=[...icon.name?[`lucide-${icon.name}`]:[],...aliasClassNames];const classNamesFromClassName=params.className?.split(` `).filter(Boolean)??[];const className=params.includeDefaultClasses===false?mergeClasses(...classNamesFromClassName):mergeClasses(`lucide`,...iconClassNames,...classNamesFromClassName);const calculatedStrokeWidth=params.absoluteStrokeWidth?Number(params.strokeWidth??defaultAttributes[`stroke-width`])*Number(icon.size??icon.width??defaultAttributes[`width`])/Number(params.size??params.width??defaultAttributes[`width`]):params.strokeWidth??defaultAttributes[`stroke-width`];return[`svg`,{...Object.entries(defaultAttributes).reduce((attrs,[attrName,value])=>{attrs[getAttributeName(attrName)]=value;return attrs},{}),...`color`in params&&params.color&&{[getAttributeName(`stroke`)]:params.color},...`size`in params&&isDefined(params.size)&&{[getAttributeName(`width`)]:params.size,[getAttributeName(`height`)]:params.size},...`width`in params&&isDefined(params.width)&&{[getAttributeName(`width`)]:params.width},...`height`in params&&isDefined(params.height)&&{[getAttributeName(`height`)]:params.height},[getAttributeName(`stroke-width`)]:calculatedStrokeWidth,...className&&{[getAttributeName(`class`)]:className},[getAttributeName(`viewBox`)]:`0 0 ${viewBoxWidth} ${viewBoxHeight}`,...params.hasA11yProp===false?{[getAttributeName(`aria-hidden`)]:`true`}:{},...`attributes`in params&&params.attributes},icon.node.map(child=>{const[name,attrs,children]=child;const nextAttrs=params.nonScalingStroke?{[getAttributeName(`vector-effect`)]:`non-scaling-stroke`,...attrs}:attrs;return children?[name,nextAttrs,children]:[name,nextAttrs]})]}
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+function buildLucideIconForReact(icon,params={}){return buildLucideIconNode(icon,{...params,attributeNames:{...params.attributeNames,class:`className`,"stroke-width":`strokeWidth`,"stroke-linecap":`strokeLinecap`,"stroke-linejoin":`strokeLinejoin`,"vector-effect":`vectorEffect`}})}
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const hasA11yProp=props=>{for(const prop in props)if(prop.startsWith(`aria-`)||prop===`role`||prop===`title`)return true;return false};
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const LucideContext=(0,react.createContext)({});const useLucideContext=()=>(0,react.useContext)(LucideContext);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const Icon=(0,react.forwardRef)(({color,size,width,height,strokeWidth,absoluteStrokeWidth,nonScalingStroke,className=``,children,iconNode=[],icon={node:iconNode,aliases:[],size:24},...rest},ref)=>{const{size:contextSize=24,strokeWidth:contextStrokeWidth=2,absoluteStrokeWidth:contextAbsoluteStrokeWidth=false,nonScalingStroke:contextNonScalingStroke=false,color:contextColor=`currentColor`,className:contextClass=``}=useLucideContext()??{};const hasAccessibleProp=Boolean(children)||hasA11yProp(rest);const[name,svgAttributes,builtIconNode=[]]=buildLucideIconForReact(icon,{color:color??contextColor,width:width??size??contextSize,height:height??size??contextSize,strokeWidth:strokeWidth??contextStrokeWidth,absoluteStrokeWidth:absoluteStrokeWidth??contextAbsoluteStrokeWidth,nonScalingStroke:nonScalingStroke??contextNonScalingStroke,className:mergeClasses(contextClass,className),hasA11yProp:hasAccessibleProp,attributes:rest});return(0,react.createElement)(name,{ref,...svgAttributes},[...builtIconNode.map(([tag,attrs])=>(0,react.createElement)(tag,attrs)),...Array.isArray(children)?children:[children]])});
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+function createLucideIcon(iconDataOrName,iconNode=[],aliases=[]){const iconData=typeof iconDataOrName===`string`?toLucideIconData(iconDataOrName,iconNode,aliases):iconDataOrName;const Component=(0,react.forwardRef)(({className,...props},ref)=>(0,react.createElement)(Icon,{ref,icon:iconData,className,...props}));if(iconData.name)Component.displayName=toPascalCase(iconData.name);return Component}
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$61={name:`circle-check`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`m16 9-5.5 5.5L8 12`,key:`xofnsj`}]],aliases:[`check-circle-2`]};__iconData$61.node;const CircleCheck=createLucideIcon(__iconData$61);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$60={name:`circle-exclamation-point`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`line`,{x1:`12`,x2:`12`,y1:`8`,y2:`12`,key:`1pkeuh`}],[`line`,{x1:`12`,x2:`12.01`,y1:`16`,y2:`16`,key:`4dfq90`}]],aliases:[`alert-circle`,`circle-alert`]};__iconData$60.node;const CircleExclamationPoint=createLucideIcon(__iconData$60);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$59={name:`circle-x`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`m15 9-6 6`,key:`1uzhvr`}],[`path`,{d:`m9 9 6 6`,key:`z0biqf`}]],aliases:[`x-circle`]};__iconData$59.node;const CircleX=createLucideIcon(__iconData$59);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$58={name:`cloud-upload`,size:24,node:[[`path`,{d:`M12 13v8`,key:`1l5pq0`}],[`path`,{d:`M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242`,key:`1pljnt`}],[`path`,{d:`m8 17 4-4 4 4`,key:`1quai1`}]],aliases:[`upload-cloud`]};__iconData$58.node;const CloudUpload=createLucideIcon(__iconData$58);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$57={name:`house`,size:24,node:[[`path`,{d:`M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8`,key:`5wwlr5`}],[`path`,{d:`M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z`,key:`r6nss1`}]],aliases:[`home`]};__iconData$57.node;const House=createLucideIcon(__iconData$57);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$56={name:`layers`,size:24,node:[[`path`,{d:`M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z`,key:`zw3jo`}],[`path`,{d:`M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12`,key:`1wduqc`}],[`path`,{d:`M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17`,key:`kqbvx6`}]],aliases:[`layers-3`]};__iconData$56.node;const Layers=createLucideIcon(__iconData$56);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$55={name:`loader-circle`,size:24,node:[[`path`,{d:`M21 12a9 9 0 1 1-6.219-8.56`,key:`13zald`}]],aliases:[`loader-2`]};__iconData$55.node;const LoaderCircle=createLucideIcon(__iconData$55);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$54={name:`pen-line`,size:24,node:[[`path`,{d:`M13 21h8`,key:`1jsn5i`}],[`path`,{d:`M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z`,key:`1a8usu`}]],aliases:[`edit-3`]};__iconData$54.node;const PenLine=createLucideIcon(__iconData$54);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$53={name:`shield-exclamation-point`,size:24,node:[[`path`,{d:`M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z`,key:`oel41y`}],[`path`,{d:`M12 8v4`,key:`1got3b`}],[`path`,{d:`M12 16h.01`,key:`1drbdi`}]],aliases:[`shield-alert`]};__iconData$53.node;const ShieldExclamationPoint=createLucideIcon(__iconData$53);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$52={name:`sparkles`,size:24,node:[[`path`,{d:`M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z`,key:`1s2grr`}],[`path`,{d:`M20 2v4`,key:`1rf3ol`}],[`path`,{d:`M22 4h-4`,key:`gwowj6`}],[`circle`,{cx:`4`,cy:`20`,r:`2`,key:`6kqj1y`}]],aliases:[`stars`]};__iconData$52.node;const Sparkles=createLucideIcon(__iconData$52);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$51={name:`trash`,size:24,node:[[`path`,{d:`M10 11v6`,key:`nco0om`}],[`path`,{d:`M14 11v6`,key:`outv1u`}],[`path`,{d:`M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6`,key:`miytrc`}],[`path`,{d:`M3 6h18`,key:`d0wm0j`}],[`path`,{d:`M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2`,key:`e791ji`}]],aliases:[`trash-2`]};__iconData$51.node;const Trash=createLucideIcon(__iconData$51);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$50={name:`triangle-exclamation-point`,size:24,node:[[`path`,{d:`m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3`,key:`wmoenq`}],[`path`,{d:`M12 9v4`,key:`juzpu7`}],[`path`,{d:`M12 17h.01`,key:`p32p05`}]],aliases:[`alert-triangle`,`triangle-alert`]};__iconData$50.node;const TriangleExclamationPoint=createLucideIcon(__iconData$50);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$49={name:`arrow-down`,size:24,node:[[`path`,{d:`M12 5v14`,key:`s699le`}],[`path`,{d:`m19 12-7 7-7-7`,key:`1idqje`}]]};__iconData$49.node;const ArrowDown=createLucideIcon(__iconData$49);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$48={name:`arrow-right`,size:24,node:[[`path`,{d:`M5 12h14`,key:`1ays0h`}],[`path`,{d:`m12 5 7 7-7 7`,key:`xquz4c`}]]};__iconData$48.node;const ArrowRight=createLucideIcon(__iconData$48);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$47={name:`arrow-up-right`,size:24,node:[[`path`,{d:`M7 7h10v10`,key:`1tivn9`}],[`path`,{d:`M7 17 17 7`,key:`1vkiza`}]]};__iconData$47.node;const ArrowUpRight=createLucideIcon(__iconData$47);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$46={name:`arrow-up`,size:24,node:[[`path`,{d:`m5 12 7-7 7 7`,key:`hav0vg`}],[`path`,{d:`M12 19V5`,key:`x0mq9r`}]]};__iconData$46.node;const ArrowUp=createLucideIcon(__iconData$46);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$45={name:`calendar`,size:24,node:[[`path`,{d:`M8 2v3`,key:`1ioesn`}],[`path`,{d:`M16 2v3`,key:`otl347`}],[`rect`,{x:`3`,y:`3`,width:`18`,height:`18`,rx:`2`,key:`h1oib`}],[`path`,{d:`M3 9h18`,key:`1pudct`}]]};__iconData$45.node;const Calendar=createLucideIcon(__iconData$45);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$44={name:`check`,size:24,node:[[`path`,{d:`M20 6 9 17l-5-5`,key:`1gmf2c`}]]};__iconData$44.node;const Check=createLucideIcon(__iconData$44);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$43={name:`chevron-down`,size:24,node:[[`path`,{d:`m6 9 6 6 6-6`,key:`qrunsl`}]]};__iconData$43.node;const ChevronDown=createLucideIcon(__iconData$43);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$42={name:`chevron-left`,size:24,node:[[`path`,{d:`m15 18-6-6 6-6`,key:`1wnfg3`}]]};__iconData$42.node;const ChevronLeft=createLucideIcon(__iconData$42);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$41={name:`chevron-right`,size:24,node:[[`path`,{d:`m9 18 6-6-6-6`,key:`mthhwq`}]]};__iconData$41.node;const ChevronRight=createLucideIcon(__iconData$41);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$40={name:`chevron-up`,size:24,node:[[`path`,{d:`m18 15-6-6-6 6`,key:`153udz`}]]};__iconData$40.node;const ChevronUp=createLucideIcon(__iconData$40);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$39={name:`clock`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`M12 6v6l4 2`,key:`mmk7yg`}]]};__iconData$39.node;const Clock=createLucideIcon(__iconData$39);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$38={name:`cloud`,size:24,node:[[`path`,{d:`M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z`,key:`p7xjir`}]]};__iconData$38.node;const Cloud=createLucideIcon(__iconData$38);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$37={name:`command`,size:24,node:[[`path`,{d:`M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3`,key:`11bfej`}]]};__iconData$37.node;const Command=createLucideIcon(__iconData$37);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$36={name:`compass`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z`,key:`9ktpf1`}]]};__iconData$36.node;const Compass=createLucideIcon(__iconData$36);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$35={name:`copy`,size:24,node:[[`rect`,{width:`14`,height:`14`,x:`8`,y:`8`,rx:`2`,ry:`2`,key:`17jyea`}],[`path`,{d:`M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2`,key:`zix9uf`}]]};__iconData$35.node;const Copy=createLucideIcon(__iconData$35);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$34={name:`database`,size:24,node:[[`ellipse`,{cx:`12`,cy:`5`,rx:`9`,ry:`3`,key:`msslwz`}],[`path`,{d:`M3 5V19A9 3 0 0 0 21 19V5`,key:`1wlel7`}],[`path`,{d:`M3 12A9 3 0 0 0 21 12`,key:`mv7ke4`}]]};__iconData$34.node;const Database=createLucideIcon(__iconData$34);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$33={name:`download`,size:24,node:[[`path`,{d:`M12 15V3`,key:`m9g1x1`}],[`path`,{d:`M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4`,key:`ih7n3h`}],[`path`,{d:`m7 10 5 5 5-5`,key:`brsn70`}]]};__iconData$33.node;const Download=createLucideIcon(__iconData$33);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$32={name:`external-link`,size:24,node:[[`path`,{d:`M15 3h6v6`,key:`1q9fwt`}],[`path`,{d:`M10 14 21 3`,key:`gplh6r`}],[`path`,{d:`M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6`,key:`a6xqqp`}]]};__iconData$32.node;const ExternalLink=createLucideIcon(__iconData$32);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$31={name:`eye-off`,size:24,node:[[`path`,{d:`M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49`,key:`ct8e1f`}],[`path`,{d:`M14.084 14.158a3 3 0 0 1-4.242-4.242`,key:`151rxh`}],[`path`,{d:`M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143`,key:`13bj9a`}],[`path`,{d:`m2 2 20 20`,key:`1ooewy`}]]};__iconData$31.node;const EyeOff=createLucideIcon(__iconData$31);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$30={name:`eye`,size:24,node:[[`path`,{d:`M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0`,key:`1nclc0`}],[`circle`,{cx:`12`,cy:`12`,r:`3`,key:`1v7zrd`}]]};__iconData$30.node;const Eye=createLucideIcon(__iconData$30);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$29={name:`file-code`,size:24,node:[[`path`,{d:`M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z`,key:`1oefj6`}],[`path`,{d:`M14 2v5a1 1 0 0 0 1 1h5`,key:`wfsgrz`}],[`path`,{d:`M10 12.5 8 15l2 2.5`,key:`1tg20x`}],[`path`,{d:`m14 12.5 2 2.5-2 2.5`,key:`yinavb`}]]};__iconData$29.node;const FileCode=createLucideIcon(__iconData$29);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$28={name:`file-text`,size:24,node:[[`path`,{d:`M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z`,key:`1oefj6`}],[`path`,{d:`M14 2v5a1 1 0 0 0 1 1h5`,key:`wfsgrz`}],[`path`,{d:`M10 9H8`,key:`b1mrlr`}],[`path`,{d:`M16 13H8`,key:`t4e002`}],[`path`,{d:`M16 17H8`,key:`z1uh3a`}]]};__iconData$28.node;const FileText=createLucideIcon(__iconData$28);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$27={name:`folder-plus`,size:24,node:[[`path`,{d:`M12 10v6`,key:`1bos4e`}],[`path`,{d:`M9 13h6`,key:`1uhe8q`}],[`path`,{d:`M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z`,key:`1kt360`}]]};__iconData$27.node;const FolderPlus=createLucideIcon(__iconData$27);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$26={name:`folder`,size:24,node:[[`path`,{d:`M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z`,key:`1kt360`}]]};__iconData$26.node;const Folder=createLucideIcon(__iconData$26);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$25={name:`globe`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20`,key:`13o1zl`}],[`path`,{d:`M2 12h20`,key:`9i4pu4`}]]};__iconData$25.node;const Globe=createLucideIcon(__iconData$25);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$24={name:`grip-vertical`,size:24,node:[[`circle`,{cx:`9`,cy:`12`,r:`1`,key:`1vctgf`}],[`circle`,{cx:`9`,cy:`5`,r:`1`,key:`hp0tcf`}],[`circle`,{cx:`9`,cy:`19`,r:`1`,key:`fkjjf6`}],[`circle`,{cx:`15`,cy:`12`,r:`1`,key:`1tmaij`}],[`circle`,{cx:`15`,cy:`5`,r:`1`,key:`19l28e`}],[`circle`,{cx:`15`,cy:`19`,r:`1`,key:`f4zoj3`}]]};__iconData$24.node;const GripVertical=createLucideIcon(__iconData$24);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$23={name:`hash`,size:24,node:[[`line`,{x1:`4`,x2:`20`,y1:`9`,y2:`9`,key:`4lhtct`}],[`line`,{x1:`4`,x2:`20`,y1:`15`,y2:`15`,key:`vyu0kd`}],[`line`,{x1:`10`,x2:`8`,y1:`3`,y2:`21`,key:`1ggp8o`}],[`line`,{x1:`16`,x2:`14`,y1:`3`,y2:`21`,key:`weycgp`}]]};__iconData$23.node;const Hash=createLucideIcon(__iconData$23);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$22={name:`heart`,size:24,node:[[`path`,{d:`M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5`,key:`mvr1a0`}]]};__iconData$22.node;const Heart=createLucideIcon(__iconData$22);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$21={name:`image`,size:24,node:[[`rect`,{width:`18`,height:`18`,x:`3`,y:`3`,rx:`2`,ry:`2`,key:`1m3agn`}],[`circle`,{cx:`9`,cy:`9`,r:`2`,key:`af1f0g`}],[`path`,{d:`m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21`,key:`1xmnt7`}]]};__iconData$21.node;const Image=createLucideIcon(__iconData$21);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$20={name:`images`,size:24,node:[[`path`,{d:`m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16`,key:`9kzy35`}],[`path`,{d:`M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2`,key:`1t0f0t`}],[`circle`,{cx:`13`,cy:`7`,r:`1`,fill:`currentColor`,key:`1obus6`}],[`rect`,{x:`8`,y:`2`,width:`14`,height:`14`,rx:`2`,key:`1gvhby`}]]};__iconData$20.node;const Images=createLucideIcon(__iconData$20);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$19={name:`info`,size:24,node:[[`circle`,{cx:`12`,cy:`12`,r:`10`,key:`1mglay`}],[`path`,{d:`M12 16v-4`,key:`1dtifu`}],[`path`,{d:`M12 8h.01`,key:`e9boi3`}]]};__iconData$19.node;const Info=createLucideIcon(__iconData$19);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$18={name:`layout-panel-left`,size:24,node:[[`rect`,{width:`7`,height:`18`,x:`3`,y:`3`,rx:`1`,key:`2obqm`}],[`rect`,{width:`7`,height:`7`,x:`14`,y:`3`,rx:`1`,key:`6d4xhi`}],[`rect`,{width:`7`,height:`7`,x:`14`,y:`14`,rx:`1`,key:`nxv5o0`}]]};__iconData$18.node;const LayoutPanelLeft=createLucideIcon(__iconData$18);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$17={name:`map-pin`,size:24,node:[[`path`,{d:`M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0`,key:`1r0f0z`}],[`circle`,{cx:`12`,cy:`10`,r:`3`,key:`ilqhr7`}]]};__iconData$17.node;const MapPin=createLucideIcon(__iconData$17);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$16={name:`message-circle`,size:24,node:[[`path`,{d:`M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719`,key:`1sd12s`}]]};__iconData$16.node;const MessageCircle=createLucideIcon(__iconData$16);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$15={name:`palette`,size:24,node:[[`path`,{d:`M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z`,key:`e79jfc`}],[`circle`,{cx:`13.5`,cy:`6.5`,r:`.5`,fill:`currentColor`,key:`1okk4w`}],[`circle`,{cx:`17.5`,cy:`10.5`,r:`.5`,fill:`currentColor`,key:`f64h9f`}],[`circle`,{cx:`6.5`,cy:`12.5`,r:`.5`,fill:`currentColor`,key:`qy21gx`}],[`circle`,{cx:`8.5`,cy:`7.5`,r:`.5`,fill:`currentColor`,key:`fotxhn`}]]};__iconData$15.node;const Palette=createLucideIcon(__iconData$15);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$14={name:`plus`,size:24,node:[[`path`,{d:`M5 12h14`,key:`1ays0h`}],[`path`,{d:`M12 5v14`,key:`s699le`}]]};__iconData$14.node;const Plus=createLucideIcon(__iconData$14);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$13={name:`qr-code`,size:24,node:[[`rect`,{width:`5`,height:`5`,x:`3`,y:`3`,rx:`1`,key:`1tu5fj`}],[`rect`,{width:`5`,height:`5`,x:`16`,y:`3`,rx:`1`,key:`1v8r4q`}],[`rect`,{width:`5`,height:`5`,x:`3`,y:`16`,rx:`1`,key:`1x03jg`}],[`path`,{d:`M21 16h-3a2 2 0 0 0-2 2v3`,key:`177gqh`}],[`path`,{d:`M21 21v.01`,key:`ents32`}],[`path`,{d:`M12 7v3a2 2 0 0 1-2 2H7`,key:`8crl2c`}],[`path`,{d:`M3 12h.01`,key:`nlz23k`}],[`path`,{d:`M12 3h.01`,key:`n36tog`}],[`path`,{d:`M12 16v.01`,key:`133mhm`}],[`path`,{d:`M16 12h1`,key:`1slzba`}],[`path`,{d:`M21 12v.01`,key:`1lwtk9`}],[`path`,{d:`M12 21v-1`,key:`1880an`}]]};__iconData$13.node;const QrCode=createLucideIcon(__iconData$13);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$12={name:`refresh-cw`,size:24,node:[[`path`,{d:`M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8`,key:`v9h5vc`}],[`path`,{d:`M21 3v5h-5`,key:`1q7to0`}],[`path`,{d:`M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16`,key:`3uifl3`}],[`path`,{d:`M8 16H3v5`,key:`1cv678`}]]};__iconData$12.node;const RefreshCw=createLucideIcon(__iconData$12);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$11={name:`rotate-ccw`,size:24,node:[[`path`,{d:`M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8`,key:`1357e3`}],[`path`,{d:`M3 3v5h5`,key:`1xhq8a`}]]};__iconData$11.node;const RotateCcw=createLucideIcon(__iconData$11);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$10={name:`search`,size:24,node:[[`path`,{d:`m21 21-4.34-4.34`,key:`14j7rj`}],[`circle`,{cx:`11`,cy:`11`,r:`8`,key:`4ej97u`}]]};__iconData$10.node;const Search=createLucideIcon(__iconData$10);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$9={name:`send`,size:24,node:[[`path`,{d:`M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z`,key:`1ffxy3`}],[`path`,{d:`m21.854 2.147-10.94 10.939`,key:`12cjpa`}]]};__iconData$9.node;const Send=createLucideIcon(__iconData$9);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$8={name:`settings-2`,size:24,node:[[`path`,{d:`M14 17H5`,key:`gfn3mx`}],[`path`,{d:`M19 7h-9`,key:`6i9tg`}],[`circle`,{cx:`17`,cy:`17`,r:`3`,key:`18b49y`}],[`circle`,{cx:`7`,cy:`7`,r:`3`,key:`dfmy0x`}]]};__iconData$8.node;const Settings2=createLucideIcon(__iconData$8);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$7={name:`share-2`,size:24,node:[[`circle`,{cx:`18`,cy:`5`,r:`3`,key:`gq8acd`}],[`circle`,{cx:`6`,cy:`12`,r:`3`,key:`w7nqdw`}],[`circle`,{cx:`18`,cy:`19`,r:`3`,key:`1xt0gg`}],[`line`,{x1:`8.59`,x2:`15.42`,y1:`13.51`,y2:`17.49`,key:`47mynk`}],[`line`,{x1:`15.41`,x2:`8.59`,y1:`6.51`,y2:`10.49`,key:`1n3mei`}]]};__iconData$7.node;const Share2=createLucideIcon(__iconData$7);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$6={name:`shield-check`,size:24,node:[[`path`,{d:`M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z`,key:`oel41y`}],[`path`,{d:`m9 12 2 2 4-4`,key:`dzmm74`}]]};__iconData$6.node;const ShieldCheck=createLucideIcon(__iconData$6);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$5={name:`sliders-horizontal`,size:24,node:[[`path`,{d:`M10 5H3`,key:`1qgfaw`}],[`path`,{d:`M12 19H3`,key:`yhmn1j`}],[`path`,{d:`M14 3v4`,key:`1sua03`}],[`path`,{d:`M16 17v4`,key:`1q0r14`}],[`path`,{d:`M21 12h-9`,key:`1o4lsq`}],[`path`,{d:`M21 19h-5`,key:`1rlt1p`}],[`path`,{d:`M21 5h-7`,key:`1oszz2`}],[`path`,{d:`M8 10v4`,key:`tgpxqk`}],[`path`,{d:`M8 12H3`,key:`a7s4jb`}]]};__iconData$5.node;const SlidersHorizontal=createLucideIcon(__iconData$5);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$4={name:`smartphone`,size:24,node:[[`rect`,{width:`14`,height:`20`,x:`5`,y:`2`,rx:`2`,ry:`2`,key:`1yt0o3`}],[`path`,{d:`M12 18h.01`,key:`mhygvu`}]]};__iconData$4.node;const Smartphone=createLucideIcon(__iconData$4);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$3={name:`star`,size:24,node:[[`path`,{d:`M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z`,key:`r04s7s`}]]};__iconData$3.node;const Star=createLucideIcon(__iconData$3);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$2={name:`upload`,size:24,node:[[`path`,{d:`M12 3v12`,key:`1x0j5s`}],[`path`,{d:`m17 8-5-5-5 5`,key:`7q97r8`}],[`path`,{d:`M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4`,key:`ih7n3h`}]]};__iconData$2.node;const Upload=createLucideIcon(__iconData$2);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData$1={name:`x`,size:24,node:[[`path`,{d:`M18 6 6 18`,key:`1bl5f8`}],[`path`,{d:`m6 6 12 12`,key:`d8bk6v`}]]};__iconData$1.node;const X=createLucideIcon(__iconData$1);
+/**
+* @license lucide-react v1.72.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+const __iconData={name:`zoom-in`,size:24,node:[[`circle`,{cx:`11`,cy:`11`,r:`8`,key:`4ej97u`}],[`line`,{x1:`21`,x2:`16.65`,y1:`21`,y2:`16.65`,key:`13gj7c`}],[`line`,{x1:`11`,x2:`11`,y1:`8`,y2:`14`,key:`1vmskp`}],[`line`,{x1:`8`,x2:`14`,y1:`11`,y2:`11`,key:`durymu`}]]};__iconData.node;const ZoomIn=createLucideIcon(__iconData);function useOptionalServices(){return{socialPublisher:{getAccounts:async()=>[],getDrafts:async()=>[],getScheduled:async()=>[],getHistory:async()=>[]},socialPublisherService:null}}function useServices(){return useOptionalServices()}const DEFAULT_API_BASE=`http://127.0.0.1:3088`;const COVER_RATIOS=[{value:`2.35:1`,label:`2.35:1 (3520×1498 · 公众号头条推荐 / 百家号)`},{value:`16:9`,label:`16:9 (3024×1701 · 知乎 / 头条号推荐)`},{value:`1:1`,label:`1:1 (1920×1920 · 方图 / 公众号次条)`},{value:`3:4`,label:`3:4 (1080×1440 · 竖版 · 小红书 / 小绿书)`},{value:`21:9`,label:`21:9 (3520×1500 · 超宽横幅)`}];const SECONDARY_COVER_RATIOS=COVER_RATIOS.filter(r=>r.value!==`2.35:1`);function normalizeAccountsList$1(raw){if(!raw)return[];if(Array.isArray(raw))return raw;if(typeof raw===`object`)return Object.entries(raw).map(([id,val])=>({id,...typeof val===`object`?val:{}}));return[]}function normalizeProvidersList(raw){if(!raw)return[];if(Array.isArray(raw))return raw;if(typeof raw===`object`)return Object.entries(raw).map(([id,val])=>({id,...typeof val===`object`?val:{}}));return[]}function getPlatformRoute(platform){const p=(platform||`gzh`).toLowerCase();if(p===`gzh`||p===`wechat`)return`wechat-login`;if(p===`zhihu`)return`zhihu-login`;if(p===`xhs`||p===`xiaohongshu`)return`xhs-login`;if(p===`baijiahao`)return`baijiahao-login`;if(p===`toutiao`)return`toutiao-login`;return`${p}-login`}let detectedApiOrigin=``;if(typeof sessionStorage!==`undefined`)try{detectedApiOrigin=sessionStorage.getItem(`dsh_publisher_api_origin`)||``}catch{}function getApiBaseUrl(){if(detectedApiOrigin)return detectedApiOrigin;if(typeof window!==`undefined`&&(window.location.protocol===`http:`||window.location.protocol===`https:`))return window.location.origin;return DEFAULT_API_BASE}async function safeParseJson(res){try{const text=await res.text();if(!text||!text.trim())return{ok:res.ok,data:{},error:!res.ok?`服务返回空状态码 HTTP ${res.status}`:void 0};const trimmed=text.trim();if(trimmed.startsWith(`<!`)||trimmed.startsWith(`<html`)||trimmed.includes(`<head>`))return{ok:false,data:{},error:`服务返回了 HTML 网页内容而非 JSON 数据 (可能命中了前端 Vite SPA 路由回退)`};const data=JSON.parse(text);return{ok:res.ok&&!data.error,data,error:data.error||(!res.ok?`HTTP ${res.status} ${res.statusText||``}`.trim():void 0)}}catch(err){return{ok:false,data:{},error:!res.ok?`服务响应异常 (HTTP ${res.status})`:`无法解析服务响应: ${err.message}`}}}async function publisherApiFetch(route,options={},rpcService){const pathSuffix=route.startsWith(`/`)?route:`/`+route;if(rpcService&&typeof rpcService.handleGenericRoute===`function`)try{const urlObj=new URL(pathSuffix,`http://127.0.0.1:3088`);const queryParams={};urlObj.searchParams.forEach((v,k)=>{queryParams[k]=v});let parsedBody=void 0;if(options.body)if(typeof options.body===`string`)try{parsedBody=JSON.parse(options.body)}catch{parsedBody=options.body}else parsedBody=options.body;const rpcResult=await rpcService.handleGenericRoute(urlObj.pathname,options.method||`GET`,parsedBody,queryParams);if(rpcResult&&typeof rpcResult.status===`number`)return new Response(JSON.stringify(rpcResult.data),{status:rpcResult.status,headers:{"Content-Type":`application/json`,...rpcResult.headers}})}catch(rpcErr){console.warn(`[SocialPublisher] RPC 通道调用异常，尝试网络端口降级:`,rpcErr)}const fetchOpts={credentials:`include`,...options,headers:{...options.headers}};const candidates=[];if(detectedApiOrigin)candidates.push(detectedApiOrigin+pathSuffix);candidates.push(`http://127.0.0.1:3088`+pathSuffix);candidates.push(`http://127.0.0.1:3089`+pathSuffix);candidates.push(`http://127.0.0.1:3090`+pathSuffix);candidates.push(`http://127.0.0.1:3080`+pathSuffix);candidates.push(`http://localhost:3088`+pathSuffix);candidates.push(`http://localhost:3080`+pathSuffix);if(typeof window!==`undefined`&&(window.location.protocol===`http:`||window.location.protocol===`https:`)){if(window.location.origin)candidates.push(window.location.origin+pathSuffix);candidates.push(route)}const uniqueUrls=Array.from(new Set(candidates));let lastErr=null;let lastFailureRes=null;for(const targetUrl of uniqueUrls)try{const res=await fetch(targetUrl,fetchOpts);if(res.ok){const contentType=(res.headers.get(`content-type`)||``).toLowerCase();if(contentType.includes(`text/html`)||contentType.includes(`html`)){if(detectedApiOrigin&&targetUrl.startsWith(detectedApiOrigin)){detectedApiOrigin=``;try{sessionStorage.removeItem(`dsh_publisher_api_origin`)}catch{}}continue}if(contentType.includes(`json`)||contentType.includes(`octet-stream`)||contentType.includes(`image`)){try{const origin=new URL(targetUrl,window?.location?.href||`http://127.0.0.1:3088`).origin;detectedApiOrigin=origin;if(typeof sessionStorage!==`undefined`)sessionStorage.setItem(`dsh_publisher_api_origin`,origin)}catch{}return res}return res}if(res.status===404||res.status===401||res.status===405){if(!targetUrl.startsWith(`/`)&&(!window?.location?.port||!targetUrl.includes(`:${window.location.port}/`)))lastFailureRes=res;continue}return res}catch(e){lastErr=e}if(lastFailureRes)return lastFailureRes;if(lastErr)throw new Error(`社媒发布服务未就绪 (RPC 与端口 3088~3090 均未响应)`);throw new Error(`社媒助手接口调用失败：无可用通信通道`)}const DEFAULT_PUBLISHER_SECTION_CONFIG={default_account:`default`,accounts:[{id:`default`,name:`默认公众号`,platform:`gzh`,enabled:true,wechat:{brand_name:`前沿科技视界`}}],image_providers:[{id:`default_provider`,base_url:`https://api.openai.com/v1`,api_key:``,model:`dall-e-3`,priority:1,enabled:true}],typography:{headline_theme:`graphite`,secondary_theme:`rotate`,font_size:`13px`,line_height:`20px`},image_spec:{headline_cover_ratio:`2.35:1`,secondary_cover_ratio:`1:1`,content_images_per_article:2,image_count_mode:`auto`,ai_images_per_article:1,search_images_per_article:1},runtime:{project_root:``,python_path:`python`,chrome_path:``,headless:true,api_port:3088}};function serializePublisherConfigPayload(config){const{brand_images:_deprecatedGlobalBrand,...cleanConfig}=config||{};const accountsDict={};for(const acc of normalizeAccountsList$1(cleanConfig?.accounts)){const{id,...rest}=acc;accountsDict[id||`default`]=rest}const providersDict={};for(const prov of normalizeProvidersList(cleanConfig?.image_providers)){const{id,...rest}=prov;providersDict[id||`default_provider`]=rest}return{...cleanConfig,accounts:accountsDict,image_providers:providersDict}}var SocialPublisherComposerCard_module_css_default={"accountBar":`K-e6oG_accountBar`,"accountBarTitle":`K-e6oG_accountBarTitle`,"accountBarTop":`K-e6oG_accountBarTop`,"accountChip":`K-e6oG_accountChip`,"accountChipActive":`K-e6oG_accountChipActive`,"accountDrawerPanel":`K-e6oG_accountDrawerPanel`,"accountGroupCard":`K-e6oG_accountGroupCard`,"accountSettingsToggle":`K-e6oG_accountSettingsToggle`,"badgeStudio":`K-e6oG_badgeStudio`,"card":`K-e6oG_card`,"cardFadeIn":`K-e6oG_cardFadeIn`,"closeBtn":`K-e6oG_closeBtn`,"composerInputArea":`K-e6oG_composerInputArea`,"dryRunAmber":`K-e6oG_dryRunAmber`,"dryRunEmerald":`K-e6oG_dryRunEmerald`,"dryRunPill":`K-e6oG_dryRunPill`,"errorMessage":`K-e6oG_errorMessage`,"footer":`K-e6oG_footer`,"footerLeft":`K-e6oG_footerLeft`,"footerRight":`K-e6oG_footerRight`,"geoButton":`K-e6oG_geoButton`,"header":`K-e6oG_header`,"headerIcon":`K-e6oG_headerIcon`,"headerLeft":`K-e6oG_headerLeft`,"headerRight":`K-e6oG_headerRight`,"headerTitle":`K-e6oG_headerTitle`,"inputAreaHeader":`K-e6oG_inputAreaHeader`,"inputAreaHint":`K-e6oG_inputAreaHint`,"inputAreaTitle":`K-e6oG_inputAreaTitle`,"modeHint":`K-e6oG_modeHint`,"platformBtn":`K-e6oG_platformBtn`,"platformBtnActive":`K-e6oG_platformBtnActive`,"platformCountLabel":`K-e6oG_platformCountLabel`,"platformGrid":`K-e6oG_platformGrid`,"popoverFadeIn":`K-e6oG_popoverFadeIn`,"sparkChip":`K-e6oG_sparkChip`,"sparksBar":`K-e6oG_sparksBar`,"sparksLabel":`K-e6oG_sparksLabel`,"submitBtn":`K-e6oG_submitBtn`,"textarea":`K-e6oG_textarea`,"workspaceActionItem":`K-e6oG_workspaceActionItem`,"workspaceItem":`K-e6oG_workspaceItem`,"workspaceItemActive":`K-e6oG_workspaceItemActive`,"workspaceList":`K-e6oG_workspaceList`,"workspacePickerBtn":`K-e6oG_workspacePickerBtn`,"workspacePopover":`K-e6oG_workspacePopover`,"workspaceSearchInput":`K-e6oG_workspaceSearchInput`,"workspaceSearchRow":`K-e6oG_workspaceSearchRow`};const SocialAccountPickerDrawer=(0,react.memo)(function SocialAccountPickerDrawer({show,selectedPlatforms,platformsMeta,filteredAccounts,effectiveAccounts,selectedAccountIds,selectAllAccounts,loadingAccounts,accountHealthMap,onSelectAll,onToggleAccount,onOpenLoginModal:_onOpenLoginModal}){if(!show)return null;return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.accountDrawerPanel,children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:`6px`},children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:onSelectAll,className:`${SocialPublisherComposerCard_module_css_default.accountChip} ${selectAllAccounts?SocialPublisherComposerCard_module_css_default.accountChipActive:``}`,children:`全部账号 (默认)`}),!selectAllAccounts&&(0,react_jsx_runtime.jsx)(`span`,{style:{fontSize:`11px`,color:`var(--dsw-alias-label-caption, #9ca3af)`},children:`已切换为精确指定模式，仅执行所勾选的账号`})]}),selectedPlatforms.map(pKey=>{const platOption=platformsMeta.find(p=>p.key===pKey);const platAccounts=filteredAccounts.filter(acc=>{return(acc.platform===`xhs`?`xiaohongshu`:acc.platform)===pKey});if(platAccounts.length===0)return null;const platSelectedCount=effectiveAccounts.filter(a=>(a.platform===`xhs`?`xiaohongshu`:a.platform)===pKey).length;return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.accountGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,justifyContent:`space-between`,fontSize:`11.5px`},children:[(0,react_jsx_runtime.jsxs)(`span`,{style:{fontWeight:600,color:`var(--dsw-alias-label-primary, #111827)`,display:`flex`,alignItems:`center`,gap:`4px`},children:[(0,react_jsx_runtime.jsx)(`span`,{children:platOption?.label||pKey}),(0,react_jsx_runtime.jsxs)(`span`,{style:{color:`var(--dsw-alias-label-caption, #9ca3af)`,fontWeight:400},children:[`(`,platAccounts.length,`个可用)`]})]}),!selectAllAccounts&&platSelectedCount===0&&(0,react_jsx_runtime.jsx)(`span`,{style:{color:`var(--dsw-alias-label-caption, #9ca3af)`,fontSize:`11px`},children:`未选账号 (不发布该平台)`})]}),(0,react_jsx_runtime.jsx)(`div`,{style:{display:`flex`,flexWrap:`wrap`,gap:`6px`},children:platAccounts.map(account=>{const isChecked=!selectAllAccounts&&selectedAccountIds.includes(account.id);const health=accountHealthMap[account.id];const isHealthy=health?.valid===true;const isExpired=health?.valid===false;const isChecking=health?.checking===true;return(0,react_jsx_runtime.jsx)(`div`,{style:{display:`flex`,alignItems:`center`},children:(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>onToggleAccount(account.id),title:health?.userName?`已授权创作者：${health.userName}`:isExpired?`登录态已失效或未登录：${health?.error||`请前往设置页账号列表扫码登录`}`:account.name||account.id,className:`${SocialPublisherComposerCard_module_css_default.accountChip} ${isChecked?SocialPublisherComposerCard_module_css_default.accountChipActive:``}`,children:[isChecking?(0,react_jsx_runtime.jsx)(LoaderCircle,{size:10,style:{animation:`spin 1s linear infinite`}}):isHealthy?(0,react_jsx_runtime.jsx)(`span`,{style:{width:`6px`,height:`6px`,borderRadius:`50%`,background:`#10b981`}}):isExpired?(0,react_jsx_runtime.jsx)(`span`,{style:{width:`6px`,height:`6px`,borderRadius:`50%`,background:`#f59e0b`}}):(0,react_jsx_runtime.jsx)(`span`,{style:{width:`5px`,height:`5px`,borderRadius:`50%`,background:account.enabled?`#10b981`:`#9ca3af`}}),(0,react_jsx_runtime.jsx)(`span`,{children:account.name||account.id}),isChecked&&(0,react_jsx_runtime.jsx)(Check,{size:10,strokeWidth:2.5,style:{color:`#059669`}})]})},account.id)})})]},pKey)}),filteredAccounts.length===0&&!loadingAccounts?(0,react_jsx_runtime.jsx)(`span`,{style:{fontSize:`11px`,color:`var(--dsw-alias-label-caption, #9ca3af)`},children:`当前所选平台未配置任何账号`}):null]})});const DEFAULT_DESKTOP_CHROME_UA=`Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36`;function buildLocalMediaPreviewUrl(filePath){if(!filePath)return``;if(filePath.startsWith(`http://`)||filePath.startsWith(`https://`)||filePath.startsWith(`data:`))return filePath;return`dsh-resource://file/${encodeURIComponent(filePath)}`}function isBrandGeoEnabled(){return false}function normalizeAccountsList(raw){if(!raw)return[];if(Array.isArray(raw))return raw;if(typeof raw===`object`)return Object.entries(raw).map(([id,val])=>({id,...typeof val===`object`?val:{}}));return[]}function resolveEffectiveSocialAccounts(accounts,limit=-1){const list=normalizeAccountsList(accounts);const effectiveLimit=typeof limit===`number`?limit:-1;const isUnlimited=effectiveLimit===-1;let activeCount=0;let disabledCount=0;let overQuotaCount=0;const activeAccounts=[];return{items:list.map((acc,index)=>{const id=String(acc.id||`account_${index}`);const name=String(acc.name||id);const platform=String(acc.platform||`gzh`);if(!(acc.enabled!==false)){disabledCount++;return{account:acc,id,name,platform,status:`disabled`,isCallable:false,reason:`账号已处于停用状态，不占用会员配额，不可在任务中调用`}}if(isUnlimited||activeCount<effectiveLimit){activeCount++;activeAccounts.push(acc);return{account:acc,id,name,platform,status:`active`,isCallable:true,quotaIndex:activeCount}}overQuotaCount++;return{account:acc,id,name,platform,status:`over_quota`,isCallable:false,reason:`超出当前会员等级配额上限（限 ${effectiveLimit} 个），已按顺序自动休眠，任务中严禁调用`}}),activeAccounts,activeCount,disabledCount,overQuotaCount,limit:effectiveLimit}}function hasSocialPlatformAuthCredentials(accOrPlat,_account,_cookies){return{valid:true,reason:``}}function getSocialPlatformLoginUrl(platform,_config){switch(platform){case`gzh`:case`wechat`:return`https://mp.weixin.qq.com/`;case`xiaohongshu`:case`xhs`:return`https://creator.xiaohongshu.com/login`;case`zhihu`:return`https://www.zhihu.com/signin`;case`baijiahao`:return`https://baijiahao.baidu.com/builder/author/register/login`;case`toutiao`:return`https://mp.toutiao.com/auth/page/login`;default:return`https://mp.weixin.qq.com/`}}function isSocialPlatformSuccessUrl(platform,url){if(!url)return false;if(platform===`gzh`||platform===`wechat`)return url.includes(`cgi-bin/home`)||url.includes(`cgi-bin/frame`);if(platform===`xiaohongshu`||platform===`xhs`)return url.includes(`creator.xiaohongshu.com/creator/home`)||url.includes(`/publish`);if(platform===`zhihu`)return url.includes(`zhihu.com/creator`)||url.includes(`zhihu.com/hot`);if(platform===`baijiahao`)return url.includes(`baijiahao.baidu.com/builder/rc/home`);if(platform===`toutiao`)return url.includes(`mp.toutiao.com/profile_v4/index`);return false}function isSocialPlatformLoginUrl(platform,url){return!isSocialPlatformSuccessUrl(platform,url)}function parseCookieString(raw,domain){if(!raw||typeof raw!==`string`)return[];return raw.split(`;`).map(part=>{const[name,...val]=part.trim().split(`=`);return{name:name?.trim()||``,value:val.join(`=`).trim(),domain}}).filter(c=>Boolean(c.name))}const SocialComposerHeader=(0,react.memo)(function SocialComposerHeader({isDryRun,selectedPlatformsCount,onClose}){return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.header,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.headerLeft,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherComposerCard_module_css_default.headerIcon,children:(0,react_jsx_runtime.jsx)(Share2,{size:14})}),(0,react_jsx_runtime.jsx)(`span`,{className:SocialPublisherComposerCard_module_css_default.headerTitle,children:`社媒多平台矩阵发布`}),(0,react_jsx_runtime.jsx)(`span`,{className:SocialPublisherComposerCard_module_css_default.badgeStudio,children:`矩阵工作台`}),isBrandGeoEnabled()&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>{window.dispatchEvent(new CustomEvent(`wincode:switch-to-geo-card`))},className:SocialPublisherComposerCard_module_css_default.geoButton,title:`切换至品牌 GEO 收录检测`,children:[(0,react_jsx_runtime.jsx)(Compass,{size:12}),(0,react_jsx_runtime.jsx)(`span`,{children:`GEO检测`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.headerRight,children:[(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`composer-dry-run-indicator`,className:`${SocialPublisherComposerCard_module_css_default.dryRunPill} ${isDryRun?SocialPublisherComposerCard_module_css_default.dryRunAmber:SocialPublisherComposerCard_module_css_default.dryRunEmerald}`,title:isDryRun?`当前为演练模式（免额度推演）。运行模式受全局设置管控，如需切换实盘请前往「设置 - 社媒发布 - 运行环境」修改。`:`当前为实盘模式（真实生产发布）。运行模式受全局设置管控，如需切换演练请前往「设置 - 社媒发布 - 运行环境」修改。`,children:[isDryRun?(0,react_jsx_runtime.jsx)(ShieldExclamationPoint,{size:12,style:{flexShrink:0}}):(0,react_jsx_runtime.jsx)(ShieldCheck,{size:12,style:{flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{children:isDryRun?`演练模式 (免额度)`:`实盘模式 (已就绪)`})]}),(0,react_jsx_runtime.jsxs)(`span`,{className:SocialPublisherComposerCard_module_css_default.platformCountLabel,children:[`已选 `,(0,react_jsx_runtime.jsx)(`strong`,{children:selectedPlatformsCount}),` 平台`]}),onClose?(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:SocialPublisherComposerCard_module_css_default.closeBtn,onClick:onClose,title:`退出专属卡片`,"aria-label":`关闭`,children:(0,react_jsx_runtime.jsx)(X,{size:14})}):null]})]})});function useMembership(){return{isPro:true,tier:`pro`,profile:{tier:`pro`,privileges:{socialAccountsLimit:-1}},features:{socialPublisher:true,batchPublish:true,aiImages:true}}}var SocialPublisherLoginModal_module_css_default={"cancelBtn":`It1jRG_cancelBtn`,"closeBtn":`It1jRG_closeBtn`,"externalLinkBtn":`It1jRG_externalLinkBtn`,"footer":`It1jRG_footer`,"footerActions":`It1jRG_footerActions`,"header":`It1jRG_header`,"headerActions":`It1jRG_headerActions`,"headerNavBtn":`It1jRG_headerNavBtn`,"headerNavGroup":`It1jRG_headerNavGroup`,"headerSub":`It1jRG_headerSub`,"headerTitle":`It1jRG_headerTitle`,"headerTop":`It1jRG_headerTop`,"modalContainer":`It1jRG_modalContainer`,"modalFadeIn":`It1jRG_modalFadeIn`,"modalRoot":`It1jRG_modalRoot`,"modalZoomIn":`It1jRG_modalZoomIn`,"partitionBadge":`It1jRG_partitionBadge`,"statusContainer":`It1jRG_statusContainer`,"statusIcon":`It1jRG_statusIcon`,"statusMessage":`It1jRG_statusMessage`,"successOverlay":`It1jRG_successOverlay`,"successSubtitle":`It1jRG_successSubtitle`,"successTitle":`It1jRG_successTitle`,"syncBtn":`It1jRG_syncBtn`,"urlText":`It1jRG_urlText`,"webviewTag":`It1jRG_webviewTag`,"webviewWrapper":`It1jRG_webviewWrapper`};function useSelectDirectory(){return async()=>void 0}function useOptionalPlatform(){return{isDesktop:false,openExternal:url=>{if(typeof window!==`undefined`)window.open(url,`_blank`)}}}const logger={debug:(...args)=>console.debug(`[SocialPublisher]`,...args),info:(...args)=>console.info(`[SocialPublisher]`,...args),warn:(...args)=>console.warn(`[SocialPublisher]`,...args),error:(...args)=>console.error(`[SocialPublisher]`,...args)};async function probeXhsWebviewLogin(webview){try{return await webview.executeJavaScript(`
+      (() => {
         try {
-          const res = await fetch(targetUrl, fetchOpts)
-          if (res.ok) {
-            if (targetUrl.startsWith("http://127.0.0.1:") || targetUrl.startsWith("http://localhost:")) {
-              try {
-                const origin = new URL(targetUrl).origin
-                detectedApiOrigin = origin
-                if (typeof sessionStorage !== "undefined") sessionStorage.setItem("dsh_publisher_api_origin", origin)
-              } catch {}
+          // 1. 检查是否存在可见的登录二维码或登录表单框
+          const qrcode = document.querySelector('.qrcode, [class*="qrcode"], [class*="login-box"], [class*="login-container"], #login_container');
+          const hasQrcode = Boolean(qrcode && qrcode.offsetParent !== null);
+          const loginBox = document.querySelector('.login-form, form[action*="login"]');
+          const hasLoginBox = Boolean(loginBox && loginBox.offsetParent !== null);
+          if (hasQrcode || hasLoginBox) {
+            return { ok: false, reason: "仍处于登录二维码/表单展示中" };
+          }
+
+          // 2. 检查创作者核心功能与后台特征（铁证：发布笔记/笔记管理/创作者后台）
+          const bodyText = document.body ? document.body.innerText || "" : "";
+          const publishEl = document.querySelector('[class*="publish"], a[href*="publish"], a[href*="note-manager"]');
+          const hasPublishFeature = Boolean(
+            publishEl ||
+            bodyText.includes("发布笔记") ||
+            bodyText.includes("发布图文笔记") ||
+            bodyText.includes("创作服务平台") ||
+            bodyText.includes("Builder hub")
+          );
+
+          // 3. 提取创作者真实昵称
+          let userName = "";
+          const nameEl = document.querySelector('[class*="user-name"], [class*="name-box"], [class*="author-name"], [class*="creator-name"]');
+          if (nameEl && nameEl.innerText) {
+            userName = nameEl.innerText.trim();
+          }
+          if (!userName && bodyText) {
+            // 从后台名片区提取（如 "文映千秋学术win00cn 账号状态正常" 或 "关注数 粉丝数" 前的名称）
+            const cardMatch = bodyText.match(/([^\\n]+?)\\s*(?:[✔\\s]*账号状态正常|\\d+\\s*关注数|\\d+\\s*粉丝数)/);
+            if (cardMatch && cardMatch[1]) {
+              userName = cardMatch[1].replace(/创作服务平台/g, "").replace(/退出登录/g, "").trim();
             }
-            return res
           }
-          lastFailureRes = res
-          // 若为 404 或 401（被网关认证拦截）或 405（方法不支持），继续探测备用通道
-          if (res.status === 404 || res.status === 401 || res.status === 405) {
-            continue
+          if (!userName) {
+            try {
+              const uRaw = localStorage.getItem("USER_INFO") || localStorage.getItem("snsWebPublishCurrentUser");
+              if (uRaw) {
+                const parsed = JSON.parse(uRaw);
+                userName = parsed?.userName || parsed?.user?.value?.userName || parsed?.user?.userName || "";
+              }
+            } catch {}
           }
-          // 其他具体业务状态码（400 参数错、409 占用、500 异常）直接返回给调用方处理
-          return res
-        } catch (e) {
-          lastErr = e
+
+          // 4. 判定：只要包含创作者后台核心特征且无二维码，即判定为已授权成功
+          const isCreatorLogged = hasPublishFeature || Boolean(userName);
+          return {
+            ok: isCreatorLogged,
+            userName: userName || ""
+          };
+        } catch {
+          return { ok: false };
         }
-      }
-      if (lastFailureRes) return lastFailureRes
-      if (lastErr) throw lastErr
-      return await fetch(route, fetchOpts)
-    }
-
-    const CSS_ID = "dsh-social-publisher/settings.css"
-    const ACCOUNT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
-    const PROVIDER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/
-    const PLUGIN_DEFAULT_WORKSPACE = "D:\\666\\gzh\\dsh-plugin\\tasks\\default"
-    const LEGACY_DEFAULT_WORKSPACE = "d:/666/gzh/文映千秋学术网"
-    const PLATFORM_OPTIONS = [["gzh", "公众号"], ["zhihu", "知乎专栏"], ["xiaohongshu", "小红书"], ["baijiahao", "百家号"]]
-    const PUBLISH_MODE_OPTIONS = [
-      ["api", "官方 API 接口模式（需 AppID / Secret / IP 白名单）"],
-      ["browser", "免 API 浏览器模式（扫码登录，后台自动创建草稿）"],
-    ]
-    const EXPORT_SCOPE_OPTIONS = [
-      ["all", "全量配置（含账号、接口、排版、配图与运行设置）"],
-      ["accounts", "仅社媒账号档案（含各账号内容规则与品牌图）"],
-      ["image_providers", "仅 AI 生图接口池"],
-      ["visual_rules", "仅排版与配图视觉规范"],
-      ["runtime", "仅运行环境设置"],
-    ]
-
-    const Icons = {
-      feed: (size = 16, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2 }),
-        React.createElement("line", { x1: 7, y1: 8, x2: 17, y2: 8 }),
-        React.createElement("line", { x1: 7, y1: 12, x2: 14, y2: 12 }),
-        React.createElement("line", { x1: 7, y1: 16, x2: 11, y2: 16 }),
-      ),
-      history: (size = 14, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("circle", { cx: 12, cy: 12, r: 9 }),
-        React.createElement("polyline", { points: "12 7 12 12 15 15" }),
-      ),
-      users: (size = 14, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
-        React.createElement("circle", { cx: 9, cy: 7, r: 4 }),
-        React.createElement("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
-        React.createElement("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" }),
-      ),
-      rules: (size = 14, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("line", { x1: 4, y1: 21, x2: 4, y2: 14 }),
-        React.createElement("line", { x1: 4, y1: 10, x2: 4, y2: 3 }),
-        React.createElement("line", { x1: 12, y1: 21, x2: 12, y2: 12 }),
-        React.createElement("line", { x1: 12, y1: 8, x2: 12, y2: 3 }),
-        React.createElement("line", { x1: 20, y1: 21, x2: 20, y2: 16 }),
-        React.createElement("line", { x1: 20, y1: 12, x2: 20, y2: 3 }),
-        React.createElement("line", { x1: 1, y1: 14, x2: 7, y2: 14 }),
-        React.createElement("line", { x1: 9, y1: 8, x2: 15, y2: 8 }),
-        React.createElement("line", { x1: 17, y1: 16, x2: 23, y2: 16 }),
-      ),
-      image: (size = 14, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("rect", { x: 3, y: 3, width: 18, height: 18, rx: 2 }),
-        React.createElement("circle", { cx: 8.5, cy: 8.5, r: 1.5 }),
-        React.createElement("polyline", { points: "21 15 16 10 5 21" }),
-      ),
-      settings: (size = 14, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("circle", { cx: 12, cy: 12, r: 3 }),
-        React.createElement("path", { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" }),
-      ),
-      backup: (size = 14, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("polyline", { points: "21 8 21 21 3 21 3 8" }),
-        React.createElement("rect", { x: 1, y: 3, width: 22, height: 5 }),
-        React.createElement("line", { x1: 10, y1: 12, x2: 14, y2: 12 }),
-      ),
-      refresh: (size = 13, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("polyline", { points: "23 4 23 10 17 10" }),
-        React.createElement("polyline", { points: "1 20 1 14 7 14" }),
-        React.createElement("path", { d: "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" }),
-      ),
-      close: (size = 14, stroke = 2) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("line", { x1: 18, y1: 6, x2: 6, y2: 18 }),
-        React.createElement("line", { x1: 6, y1: 6, x2: 18, y2: 18 }),
-      ),
-      folder: (size = 13, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("path", { d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" }),
-      ),
-      search: (size = 13, stroke = 1.75) => React.createElement("svg", {
-        width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true",
-      },
-        React.createElement("circle", { cx: 11, cy: 11, r: 8 }),
-        React.createElement("line", { x1: 21, y1: 21, x2: 16.65, y2: 16.65 }),
-      ),
-    }
-
-    if (typeof document !== "undefined" && document.querySelector(`style[data-plugin-css="${CSS_ID}"]`) === null) {
-      const style = document.createElement("style")
-      style.dataset.plugin = "dsh-social-publisher"
-      style.dataset.pluginCss = CSS_ID
-      style.textContent = `
-        .gzhPage{box-sizing:border-box;display:flex;flex-direction:column;gap:18px;max-width:1080px;margin:0 auto;color:var(--dsw-alias-label-primary)}
-        .gzhPageHeader{display:flex;align-items:flex-start;gap:12px;min-width:0}
-        .gzhPageHeading{flex:1;min-width:0}
-        .gzhPageTitle{margin:0;font-size:18px;font-weight:600;line-height:1.4}
-        .gzhPageDescription{margin:4px 0 0;color:var(--dsw-alias-label-tertiary);font-size:13px;line-height:1.5}
-        .gzhTabs{display:inline-flex;align-items:center;gap:3px;padding:3px;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));border-radius:10px;background:var(--dsw-alias-bg-layer-2,#18181b);width:fit-content;max-width:100%;overflow-x:auto}
-        .gzhTab{appearance:none;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary,#a1a1aa);font:inherit;font-size:12.5px;font-weight:500;white-space:nowrap;cursor:pointer;padding:6px 12px;border-radius:7px;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
-        .gzhTab:hover{color:var(--dsw-alias-label-primary,#f4f4f5);background:var(--dsw-alias-bg-layer-3,rgba(255,255,255,.04))}
-        .gzhTab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
-        .gzhTabActive{color:var(--dsw-alias-label-primary,#ffffff);background:var(--dsw-alias-bg-layer-3,#27272a);border-color:var(--dsw-alias-border-l3,rgba(255,255,255,.12));box-shadow:0 1px 2px rgba(0,0,0,.15);font-weight:600}
-        .gzhSubTabs{display:inline-flex;gap:3px;padding:3px;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));border-radius:9px;background:var(--dsw-alias-bg-layer-2);width:fit-content;margin-bottom:8px}
-        .gzhSubTab{appearance:none;border:0;background:0 0;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;font-weight:500;white-space:nowrap;cursor:pointer;padding:5px 12px;border-radius:6px;transition:all .15s}
-        .gzhSubTab:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3)}
-        .gzhSubTabActive{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3);box-shadow:0 1px 2px rgba(0,0,0,.08);font-weight:600}
-        .gzhPanel{display:flex;flex-direction:column;gap:16px;min-width:0}
-        .gzhToolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:12px;border-bottom:.5px solid var(--dsw-alias-border-l2)}
-        .gzhSelectSmall{height:34px;min-width:190px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);border-radius:8px;font:inherit;font-size:13px}
-        .gzhButton{appearance:none;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.1));background:var(--dsw-alias-bg-layer-2,rgba(255,255,255,.03));color:var(--dsw-alias-label-secondary,#d4d4d8);border-radius:7px;padding:6px 12px;font:inherit;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
-        .gzhButton:hover:not(:disabled){color:var(--dsw-alias-label-primary,#ffffff);background:var(--dsw-alias-bg-layer-3,rgba(255,255,255,.07));border-color:var(--dsw-alias-border-l4,rgba(255,255,255,.2))}
-        .gzhButton:disabled{opacity:.4;cursor:default}
-        .gzhButtonPrimary{border-color:transparent;background:var(--dsw-alias-label-primary,#f4f4f5);color:var(--dsw-alias-bg-layer-1,#18181b);font-weight:600}
-        .gzhButtonPrimary:hover:not(:disabled){background:#ffffff;color:#000000}
-        .gzhAddRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .gzhAddInput{height:32px;min-width:170px;padding:0 9px;border:.5px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);border-radius:8px;font:inherit;font-size:12px}
-        .gzhSectionBar{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
-        .gzhSectionBarBody{min-width:0}
-        .gzhSurface{display:flex;flex-direction:column;gap:14px;padding:16px;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));border-radius:12px;background:var(--dsw-alias-bg-layer-3);box-shadow:0 1px 2px rgba(0,0,0,.03)}
-        .gzhSurfaceSoft{background:var(--dsw-alias-bg-layer-2)}
-        .gzhSurfaceHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:.5px solid var(--dsw-alias-border-l2)}
-        .gzhSurfaceHeaderBody{min-width:0}
-        .gzhPlatformGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:10px 0}
-        .gzhPlatformCard{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));border-radius:10px;background:var(--dsw-alias-bg-layer-3);cursor:pointer;transition:all .15s}
-        .gzhPlatformCard:hover{background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-border-l4,rgba(255,255,255,.2))}
-        .gzhPlatformCardActive{border-color:var(--dsw-alias-brand-primary,#3b82f6);background:var(--dsw-alias-bg-layer-2);box-shadow:0 0 0 1px var(--dsw-alias-brand-primary,#3b82f6)}
-        .gzhPlatformIcon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
-        .gzhPlatformTitle{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}
-        .gzhPlatformDesc{font-size:11px;color:var(--dsw-alias-label-tertiary);margin-top:2px}
-        .gzhAccountList{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));border-radius:12px;overflow:hidden;background:var(--dsw-alias-bg-layer-3)}
-        .gzhAccountRow{display:grid;grid-template-columns:minmax(180px,1fr) minmax(130px,.7fr) auto;align-items:center;gap:16px;padding:12px 16px;border:0;border-bottom:.5px solid var(--dsw-alias-border-l2);background:transparent;color:inherit;text-align:left;transition:background .15s}
-        .gzhAccountRow:last-child{border-bottom:0}
-        .gzhAccountRow:hover{background:var(--dsw-alias-bg-layer-2)}
-        .gzhAccountRowActive{background:var(--dsw-alias-bg-layer-2);box-shadow:inset 3px 0 0 var(--dsw-alias-brand-primary)}
-        .gzhAccountMain{min-width:0;cursor:pointer}
-        .gzhAccountName{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;font-weight:600}
-        .gzhAccountNameText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .gzhAccountId{margin-top:3px;color:var(--dsw-alias-label-tertiary);font-size:11px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .gzhAccountStatus{display:flex;align-items:center;gap:7px;color:var(--dsw-alias-label-secondary);font-size:12px}
-        .gzhAccountSwitch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:4px 8px;margin:-4px -8px;border-radius:8px;transition:background .15s}
-        .gzhAccountSwitch:hover{background:var(--dsw-alias-bg-layer-2)}
-        .gzhAccountSwitchDisabled{opacity:.5;cursor:not-allowed;pointer-events:none}
-        .gzhAccountSwitchLabel{font-size:12px;color:var(--dsw-alias-label-secondary);transition:color .15s}
-        .gzhAccountSwitchLabelActive{color:var(--dsw-alias-brand-primary);font-weight:500}
-        .gzhStatusDot{width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-label-tertiary);display:inline-block;flex:none}
-        .gzhStatusDotOn{background:#10b981}
-        .gzhStatusDotWarn{background:#f59e0b}
-        .gzhBadge{display:inline-flex;align-items:center;border-radius:6px;padding:2px 6px;background:var(--dsw-alias-bg-layer-4);color:var(--dsw-alias-label-secondary);font-size:10.5px;font-weight:500;white-space:nowrap}
-        .gzhAccountActions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
-        .gzhConfigList{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));border-radius:12px;overflow:hidden;background:var(--dsw-alias-bg-layer-3)}
-        .gzhConfigRow{display:grid;grid-template-columns:minmax(180px,1fr) minmax(160px,.8fr) auto;align-items:center;gap:16px;padding:12px 16px;border-bottom:.5px solid var(--dsw-alias-border-l2);transition:background .15s}
-        .gzhConfigRow:last-child{border-bottom:0}
-        .gzhConfigRow:hover{background:var(--dsw-alias-bg-layer-2)}
-        .gzhConfigRowActive{background:var(--dsw-alias-bg-layer-2);box-shadow:inset 3px 0 0 var(--dsw-alias-brand-primary)}
-        .gzhConfigMain{min-width:0;cursor:pointer}
-        .gzhConfigTitle{display:flex;align-items:center;gap:7px;min-width:0;font-size:13px;font-weight:600}
-        .gzhConfigTitleText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .gzhConfigMeta{margin-top:3px;color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .gzhConfigStatus{display:flex;align-items:center;gap:7px;color:var(--dsw-alias-label-secondary);font-size:12px}
-        .gzhConfigActions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
-        .gzhProviderTest{grid-column:1/-1;display:flex;align-items:flex-start;gap:12px;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2)}
-        .gzhProviderTestPreview{width:180px;height:76px;object-fit:contain;border:.5px solid var(--dsw-alias-border-l2);border-radius:8px;background:var(--dsw-alias-bg-layer-4)}
-        .gzhProviderTestInfo{min-width:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5}
-        .gzhProviderTestSuccess{color:var(--dsw-alias-label-success)}
-        .gzhProviderTestError{color:var(--dsw-alias-label-error)}
-        .gzhPanelHeader{padding-bottom:12px;border-bottom:.5px solid var(--dsw-alias-border-l2)}
-        .gzhSectionTitle{margin:0;font-size:14px;font-weight:600;line-height:1.5;letter-spacing:-0.01em}
-        .gzhSectionHint{margin:4px 0 0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.5}
-        .gzhGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}
-        .gzhField{display:flex;flex-direction:column;gap:5px;min-width:0}
-        .gzhFieldWide{grid-column:1/-1}
-        .gzhLabel{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:500;line-height:1.5}
-        .gzhOverride{color:var(--dsw-alias-brand-primary);font-size:11px}
-        .gzhReset{margin-left:auto;appearance:none;border:0;background:0 0;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;cursor:pointer;padding:0}
-        .gzhReset:hover{color:var(--dsw-alias-label-primary)}
-        .gzhInput,.gzhSelect,.gzhTextarea{box-sizing:border-box;width:100%;border:.5px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);border-radius:8px;font:inherit;font-size:13px}
-        .gzhInput,.gzhSelect{height:34px;padding:0 10px}
-        .gzhTextarea{min-height:68px;resize:vertical;padding:8px 10px}
-        .gzhInput:focus-visible,.gzhSelect:focus-visible,.gzhTextarea:focus-visible{border-color:var(--dsw-alias-brand-primary);outline:none}
-        .gzhInputInvalid{border-color:var(--dsw-alias-label-error)}
-        .gzhHint{margin:0;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:1.5}
-        .gzhInvalid{margin:0;color:var(--dsw-alias-label-error);font-size:12px;line-height:1.5}
-        .gzhToggleRow{display:flex;align-items:center;gap:10px;min-height:34px}
-        .gzhSwitch{appearance:none;width:34px;height:20px;border-radius:999px;background:var(--dsw-alias-bg-layer-4);position:relative;cursor:pointer;flex:none;border:.5px solid var(--dsw-alias-border-l4)}
-        .gzhSwitch:disabled{cursor:not-allowed;opacity:.5}
-        .gzhSwitch::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:var(--dsw-alias-label-primary);top:2px;left:2px;transition:transform .16s}
-        .gzhSwitch:checked{background:var(--dsw-alias-brand-primary)}
-        .gzhSwitch:checked::after{transform:translateX(14px);background:var(--dsw-alias-bg-layer-3)}
-        .gzhUpload{display:flex;align-items:center;gap:14px;padding:13px;border:1px dashed var(--dsw-alias-border-l4);border-radius:12px;background:var(--dsw-alias-bg-layer-3);min-width:0}
-        .gzhUploadActive{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-2)}
-        .gzhPreview{width:148px;height:88px;flex:none;border-radius:8px;background:var(--dsw-alias-bg-layer-4);object-fit:contain;border:.5px solid var(--dsw-alias-border-l2)}
-        .gzhPreviewMissing{display:flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-tertiary);font-size:12px}
-        .gzhUploadBody{display:flex;flex:1;flex-direction:column;gap:7px;min-width:0}
-        .gzhUploadActions{display:flex;gap:8px;flex-wrap:wrap}
-        .gzhProgress{height:5px;border-radius:999px;background:var(--dsw-alias-bg-layer-4);overflow:hidden}
-        .gzhProgressBar{height:100%;background:var(--dsw-alias-brand-primary);transition:width .15s}
-        .gzhUploadError{color:var(--dsw-alias-label-error);font-size:12px;line-height:1.5}
-        .gzhFooter{position:sticky;bottom:0;z-index:10;border-top:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));background:color-mix(in srgb,var(--dsw-alias-bg-layer-1,#18181b) 95%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);justify-content:space-between;align-items:center;padding:10px 18px;display:flex;border-bottom-left-radius:16px;border-bottom-right-radius:16px}
-        .gzhFailed{min-width:0;color:var(--dsw-alias-label-error);flex:1;margin:0;font-size:12px;line-height:1.5}
-        .gzhSuccess{min-width:0;color:var(--dsw-alias-label-success,#10b981);flex:1;margin:0;font-size:12px;line-height:1.5;font-weight:500}
-        .gzhDiscard,.gzhSave{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:7px;padding:5px 14px;font-size:12.5px;font-weight:500;transition:all .15s}
-        .gzhDiscard{border-color:var(--dsw-alias-border-l2,rgba(255,255,255,.1));color:var(--dsw-alias-label-secondary);background:transparent}
-        .gzhDiscard:hover:not(:disabled){color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3)}
-        .gzhSave{background:var(--dsw-alias-label-primary,#f4f4f5);color:var(--dsw-alias-bg-layer-1,#18181b);font-weight:600}
-        .gzhSave:hover:not(:disabled){background:#ffffff;color:#000000}
-        .gzhDiscard:disabled,.gzhSave:disabled{opacity:.4;cursor:default}
-        .gzhStatGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-        .gzhStatCard{display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-2)}
-        .gzhStatNumber{font-size:20px;font-weight:700;line-height:1.2;color:var(--dsw-alias-brand-primary)}
-        .gzhStatLabel{font-size:12px;color:var(--dsw-alias-label-tertiary)}
-        .gzhHistoryToolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-bottom:12px;border-bottom:.5px solid var(--dsw-alias-border-l2)}
-        .gzhHistoryToolbarLeft{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1}
-        .gzhSearchInput{height:34px;flex:1;min-width:180px;max-width:300px;padding:0 10px;border:.5px solid var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);border-radius:8px;font:inherit;font-size:13px}
-        .gzhBatchList{display:flex;flex-direction:column;gap:14px}
-        .gzhBatchCard{display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-layer-3);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.03)}
-        .gzhBatchHeader{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px 16px;background:var(--dsw-alias-bg-layer-2);border-bottom:.5px solid var(--dsw-alias-border-l2)}
-        .gzhBatchHeaderLeft{display:flex;flex-direction:column;gap:5px;min-width:0}
-        .gzhBatchTitleRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .gzhBatchAccountName{font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary)}
-        .gzhBatchTime{font-size:12px;color:var(--dsw-alias-label-tertiary)}
-        .gzhBatchMediaId{font-size:11px;color:var(--dsw-alias-label-tertiary);font-family:ui-monospace,SFMono-Regular,Consolas,monospace;word-break:break-all}
-        .gzhBatchArticleList{display:flex;flex-direction:column}
-        .gzhArticleRow{display:flex;flex-direction:column;gap:6px;padding:12px 16px;border-bottom:.5px solid var(--dsw-alias-border-l2)}
-        .gzhArticleRow:last-child{border-bottom:0}
-        .gzhArticleTop{display:flex;align-items:flex-start;gap:10px;justify-content:space-between}
-        .gzhArticleTitleWrap{display:flex;align-items:flex-start;gap:8px;min-width:0;flex:1}
-        .gzhArticleSeq{flex:none;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--dsw-alias-bg-layer-4);color:var(--dsw-alias-label-secondary);font-size:11px;font-weight:600;margin-top:1px}
-        .gzhArticleTitleText{font-size:13px;font-weight:500;line-height:1.5;color:var(--dsw-alias-label-primary)}
-        .gzhArticleDigest{margin:0;padding:8px 12px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);font-size:12px;color:var(--dsw-alias-label-secondary);line-height:1.6}
-        .gzhArticleLink{color:var(--dsw-alias-brand-primary);text-decoration:none;font-size:12px;white-space:nowrap;margin-left:auto}
-        .gzhArticleLink:hover{text-decoration:underline}
-        .gzhEmptyState{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 16px;color:var(--dsw-alias-label-tertiary);text-align:center;gap:8px}
-        .gzhEmptyTitle{font-size:14px;font-weight:600;color:var(--dsw-alias-label-secondary)}
-        .gzhExportSummary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:var(--dsw-alias-bg-layer-2);border-radius:10px;border:1px solid var(--dsw-alias-border-l2);font-size:12px;color:var(--dsw-alias-label-secondary)}
-        .gzhSecurityCard{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 16px;border-radius:10px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2)}
-        .gzhStrategyGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-        .gzhStrategyCard{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border:1.5px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;transition:border-color .15s,background .15s;text-align:left}
-        .gzhStrategyCard:hover{border-color:var(--dsw-alias-border-l4);background:var(--dsw-alias-bg-layer-4)}
-        .gzhStrategyCardActive{border-color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 6%,var(--dsw-alias-bg-layer-3));box-shadow:0 0 0 1px var(--dsw-alias-brand-primary)}
-        .gzhStrategyTitleRow{display:flex;align-items:center;justify-content:space-between;gap:8px}
-        .gzhStrategyTitle{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);white-space:nowrap}
-        .gzhStrategyDesc{font-size:12px;color:var(--dsw-alias-label-tertiary);line-height:1.5;margin:0}
-        .gzhModeTabs{display:inline-flex;gap:4px;padding:3px;border-radius:9px;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);width:fit-content}
-        .gzhModeTab{appearance:none;border:0;background:transparent;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:500;color:var(--dsw-alias-label-secondary);cursor:pointer;transition:all .15s}
-        .gzhModeTab:hover{color:var(--dsw-alias-label-primary)}
-        .gzhModeTabActive{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);box-shadow:0 1px 3px rgba(0,0,0,.08);font-weight:600}
-        .gzhDropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:32px 16px;border:1.5px dashed var(--dsw-alias-border-l4);border-radius:12px;background:var(--dsw-alias-bg-layer-2);cursor:pointer;transition:border-color .15s,background .15s;text-align:center}
-        .gzhDropzone:hover{border-color:var(--dsw-alias-brand-primary);background:var(--dsw-alias-bg-layer-4)}
-        .gzhDropzoneActive{border-color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 6%,var(--dsw-alias-bg-layer-3))}
-        .gzhDropzoneText{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}
-        .gzhDropzoneSub{font-size:12px;color:var(--dsw-alias-label-tertiary)}
-        .gzhFilePill{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-layer-2)}
-        .gzhFilePillInfo{display:flex;align-items:center;gap:10px;min-width:0}
-        .gzhFileName{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .gzhFileSize{font-size:11px;color:var(--dsw-alias-label-tertiary)}
-        .gzhPreviewArea{display:flex;flex-direction:column;gap:12px;padding:14px 16px;border:1px solid var(--dsw-alias-border-l2);border-radius:12px;background:var(--dsw-alias-bg-layer-2)}
-        .gzhPreviewSummaryGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-        .gzhPreviewSummaryItem{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-3);padding:8px 12px;border-radius:8px;border:.5px solid var(--dsw-alias-border-l2)}
-        .gzhCodePreview{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;line-height:1.5;background:var(--dsw-alias-bg-layer-2);padding:14px;border-radius:10px;border:1px solid var(--dsw-alias-border-l2);max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
-        .gzhNoticeBox{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;background:var(--dsw-alias-bg-layer-4);border:1px solid var(--dsw-alias-border-l2);font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary)}
-        .gzhSuccessBox{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-label-success) 10%,transparent);border:1px solid color-mix(in srgb,var(--dsw-alias-label-success) 35%,transparent);color:var(--dsw-alias-label-success);font-size:12px;line-height:1.6}
-        @media (max-width:620px){.gzhPage{gap:14px}.gzhGrid{grid-template-columns:1fr}.gzhStrategyGrid{grid-template-columns:1fr}.gzhPreviewSummaryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.gzhFieldWide{grid-column:auto}.gzhUpload{align-items:flex-start;flex-direction:column}.gzhPreview{width:100%;height:140px}.gzhSectionBar,.gzhSurfaceHeader{align-items:stretch;flex-direction:column}.gzhAccountRow,.gzhConfigRow{grid-template-columns:1fr}.gzhAccountStatus,.gzhConfigStatus{grid-column:1}.gzhAccountActions,.gzhConfigActions{grid-column:1;grid-row:auto;justify-content:flex-start}.gzhSurface{padding:14px}.gzhStatGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.gzhBatchHeader{flex-direction:column}.gzhHistoryToolbar{flex-direction:column;align-items:stretch}}
-        .gzhCardModalBackdrop{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px;animation:gzhFadeIn .18s cubic-bezier(.16,1,.3,1)}
-        .gzhCardModalContainer{box-sizing:border-box;background:var(--dsw-alias-bg-layer-1,#18181b);border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.1));border-radius:16px;box-shadow:0 24px 64px -12px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.05);width:100%;max-width:1140px;height:88vh;max-height:900px;display:flex;flex-direction:column;overflow:hidden;animation:gzhScaleIn .2s cubic-bezier(.16,1,.3,1)}
-        .gzhCardPage{box-sizing:border-box;background:var(--dsw-alias-bg-layer-1,#18181b);border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.1));border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);width:100%;max-width:1140px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden}
-        .gzhCardEmbed{box-sizing:border-box;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l2);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
-        @keyframes gzhFadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes gzhScaleIn{from{opacity:0;transform:scale(.97) translateY(6px)}to{opacity:1;transform:scale(1) translateY(0)}}
-        .gzhCardHeader{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;background:var(--dsw-alias-bg-layer-2,#1f1f23);border-bottom:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));flex-wrap:wrap}
-        .gzhCardHeaderMain{display:flex;align-items:center;gap:12px;min-width:0;flex:1}
-        .gzhCardIcon{width:36px;height:36px;border-radius:8px;background:var(--dsw-alias-bg-layer-3,#27272a);border:1px solid var(--dsw-alias-border-l3,rgba(255,255,255,.1));display:flex;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-primary,#f4f4f5)}
-        .gzhCardHeading{display:flex;flex-direction:column;gap:3px;min-width:0}
-        .gzhCardTitleRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .gzhCardTitle{margin:0;font-size:15px;font-weight:600;letter-spacing:-0.01em;line-height:1.3;color:var(--dsw-alias-label-primary)}
-        .gzhCardVersion{font-size:11px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;padding:1px 6px;border-radius:5px;background:var(--dsw-alias-bg-layer-3,rgba(255,255,255,.06));color:var(--dsw-alias-label-tertiary,#a1a1aa);border:1px solid var(--dsw-alias-border-l1,rgba(255,255,255,.06))}
-        .gzhDirtyTag{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:5px;font-size:11px;font-weight:500;background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25)}
-        .gzhCardDescription{margin:0;font-size:12px;color:var(--dsw-alias-label-tertiary,#71717a);line-height:1.4}
-        .gzhCardHeaderActions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-        .gzhCardStatusCluster{display:inline-flex;align-items:center;border-radius:7px;background:var(--dsw-alias-bg-layer-3,rgba(255,255,255,.04));border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));overflow:hidden;font-size:11.5px;color:var(--dsw-alias-label-secondary)}
-        .gzhCardStatusItem{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;white-space:nowrap}
-        .gzhCardStatusItem+.gzhCardStatusItem{border-left:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08))}
-        .gzhCardCloseBtn{appearance:none;border:1px solid var(--dsw-alias-border-l2,rgba(255,255,255,.08));background:transparent;color:var(--dsw-alias-label-secondary);border-radius:7px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
-        .gzhCardCloseBtn:hover{background:var(--dsw-alias-bg-layer-4,rgba(255,255,255,.08));color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l4)}
-        .gzhCardBody{flex:1;min-height:0;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:16px}
-        .gzhTabBarWrapper{padding:10px 20px 0;background:var(--dsw-alias-bg-layer-1,#18181b)}
-        .gzhFooterStatus{display:flex;align-items:center;gap:12px;flex:1;min-width:0;flex-wrap:wrap}
-        .gzhFooterTag{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dsw-alias-label-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:480px}
-        .gzhSidebarFooterBtn{appearance:none;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:8px;font:inherit;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;width:100%}
-        .gzhSidebarFooterBtn:hover{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l2)}
-        .gzhSidebarFooterBtnActive{background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l4)}
-        .gzhSidebarFooterLabel{flex:1;text-align:left}
-        .gzhSessionHeaderBtn{appearance:none;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);border-radius:7px;padding:4px 10px;font:inherit;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all .15s}
-        .gzhSessionHeaderBtn:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-3);border-color:var(--dsw-alias-border-l4)}
-        .gzhSessionHeaderBtnActive{color:var(--dsw-alias-label-primary);border-color:var(--dsw-alias-border-l4)}
-      `
-      document.head.appendChild(style)
-    }
-
-    const THEMES = [
-      ["wenying", "文映学术（品牌专属）"],
-      ["olive", "橄榄手记"],
-      ["graphite", "石墨极简"],
-      ["moyu", "摸鱼绿"],
-      ["redwhite", "红白色系"],
-      ["zen", "留白禅意"],
-    ]
-    const COVER_PIXELS = { "2.35:1": "3520×1498", "21:9": "3520×1500", "16:9": "3024×1701", "1:1": "1920×1920", "3:4": "1080×1440" }
-    const RATIOS = Object.entries(COVER_PIXELS).map(([value, pixels]) => [value, value + "（" + pixels + "）"])
-    const SECONDARY_RATIOS = RATIOS.filter(([value]) => value !== "2.35:1")
-    const ARTICLE_TYPE_OPTIONS = [
-      ["news", "公众号长文（经典多图文合辑）"],
-      ["newspic", "小绿书图片消息（3:4 竖版轮播卡片）"],
-      ["both", "长文 + 小绿书同步更新（一文双发）"],
-    ]
-    const NEWSPIC_RATIOS = [
-      ["3:4", "3:4（1080×1440 竖版卡片·推荐）"],
-      ["1:1", "1:1（1920×1920 方图）"],
-      ["16:9", "16:9（3024×1701 横版）"],
-    ]
-    const IMAGE_FITS = [["contain", "完整显示"], ["cover", "裁切铺满"], ["fill", "拉伸填满"]]
-    const IMAGE_POSITIONS = [["top", "顶部"], ["center", "居中"], ["bottom", "底部"]]
-    const DEFAULT_TOPICS = ["期刊发表", "专著出版", "论文发表", "专利申办", "国际刊", "SCI", "EI", "职称评审"]
-    const DEFAULT_FORBIDDEN = ["查重", "降重", "检测", "论文检测中心", "AIGC查降重", "撤稿", "学术不端", "倒查", "论文工厂", "学术打假"]
-    const DEFAULT_BRAND_HEADER = {
-      enabled: true, file: "brand_top.jpg", width: 100, height: 0,
-      fit: "contain", position: "center", radius: 0,
-      margin_top: 0, margin_bottom: 0, frame: false,
-    }
-    const DEFAULT_BRAND_FOOTER = {
-      enabled: true, file: "brand_bot.jpg", width: 0, height: 0,
-      fit: "contain", position: "center", radius: 0,
-      margin_top: 20, margin_bottom: 0, frame: false,
-    }
-    const DEFAULT_ACCOUNT = {
-      platform: "gzh",
-      publish_mode: "api",
-      name: "默认账号",
-      enabled: true,
-      appid: "",
-      app_secret: "",
-      author_name: "文映学术win00.cn",
-      brand_name: "文映千秋学术网",
-      publish_immediately: false,
-      auto_enable_original: false,
-      content: {
-        article_type: "news",
-        sync_newspic: false,
-        articles_per_day: 6,
-        newspic_articles_per_day: 1,
-        min_words: 2000,
-        topics: DEFAULT_TOPICS,
-        forbidden_words: DEFAULT_FORBIDDEN,
-        ending_guide_required: true,
-        newspic_images_per_article: 4,
-        newspic_image_ratio: "3:4",
-        newspic_min_words: 100,
-        headline_theme: "wenying",
-        secondary_theme: "rotate",
-        font_size: "13px",
-        line_height: "20px",
-        paragraph_margin: "25px",
-        text_indent: "2em",
-        headline_cover_ratio: "2.35:1",
-        secondary_cover_ratio: "1:1",
-        content_images_per_article: 2,
-        image_lang_zh_only: true,
-      },
-      brand_images: {
-        header: DEFAULT_BRAND_HEADER,
-        footer: DEFAULT_BRAND_FOOTER,
-      },
-    }
-    const DEFAULT_PROVIDER = {
-      enabled: true,
-      name: "默认生图接口",
-      base_url: "https://api.a6api.com",
-      api_key: "",
-      model: "gpt-image-2",
-      priority: 0,
-    }
-
-    function clone(value) {
-      if (value === null || typeof value !== "object") return value
-      try {
-        return JSON.parse(JSON.stringify(value))
-      } catch {
-        return Object.assign({}, value)
-      }
-    }
-
-    function getAt(value, path) {
-      let current = value
-      for (const key of path) {
-        if (current === null || typeof current !== "object") return undefined
-        current = current[key]
-      }
-      return current
-    }
-
-    function hasAt(value, path) {
-      if (!value || typeof value !== "object") return false
-      let current = value
-      for (const key of path) {
-        if (current === null || typeof current !== "object" || !Object.prototype.hasOwnProperty.call(current, key)) return false
-        current = current[key]
-      }
-      return true
-    }
-
-    function setAt(obj, path, val) {
-      if (!obj || typeof obj !== "object") return
-      let cur = obj
-      for (let i = 0; i < path.length - 1; i++) {
-        const seg = path[i]
-        if (cur[seg] === null || typeof cur[seg] !== "object") cur[seg] = {}
-        cur = cur[seg]
-      }
-      cur[path[path.length - 1]] = val
-    }
-
-    function deleteAt(obj, path) {
-      if (!obj || typeof obj !== "object") return
-      let cur = obj
-      for (let i = 0; i < path.length - 1; i++) {
-        const seg = path[i]
-        if (cur[seg] === null || typeof cur[seg] !== "object") return
-        cur = cur[seg]
-      }
-      delete cur[path[path.length - 1]]
-    }
-
-    function parseNumber(text) {
-      const trimmed = text.trim()
-      if (trimmed === "") return { reset: true }
-      const value = Number(trimmed)
-      return Number.isFinite(value) ? { value } : { invalid: true }
-    }
-
-    function linesText(value) {
-      return Array.isArray(value) ? value.join("\n") : ""
-    }
-
-    function parseLines(text) {
-      if (typeof text !== "string") return []
-      return text
-        .split(/[\r\n]+|[，,]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-    }
-
-    function hasRealAccountsClient(accs) {
-      if (!accs || typeof accs !== "object") return false
-      const vals = Object.values(accs)
-      if (vals.length === 0) return false
-      if (vals.length > 1) return true
-      const first = vals[0]
-      if (!first) return false
-      return Boolean(
-        first.appid ||
-        first.app_secret ||
-        (first.name && first.name !== "默认账号" && first.name !== "未命名账号") ||
-        first.platform === "zhihu" ||
-        first.platform === "xiaohongshu" ||
-        first.platform === "baijiahao" ||
-        first.publish_mode === "browser" ||
-        (first.author_name && first.author_name !== "文映学术win00.cn") ||
-        (first.brand_name && first.brand_name !== "文映千秋学术网")
-      )
-    }
-
-    function hasRealProvidersClient(provs) {
-      if (!provs || typeof provs !== "object") return false
-      const vals = Object.values(provs)
-      if (vals.length === 0) return false
-      if (vals.length > 1) return true
-      const first = vals[0]
-      if (!first) return false
-      return Boolean(
-        first.api_key ||
-        (first.name && first.name !== "默认生图接口" && first.name !== "未命名接口" && first.name !== "生图接口") ||
-        (first.base_url && first.base_url !== "https://api.a6api.com")
-      )
-    }
-
-    const LOCAL_CONFIG_CACHE_KEY = "dsh_social_publisher_cached_config_v2"
-
-    function readLocalConfigCache() {
-      try {
-        if (typeof localStorage !== "undefined") {
-          const text = localStorage.getItem(LOCAL_CONFIG_CACHE_KEY)
-          if (text) {
-            const parsed = JSON.parse(text)
-            if (parsed && typeof parsed === "object") return parsed
-          }
-        }
-      } catch {}
-      return null
-    }
-
-    function writeLocalConfigCache(val) {
-      try {
-        if (typeof localStorage !== "undefined" && val && typeof val === "object") {
-          localStorage.setItem(LOCAL_CONFIG_CACHE_KEY, JSON.stringify(val))
-        }
-      } catch {}
-    }
-
-    function normalizeValue(raw) {
-      const value = raw && typeof raw === "object" ? clone(raw) : {}
-      value.runtime = { ...(value.runtime ?? {}) }
-      const projectRoot = String(value.runtime.project_root ?? "").trim().replace(/\\/g, "/").replace(/\/$/, "").toLowerCase()
-      if (projectRoot === LEGACY_DEFAULT_WORKSPACE) value.runtime.project_root = ""
-      const accounts = (value.accounts && typeof value.accounts === "object" && !Array.isArray(value.accounts))
-        ? { ...value.accounts }
-        : {}
-      if (Object.keys(accounts).length === 0) {
-        const cached = readLocalConfigCache()
-        if (cached && cached.accounts && Object.keys(cached.accounts).length > 0) {
-          Object.assign(accounts, clone(cached.accounts))
-        } else {
-          const legacy = value.wechat ?? {}
-          accounts.default = {
-            ...clone(DEFAULT_ACCOUNT),
-            name: "默认账号",
-            appid: legacy.appid ?? "",
-            app_secret: legacy.app_secret ?? "",
-            author_name: legacy.author_name ?? DEFAULT_ACCOUNT.author_name,
-            brand_name: legacy.brand_name ?? DEFAULT_ACCOUNT.brand_name,
-            content: { ...clone(DEFAULT_ACCOUNT.content), ...(value.content ?? {}) },
-            brand_images: {
-              header: { ...clone(DEFAULT_BRAND_HEADER), ...(value.brand_images?.header ?? {}) },
-              footer: { ...clone(DEFAULT_BRAND_FOOTER), ...(value.brand_images?.footer ?? {}) },
-            },
-          }
-        }
-      }
-      const providers = (value.image_providers && typeof value.image_providers === "object" && !Array.isArray(value.image_providers))
-        ? { ...value.image_providers }
-        : {}
-      if (Object.keys(providers).length === 0) {
-        const cached = readLocalConfigCache()
-        if (cached && cached.image_providers && Object.keys(cached.image_providers).length > 0) {
-          Object.assign(providers, clone(cached.image_providers))
-        } else {
-          providers.default = {
-            ...clone(DEFAULT_PROVIDER),
-            base_url: value.image_api?.base_url ?? DEFAULT_PROVIDER.base_url,
-            api_key: value.image_api?.api_key ?? "",
-            model: value.image_api?.model ?? DEFAULT_PROVIDER.model,
-          }
-        }
-      }
-      if (!accounts[value.default_account]) {
-        value.default_account = Object.keys(accounts).find((id) => accounts[id]?.enabled) ?? Object.keys(accounts)[0] ?? "default"
-      }
-      for (const [id, acc] of Object.entries(accounts)) {
-        if (!acc || typeof acc !== "object") continue
-        acc.platform = acc.platform === "zhihu" ? "zhihu" : acc.platform === "xiaohongshu" ? "xiaohongshu" : acc.platform === "baijiahao" ? "baijiahao" : "gzh"
-        acc.publish_mode = acc.publish_mode === "browser" ? "browser" : (acc.platform === "xiaohongshu" || acc.platform === "zhihu" || acc.platform === "baijiahao" ? "browser" : "api")
-        acc.publish_immediately = Boolean(acc.publish_immediately)
-        acc.auto_enable_original = acc.platform === "gzh" && (acc.auto_enable_original === true || (acc.auto_enable_original === undefined && value.wechat?.auto_enable_original === true))
-        if (acc.platform === "xiaohongshu") {
-          acc.publish_mode = "browser"
-          acc.auto_enable_original = false
-          acc.content = {
-            ...clone(DEFAULT_ACCOUNT.content),
-            ...(value.content ?? {}),
-            ...(acc.content ?? {}),
-            articles_per_day: Number.isFinite(acc.content?.articles_per_day) ? Number(acc.content.articles_per_day) : 1,
-            headline_cover_ratio: acc.content?.headline_cover_ratio || "3:4",
-            secondary_cover_ratio: acc.content?.secondary_cover_ratio || "3:4",
-            xhs_images_per_note: Number.isFinite(acc.content?.xhs_images_per_note) ? Number(acc.content.xhs_images_per_note) : 4,
-            xhs_min_words: Number.isFinite(acc.content?.xhs_min_words) ? Number(acc.content.xhs_min_words) : 200,
-            xhs_tags: Array.isArray(acc.content?.xhs_tags)
-              ? acc.content.xhs_tags
-              : (typeof acc.content?.xhs_tags === "string" && acc.content.xhs_tags
-                ? acc.content.xhs_tags.split(/[\r\n,]+/).map((s) => s.trim()).filter(Boolean)
-                : []),
-            image_lang_zh_only: acc.content?.image_lang_zh_only ?? value.image_api?.image_lang_zh_only ?? true,
-          }
-        } else {
-          acc.content = {
-            ...clone(DEFAULT_ACCOUNT.content),
-            ...(value.content ?? {}),
-            ...(acc.content ?? {}),
-            headline_theme: acc.content?.headline_theme ?? value.typography?.headline_theme ?? "wenying",
-            secondary_theme: acc.content?.secondary_theme ?? value.typography?.secondary_theme ?? "rotate",
-            font_size: acc.content?.font_size ?? value.typography?.font_size ?? "13px",
-            line_height: acc.content?.line_height ?? value.typography?.line_height ?? "20px",
-            paragraph_margin: acc.content?.paragraph_margin ?? value.typography?.paragraph_margin ?? "25px",
-            text_indent: acc.content?.text_indent ?? value.typography?.text_indent ?? "2em",
-            headline_cover_ratio: acc.content?.headline_cover_ratio ?? value.image_api?.headline_cover_ratio ?? (acc.platform === "zhihu" ? "16:9" : "2.35:1"),
-            secondary_cover_ratio: acc.content?.secondary_cover_ratio ?? value.image_api?.secondary_cover_ratio ?? (acc.platform === "zhihu" ? "16:9" : "1:1"),
-            content_images_per_article: Number.isFinite(acc.content?.content_images_per_article)
-              ? Number(acc.content.content_images_per_article)
-              : (Number.isFinite(value.image_api?.content_images_per_article) ? Number(value.image_api.content_images_per_article) : 2),
-            image_lang_zh_only: acc.content?.image_lang_zh_only ?? value.image_api?.image_lang_zh_only ?? true,
-          }
-        }
-        acc.brand_images = {
-          header: { ...clone(DEFAULT_BRAND_HEADER), ...(value.brand_images?.header ?? {}), ...(acc.brand_images?.header ?? {}) },
-          footer: { ...clone(DEFAULT_BRAND_FOOTER), ...(value.brand_images?.footer ?? {}), ...(acc.brand_images?.footer ?? {}) },
-        }
-      }
-      const normalizedResult = { ...value, accounts, image_providers: providers }
-      if (hasRealAccountsClient(accounts) || hasRealProvidersClient(providers)) {
-        writeLocalConfigCache(normalizedResult)
-      }
-      return normalizedResult
-    }
-
-    function pathKey(path) {
-      return path.join(".")
-    }
-
-    function apply(ctx) {
-      let scope = null
-      try {
-        const softGet = (name) => (typeof ctx?.get === "function" ? ctx.get(name) : undefined)
-        const forms = softGet("configForms")
-        if (forms !== void 0) {
-          let ns = NS
-          try {
-            const served = (forms.describe?.().getSnapshot?.().view?.namespaces ?? []).find(
-              (entry) => entry.ns === NS || new RegExp(NS, "i").test(entry.ns)
-            )
-            if (served !== void 0) ns = served.ns
-          } catch {}
-          try {
-            scope = forms.get(ns)
-          } catch (err) {
-            console.warn("[dsh-social-publisher] Failed to get scope from configForms:", err)
-          }
-        }
-        if (!scope) {
-          const settingsScopeService = softGet("settingsScope")
-          if (settingsScopeService && typeof settingsScopeService.bind === "function") {
-            scope = settingsScopeService.bind({ namespace: NS })
-          }
-        }
-      } catch (err) {
-        console.warn("[dsh-social-publisher] Failed to bind settings scope:", err)
-      }
-
-      function resolveCurrentScope(propsScope) {
-        if (propsScope && typeof propsScope.getSnapshot === "function") return propsScope
+      })()
+    `)}catch{return{ok:false}}}async function injectWechatPermissionsShield(webview){if(!webview||!webview.executeJavaScript)return false;try{return await webview.executeJavaScript(`
+      (() => {
         try {
-          const softGet = (name) => (typeof ctx?.get === "function" ? ctx.get(name) : undefined)
-          const forms = softGet("configForms")
-          if (forms !== void 0) {
-            let ns = NS
-            try {
-              const served = (forms.describe?.().getSnapshot?.().view?.namespaces ?? []).find(
-                (entry) => entry.ns === NS || new RegExp(NS, "i").test(entry.ns)
-              )
-              if (served !== void 0) ns = served.ns
-            } catch {}
-            try {
-              const found = forms.get(ns)
-              if (found) return found
-            } catch {}
+          if (window.__wincode_wechat_shield_injected) return true;
+          window.__wincode_wechat_shield_injected = true;
+          if (navigator.permissions && navigator.permissions.query) {
+            const origQuery = navigator.permissions.query.bind(navigator.permissions);
+            navigator.permissions.query = function (desc) {
+              if (desc && desc.name === 'local-network-access') {
+                return Promise.resolve({ state: 'denied', status: 'denied', name: 'local-network-access' });
+              }
+              return origQuery(desc);
+            };
           }
-          const settingsScopeService = softGet("settingsScope")
-          if (settingsScopeService && typeof settingsScopeService.bind === "function") {
-            const found = settingsScopeService.bind({ namespace: NS })
-            if (found) return found
+          return true;
+        } catch {
+          return false;
+        }
+      })()
+    `).catch(()=>false)}catch{return false}}async function ensureWechatQrCodeLogin(webview){if(!webview||!webview.executeJavaScript)return{switched:false,hasQrCode:false};try{return await webview.executeJavaScript(`
+      (() => {
+        try {
+          const u = (location.href || '').toLowerCase();
+          // 若已在后台且包含 token，直接视作完成
+          if (u.includes('cgi-bin') && u.includes('token=')) {
+            return { switched: true, hasQrCode: true };
+          }
+
+          const app = document.getElementById('app');
+          const vue = app ? app.__vue__ : null;
+
+          // 1. 检查扫码二维码图片是否已可见呈现（DOM 或 Vue 数据层就绪）
+          const qrImg = document.querySelector('.login__type__container__scan__qrcode, img[src*="qrcode"], #fast_login_container iframe');
+          const isQrImgVisible = Boolean(
+            qrImg &&
+            qrImg.offsetParent !== null &&
+            window.getComputedStyle(qrImg).visibility !== 'hidden' &&
+            qrImg.getAttribute('src') &&
+            !qrImg.getAttribute('src').includes('default_qrcode')
+          );
+
+          const isVueQrReady = Boolean(
+            vue &&
+            vue.mode === 1 &&
+            !vue.showFastLogin &&
+            vue.qrcodeSrc &&
+            !vue.qrcodeSrc.includes('default_qrcode')
+          );
+
+          if (isQrImgVisible || isVueQrReady) {
+            // [中文修复依据]：二维码一旦稳定展示，立即固化稳定标记，严禁后续任何触发再次刷新二维码
+            window.__wincode_wechat_qr_stabilized = true;
+            return { switched: true, hasQrCode: true };
+          }
+
+          // 2. 如果已经完成过一次模式切换或已标记稳定，严禁重复调用 switchFastLogin 或重复点击，防止二维码高频跳变
+          if (window.__wincode_wechat_qr_stabilized || window.__wincode_wechat_qr_switched_once) {
+            return { switched: true, hasQrCode: false };
+          }
+
+          // 3. 检查快登模式下的「扫码登录」链接，并自动点击一次
+          const scanLinks = Array.from(
+            document.querySelectorAll(
+              '.login__type__container__scan .login__type__container__link_text, .login__type__container__scan a, .fast_login_wrp ~ * a'
+            )
+          );
+          const fastScanBtn = scanLinks.find(
+            (el) => (el.textContent || '').trim().includes('扫码登录')
+          );
+          if (fastScanBtn && fastScanBtn.offsetParent !== null) {
+            window.__wincode_wechat_qr_switched_once = true;
+            fastScanBtn.click();
+            return { switched: true, hasQrCode: false };
+          }
+
+          // 4. 探测 Vue 根实例内部状态：仅在处于快登探测态且尚未展示二维码时调用一次 switchFastLogin
+          if (vue && typeof vue.switchFastLogin === 'function') {
+            if (vue.showFastLogin) {
+              window.__wincode_wechat_qr_switched_once = true;
+              vue.switchFastLogin(false, true);
+              return { switched: true, hasQrCode: false };
+            }
+          }
+
+          // 5. 检查是否处于账号密码登录框 (mode === 0)，若存在切换扫码登录按钮则切换一次
+          if (vue && vue.mode === 0 && typeof vue.switchMode === 'function') {
+            window.__wincode_wechat_qr_switched_once = true;
+            vue.switchMode(1);
+            return { switched: true, hasQrCode: false };
+          }
+
+          const switchToScanBtn = document.querySelector(
+            '.login__type__container__select-type__scan'
+          );
+          if (switchToScanBtn && switchToScanBtn.offsetParent !== null) {
+            window.__wincode_wechat_qr_switched_once = true;
+            switchToScanBtn.click();
+            return { switched: true, hasQrCode: false };
+          }
+
+          return { switched: false, hasQrCode: false };
+        } catch {
+          return { switched: false, hasQrCode: false };
+        }
+      })()
+    `).catch(()=>({switched:false,hasQrCode:false}))||{switched:false,hasQrCode:false}}catch{return{switched:false,hasQrCode:false}}}function useSocialPublisherWebview({open,platform,onCheckLoginState}){const webviewRef=(0,react.useRef)(null);const[loading,setLoading]=(0,react.useState)(true);const[canGoBack,setCanGoBack]=(0,react.useState)(false);const[canGoForward,setCanGoForward]=(0,react.useState)(false);const[currentUrl,setCurrentUrl]=(0,react.useState)(``);const onCheckLoginStateRef=(0,react.useRef)(onCheckLoginState);onCheckLoginStateRef.current=onCheckLoginState;const currentUrlRef=(0,react.useRef)(currentUrl);currentUrlRef.current=currentUrl;(0,react.useEffect)(()=>{const webview=webviewRef.current;if(!webview||!open)return;const normPlat=platform.toLowerCase();const isWechatPlatform=normPlat===`gzh`||normPlat===`wechat`;let qrStabilized=false;const triggerWechatQrAutoSwitch=async()=>{if(!isWechatPlatform||qrStabilized)return;await injectWechatPermissionsShield(webview);if((await ensureWechatQrCodeLogin(webview)).hasQrCode)qrStabilized=true};const onDidStartLoading=()=>{setLoading(true);if(isWechatPlatform)injectWechatPermissionsShield(webview)};const onDidStopLoading=()=>{setLoading(false);triggerWechatQrAutoSwitch()};const onDomReady=()=>{triggerWechatQrAutoSwitch()};const onDidNavigate=e=>{const targetUrl=e.url||``;setCurrentUrl(targetUrl);currentUrlRef.current=targetUrl;setCanGoBack(Boolean(webview.canGoBack?.()));setCanGoForward(Boolean(webview.canGoForward?.()));webview.executeJavaScript(`
+        try {
+          if (window.process) delete window.process;
+          const navProto = Object.getPrototypeOf(navigator);
+          if (navProto && ('webdriver' in navProto || 'webdriver' in navigator)) {
+            Object.defineProperty(navProto, 'webdriver', { get: () => false, configurable: true });
           }
         } catch {}
-        return scope
-      }
-
-      function safeGetSnapshot(s) {
-        try {
-          const cached = readLocalConfigCache()
-          if (!s || typeof s.getSnapshot !== "function") {
-            return { status: "ready", value: cached ? clone(cached) : {}, writable: true, revision: 0 }
-          }
-          const snap = s.getSnapshot()
-          if (!snap || snap.status === "unavailable") {
-            const val = (snap && snap.value && typeof snap.value === "object" && Object.keys(snap.value).length > 0)
-              ? snap.value
-              : (cached ? clone(cached) : {})
-            return { status: "ready", value: val, writable: true, revision: (snap && snap.revision) || 0 }
-          }
-          // 容灾强化：若 scope 此时返回的 accounts 为空或只有空的默认账号，尝试用水合缓存补齐
-          if (snap && snap.value && typeof snap.value === "object") {
-            const accs = snap.value.accounts
-            if (!accs || Object.keys(accs).length === 0 || !hasRealAccountsClient(accs)) {
-              if (cached && cached.accounts && Object.keys(cached.accounts).length > 0) {
-                snap.value.accounts = { ...clone(cached.accounts), ...(snap.value.accounts || {}) }
-              }
-              if (cached && cached.image_providers && Object.keys(cached.image_providers).length > 0) {
-                snap.value.image_providers = { ...clone(cached.image_providers), ...(snap.value.image_providers || {}) }
-              }
-            }
-          }
-          return { ...snap, status: "ready", writable: true }
-        } catch (err) {
-          console.warn("[dsh-social-publisher] Failed to get settings snapshot:", err)
-          const cached = readLocalConfigCache()
-          return { status: "ready", value: cached ? clone(cached) : {}, writable: true, revision: 0, error: String(err) }
-        }
-      }
-
-      function GzhPublisherCard(props = {}) {
-        const { mode = "page", onClose } = props
-        const activeScope = resolveCurrentScope(props.scope || props.form)
-        const [snapshot, setSnapshot] = React.useState(() => safeGetSnapshot(activeScope))
-        const [activeTab, setActiveTab] = React.useState("账号管理")
-        const [selectedAccountId, setSelectedAccountId] = React.useState("")
-        const [selectedProviderId, setSelectedProviderId] = React.useState("")
-        const [editingAccount, setEditingAccount] = React.useState(false)
-        const [editingProvider, setEditingProvider] = React.useState(false)
-        const [editingContentAccount, setEditingContentAccount] = React.useState(false)
-        const [contentSubTab, setContentSubTab] = React.useState("basic")
-        const [contentBrandSlot, setContentBrandSlot] = React.useState("header")
-        const [addingAccount, setAddingAccount] = React.useState(false)
-        const [addingProvider, setAddingProvider] = React.useState(false)
-        const [drafts, setDrafts] = React.useState({})
-        const [saving, setSaving] = React.useState(false)
-        const savingRef = React.useRef(false)
-        const setSavingWithRef = (val) => { savingRef.current = val; setSaving(val) }
-        const [failed, setFailed] = React.useState(false)
-        const [saveErrorMsg, setSaveErrorMsg] = React.useState("")
-        const [saveSuccessMsg, setSaveSuccessMsg] = React.useState("")
-        const [testingProviderId, setTestingProviderId] = React.useState("")
-        const [providerTests, setProviderTests] = React.useState({})
-        const [accountDraft, setAccountDraft] = React.useState({
-          platform: "gzh",
-          name: "",
-          id: "",
-          publish_mode: "browser",
-          appid: "",
-          app_secret: "",
-          author_name: "文映学术win00.cn",
-          brand_name: "文映千秋学术网",
-        })
-        const [accountDraftManualId, setAccountDraftManualId] = React.useState(false)
-        const [accountCreating, setAccountCreating] = React.useState(false)
-        const [accountCreateMsg, setAccountCreateMsg] = React.useState("")
-        const [copyCreating, setCopyCreating] = React.useState(false)
-        const [providerDraft, setProviderDraft] = React.useState({ id: "", name: "" })
-        const [dshModels, setDshModels] = React.useState([])
-        const [discoveringDsh, setDiscoveringDsh] = React.useState(false)
-        const [dshDiscoverMsg, setDshDiscoverMsg] = React.useState("")
-        const [copyingAccountId, setCopyingAccountId] = React.useState("")
-        const [copyDraft, setCopyDraft] = React.useState({ id: "", name: "" })
-        const [zhihuLogin, setZhihuLogin] = React.useState({ status: "idle", message: "" })
-        const [wechatLogin, setWechatLogin] = React.useState({ status: "idle", message: "" })
-        const [xhsLogin, setXhsLogin] = React.useState({ status: "idle", message: "" })
-        const [baijiahaoLogin, setBaijiahaoLogin] = React.useState({ status: "idle", message: "" })
-        const [uploads, setUploads] = React.useState({})
-        const [missingPreviews, setMissingPreviews] = React.useState({})
-        const [dragging, setDragging] = React.useState("")
-        const [historyData, setHistoryData] = React.useState({ records: [], total_batches: 0, total_articles: 0, gzh_articles: 0, zhihu_articles: 0 })
-        const [historyLoading, setHistoryLoading] = React.useState(false)
-        const [historyError, setHistoryError] = React.useState("")
-        const [historyAccountFilter, setHistoryAccountFilter] = React.useState("")
-        const [historySearch, setHistorySearch] = React.useState("")
-        const [backupSubTab, setBackupSubTab] = React.useState("export")
-        const [exportScope, setExportScope] = React.useState("all")
-        const [exportIncludeSecrets, setExportIncludeSecrets] = React.useState(false)
-        const [exportCopyStatus, setExportCopyStatus] = React.useState("")
-        const [exportPreviewOpen, setExportPreviewOpen] = React.useState(false)
-        const [importMode, setImportMode] = React.useState("merge")
-        const [importInputMethod, setImportInputMethod] = React.useState("file")
-        const [importText, setImportText] = React.useState("")
-        const [importFileName, setImportFileName] = React.useState("")
-        const [importFileSize, setImportFileSize] = React.useState("")
-        const [importDragging, setImportDragging] = React.useState(false)
-        const [importValidation, setImportValidation] = React.useState(null)
-        const [importing, setImporting] = React.useState(false)
-        const [importFeedback, setImportFeedback] = React.useState(null)
-        const revisionRef = React.useRef(snapshot?.revision ?? 0)
-        const newUploadsRef = React.useRef(new Map())
-        const uploadsRef = React.useRef({})
-
-        const fetchHistory = React.useCallback(async (accountFilter) => {
-          setHistoryLoading(true)
-          setHistoryError("")
-          try {
-            const query = accountFilter ? "?account=" + encodeURIComponent(accountFilter) + "&t=" + Date.now() : "?t=" + Date.now()
-            const res = await apiFetch(PUBLISH_HISTORY_ROUTE + query)
-            const data = await res.json().catch(() => ({}))
-            if (!res.ok || data.error) throw new Error(data.error || "获取发表记录失败")
-            setHistoryData(data)
-          } catch (err) {
-            setHistoryError(err?.message || String(err))
-          } finally {
-            setHistoryLoading(false)
-          }
-        }, [])
-
-        React.useEffect(() => {
-          if (activeTab === "发表记录") {
-            fetchHistory(historyAccountFilter)
-          }
-        }, [activeTab, historyAccountFilter, fetchHistory])
-
-        React.useEffect(() => {
-          if (!activeScope || typeof activeScope.subscribe !== "function") return
-          return activeScope.subscribe(() => {
-            if (savingRef.current) return  // 保存进行中不覆盖快照，防止竞态条件
-            const hostSnap = safeGetSnapshot(activeScope)
-            if (!hostSnap) return
-            setSnapshot((cur) => {
-              if (!cur) return hostSnap
-              const hostAccounts = hostSnap.value?.accounts && typeof hostSnap.value.accounts === "object"
-                ? hostSnap.value.accounts
-                : {}
-              const curAccounts = cur.value?.accounts && typeof cur.value.accounts === "object"
-                ? cur.value.accounts
-                : {}
-              const hostProviders = hostSnap.value?.image_providers && typeof hostSnap.value.image_providers === "object"
-                ? hostSnap.value.image_providers
-                : {}
-              const curProviders = cur.value?.image_providers && typeof cur.value.image_providers === "object"
-                ? cur.value.image_providers
-                : {}
-
-              // 宿主空账号/空生图字典或残缺账号绝不能冲掉当前已加载的实体账号，防止刷新/订阅时被抹除
-              let finalAccounts = { ...curAccounts }
-              if (Object.keys(hostAccounts).length > 0) {
-                if (hasRealAccountsClient(curAccounts) && !hasRealAccountsClient(hostAccounts)) {
-                  // 保护：宿主仅有空默认账号时，绝不冲掉已有的多账号实体
-                } else {
-                  for (const [id, acc] of Object.entries(hostAccounts)) {
-                    finalAccounts[id] = acc
-                  }
-                }
-              }
-              if (Object.keys(finalAccounts).length === 0) {
-                finalAccounts = hostAccounts
-              }
-
-              let finalProviders = { ...curProviders }
-              if (Object.keys(hostProviders).length > 0) {
-                if (hasRealProvidersClient(curProviders) && !hasRealProvidersClient(hostProviders)) {
-                  // 保护生图接口实体
-                } else {
-                  for (const [id, prov] of Object.entries(hostProviders)) {
-                    finalProviders[id] = prov
-                  }
-                }
-              }
-              if (Object.keys(finalProviders).length === 0) {
-                finalProviders = hostProviders
-              }
-
-              return {
-                ...hostSnap,
-                status: "ready",
-                value: normalizeValue({
-                  ...(cur.value || {}),
-                  ...(hostSnap.value || {}),
-                  accounts: finalAccounts,
-                  image_providers: finalProviders,
-                }),
-              }
-            })
-          })
-        }, [scope])
-
-        React.useEffect(() => {
-          let mounted = true
-          apiFetch(CONFIG_EXPORT_ROUTE + "?scope=all&include_secrets=true&download=false")
-            .then((res) => res.json())
-            .then((data) => {
-              if (!mounted || !data || !data.config) return
-              const backendConfig = data.config
-              setSnapshot((cur) => {
-                const norm = normalizeValue(backendConfig)
-                const loadedAccounts = norm.accounts ? Object.keys(norm.accounts) : []
-                if (loadedAccounts.length > 0) {
-                  setSelectedAccountId((curId) => (!curId || !norm.accounts[curId]) ? (norm.default_account || loadedAccounts[0]) : curId)
-                }
-                const loadedProviders = norm.image_providers ? Object.keys(norm.image_providers) : []
-                if (loadedProviders.length > 0) {
-                  setSelectedProviderId((curId) => (!curId || !norm.image_providers[curId]) ? loadedProviders[0] : curId)
-                }
-                return { ...(cur || {}), value: norm, status: "ready" }
-              })
-            })
-            .catch((err) => {
-              console.warn("[dsh-social-publisher] 初始加载磁盘配置异常：", err)
-            })
-          return () => { mounted = false }
-        }, [])
-
-        React.useEffect(() => {
-          const currentRev = snapshot?.revision ?? 0
-          if (revisionRef.current === currentRev) return
-          revisionRef.current = currentRev
-          setDrafts({})
-          setFailed(false)
-          newUploadsRef.current.clear()
-        }, [snapshot?.revision])
-
-        React.useEffect(() => {
-          uploadsRef.current = uploads
-        }, [uploads])
-
-        React.useEffect(() => () => {
-          for (const upload of Object.values(uploadsRef.current)) {
-            if (upload?.preview?.startsWith("blob:")) URL.revokeObjectURL(upload.preview)
-          }
-          for (const file of newUploadsRef.current.values()) void deleteRemoteUpload(file)
-        }, [])
-
-        React.useEffect(() => {
-          if (snapshot && snapshot.status === "loading") {
-            const timer = setTimeout(() => {
-              setSnapshot((cur) => (cur && cur.status === "loading" ? { ...cur, status: "ready" } : cur))
-            }, 1200)
-            return () => clearTimeout(timer)
-          }
-        }, [snapshot?.status])
-
-        if (!snapshot || snapshot.status === "loading") {
-          return React.createElement(
-            "div",
-            { className: mode === "modal" ? "gzhCardModalContainer" : (mode === "card" ? "gzhCardEmbed" : "gzhCardPage"), style: { padding: "48px 24px", textAlign: "center", color: "var(--dsw-alias-label-secondary)" } },
-            React.createElement("div", { style: { display: "inline-flex", marginBottom: "12px", color: "var(--dsw-alias-label-tertiary)" } }, Icons.feed(28)),
-            React.createElement("div", { style: { fontSize: "13px" } }, "正在载入社媒发布工作台…"),
-          )
-        }
-        const value = normalizeValue(snapshot?.value ?? {})
-        const accounts = clone(value.accounts || {})
-        const providers = clone(value.image_providers || {})
-
-        for (const [key, draft] of Object.entries(drafts)) {
-          const parts = key.split(".")
-          if (parts[0] === "accounts") {
-            if (parts.length === 2) {
-              if (draft?.reset) delete accounts[parts[1]]
-              else if (draft?.object) accounts[parts[1]] = clone(draft.value)
-            } else if (parts.length > 2 && accounts[parts[1]]) {
-              let target = accounts[parts[1]]
-              for (let i = 2; i < parts.length - 1; i++) {
-                if (!target[parts[i]] || typeof target[parts[i]] !== "object") target[parts[i]] = {}
-                target = target[parts[i]]
-              }
-              if (draft?.reset) delete target[parts[parts.length - 1]]
-              else if (draft && !draft.invalid) target[parts[parts.length - 1]] = draft.value
-            }
-          }
-          if (parts[0] === "image_providers") {
-            if (parts.length === 2) {
-              if (draft?.reset) delete providers[parts[1]]
-              else if (draft?.object) providers[parts[1]] = clone(draft.value)
-            } else if (parts.length > 2 && providers[parts[1]]) {
-              let target = providers[parts[1]]
-              for (let i = 2; i < parts.length - 1; i++) {
-                if (!target[parts[i]] || typeof target[parts[i]] !== "object") target[parts[i]] = {}
-                target = target[parts[i]]
-              }
-              if (draft?.reset) delete target[parts[parts.length - 1]]
-              else if (draft && !draft.invalid) target[parts[parts.length - 1]] = draft.value
-            }
-          }
-        }
-
-        const accountIds = Object.keys(accounts)
-        const defaultAccountId = (typeof drafts.default_account?.value === "string"
-          ? drafts.default_account.value
-          : value.default_account) || accountIds[0] || "default"
-        const activeAccountId = accounts[selectedAccountId]
-          ? selectedAccountId
-          : (accounts[defaultAccountId] ? defaultAccountId : (accountIds[0] || ""))
-        const providerIds = Object.keys(providers).sort((a, b) => (providers[a]?.priority ?? 0) - (providers[b]?.priority ?? 0) || a.localeCompare(b))
-        const activeProviderId = providers[selectedProviderId] ? selectedProviderId : (providerIds[0] || "")
-        const draftEntries = Object.entries(drafts)
-        const invalid = draftEntries.some(([, draft]) => draft?.invalid === true)
-        const dirty = draftEntries.length > 0
-        const writable = Boolean(snapshot?.status !== "loading" && snapshot?.status !== "unavailable")
-
-        const edit = (path, draft, text) => {
-          const normalized = draft && typeof draft === "object" && "object" in draft
-            ? draft
-            : { ...draft, text: text ?? (draft?.value === undefined ? "" : String(draft.value)) }
-          setDrafts((current) => ({ ...current, [pathKey(path)]: normalized }))
-          setFailed(false)
-        }
-        const reset = (path) => {
-          setDrafts((current) => ({ ...current, [pathKey(path)]: { reset: true } }))
-          setFailed(false)
-        }
-        const removeDrafts = (prefix) => {
-          setDrafts((current) => Object.fromEntries(
-            Object.entries(current).filter(([key]) => key !== prefix && !key.startsWith(prefix + ".")),
-          ))
-        }
-        const removeAllDrafts = () => {
-          setDrafts({})
-          setFailed(false)
-        }
-
-        const currentValue = (path) => {
-          const draft = drafts[pathKey(path)]
-          if (draft && draft.reset !== true && draft.object !== true) return draft.value
-          return getAt(value, path)
-        }
-        const overridden = (path) => {
-          const draft = drafts[pathKey(path)]
-          if (draft) return draft.reset !== true
-          return hasAt(snapshot?.user, path)
-        }
-        const fieldState = (field) => {
-          const raw = currentValue(field.path)
-          const draft = drafts[pathKey(field.path)]
-          return {
-            text: draft?.text !== undefined
-              ? draft.text
-              : field.kind === "lines"
-                ? linesText(raw)
-                : raw === undefined || raw === null ? "" : String(raw),
-            boolean: Boolean(raw),
-            overridden: overridden(field.path),
-            invalid: draft?.invalid === true,
-          }
-        }
-
-        const fieldNode = (field) => {
-          const key = pathKey(field.path)
-          const id = "gzh-" + key.replace(/[^a-zA-Z0-9_-]/g, "-")
-          const state = fieldState(field)
-          const disabled = !writable || saving
-          const label = React.createElement(
-            "div",
-            { className: "gzhLabel" },
-            React.createElement("label", { htmlFor: id }, field.label),
-            state.overridden ? React.createElement("span", { className: "gzhOverride" }, "已覆盖") : null,
-            state.overridden
-              ? React.createElement("button", {
-                  type: "button", className: "gzhReset", disabled,
-                  onClick: () => reset(field.path),
-                }, "恢复默认")
-              : null,
-          )
-
-          let control
-          if (field.kind === "boolean") {
-            control = React.createElement(
-              "div",
-              { className: "gzhToggleRow" },
-              React.createElement("input", {
-                id, type: "checkbox", className: "gzhSwitch", checked: state.boolean, disabled,
-                onChange: (event) => edit(field.path, { value: event.target.checked }),
-              }),
-              React.createElement("span", { className: "gzhHint" }, state.boolean ? "已开启" : "已关闭"),
-            )
-          } else if (field.kind === "select") {
-            control = React.createElement(
-              "select",
-              {
-                id, className: "gzhSelect", value: state.text, disabled,
-                onChange: (event) => edit(field.path, { value: event.target.value }),
-              },
-              ...field.options.map(([value, text]) => React.createElement("option", { key: value, value }, text)),
-            )
-          } else if (field.kind === "lines") {
-            control = React.createElement("textarea", {
-              id, className: "gzhTextarea", value: state.text, disabled, placeholder: "每行一项",
-              onChange: (event) => {
-                const text = event.target.value
-                edit(field.path, { value: parseLines(text), text }, text)
-              },
-            })
-          } else {
-            control = React.createElement("input", {
-              id,
-              className: "gzhInput" + (state.invalid ? " gzhInputInvalid" : ""),
-              type: field.kind === "number" ? "number" : "text",
-              value: state.text,
-              disabled,
-              autoComplete: "off",
-              placeholder: field.kind === "secret" ? "留空保持不变" : field.placeholder,
-              onChange: (event) => {
-                const text = event.target.value
-                const workspaceValid = text.trim() === ""
-                  || ["default", "plugin-default"].includes(text.trim().toLowerCase())
-                  || /^[a-zA-Z]:[\\/]/.test(text.trim()) || /^\\\\/.test(text.trim())
-                const parsed = field.kind === "number" ? parseNumber(text)
-                  : field.kind === "workspace" ? { value: text, invalid: !workspaceValid }
-                  : { value: text }
-                edit(field.path, { ...parsed, text }, text)
-              },
-            })
-          }
-
-          return React.createElement(
-            "div",
-            { className: "gzhField" + (field.wide ? " gzhFieldWide" : ""), key },
-            label,
-            control,
-            state.invalid
-              ? React.createElement("p", { className: "gzhInvalid" }, field.invalidHint || "请输入有效数值")
-              : React.createElement("p", { className: "gzhHint" }, field.hint),
-          )
-        }
-
-        const deleteRemoteUpload = (file) => apiFetch(
-          `${BRAND_ROUTE}?file=${encodeURIComponent(file)}`,
-          { method: "DELETE", headers: { "x-dsh-gzh-upload": "brand-image" } },
-        ).catch(() => undefined)
-
-        const cleanupUpload = (accountId, slot) => {
-          const key = accountId + ":" + slot
-          const previous = newUploadsRef.current.get(key)
-          if (previous) {
-            void deleteRemoteUpload(previous)
-            newUploadsRef.current.delete(key)
-          }
-          setUploads((current) => {
-            const next = { ...current }
-            const upload = next[key]
-            if (upload?.preview?.startsWith("blob:")) URL.revokeObjectURL(upload.preview)
-            delete next[key]
-            return next
-          })
-        }
-
-        const uploadBrandFile = (accountId, slot, file) => {
-          if (!file) return
-          const key = accountId + ":" + slot
-          cleanupUpload(accountId, slot)
-          const preview = URL.createObjectURL(file)
-          setUploads((current) => ({ ...current, [key]: { preview, progress: 0 } }))
-          const xhr = new XMLHttpRequest()
-          xhr.open("POST", resolveApiUrl(`${BRAND_ROUTE}?account=${encodeURIComponent(accountId)}&slot=${slot}`))
-          xhr.setRequestHeader("x-dsh-gzh-upload", "brand-image")
-          xhr.setRequestHeader("x-dsh-filename", encodeURIComponent(file.name))
-          xhr.setRequestHeader("content-type", file.type || "application/octet-stream")
-          xhr.upload.onprogress = (event) => {
-            if (!event.lengthComputable) return
-            const progress = Math.round(event.loaded / event.total * 100)
-            setUploads((current) => ({ ...current, [key]: { ...current[key], progress } }))
-          }
-          xhr.onload = () => {
-            let result = {}
-            try { result = JSON.parse(xhr.responseText) } catch {}
-            if (xhr.status < 200 || xhr.status >= 300 || !result.file) {
-              setUploads((current) => ({
-                ...current,
-                [key]: { preview, progress: 100, error: result.error || "上传失败" },
-              }))
-              return
-            }
-            newUploadsRef.current.set(key, result.file)
-            edit(["accounts", accountId, "brand_images", slot, "file"], { value: result.file }, result.file)
-            setUploads((current) => ({
-              ...current,
-              [key]: { preview, progress: 100, remoteFile: result.file },
-            }))
-            setMissingPreviews((current) => ({ ...current, [key]: false }))
-          }
-          xhr.onerror = () => {
-            setUploads((current) => ({
-              ...current,
-              [key]: { preview, progress: 100, error: "网络错误，上传失败" },
-            }))
-          }
-          xhr.send(file)
-        }
-
-        const discard = () => {
-          for (const file of newUploadsRef.current.values()) void deleteRemoteUpload(file)
-          newUploadsRef.current.clear()
-          setUploads({})
-          removeAllDrafts()
-        }
-
-        const save = async () => {
-          if (!dirty || invalid || saving || !writable) return
-          const entries = Object.entries(drafts)
-          const unsetKeys = new Set(entries.filter(([, draft]) => draft?.reset === true).map(([key]) => key))
-          const ops = []
-          const nextConfig = clone(value)
-
-          for (const [key, draft] of entries) {
-            if (!draft) continue
-            const path = key.split(".")
-            // 父级条目被删除时丢弃其子字段的残留草稿，避免 set 把已删除的账号/接口写回
-            if (path.length > 1 && path.slice(0, -1).some((_, depth) => unsetKeys.has(path.slice(0, depth + 1).join(".")))) continue
-            if (draft.object === true) {
-              ops.push({ op: "set", path, value: draft.value })
-              setAt(nextConfig, path, draft.value)
-            } else if (draft.reset === true) {
-              ops.push({ op: "unset", path })
-              deleteAt(nextConfig, path)
-            } else if (draft.invalid !== true) {
-              ops.push({ op: "set", path, value: draft.value })
-              setAt(nextConfig, path, draft.value)
-            }
-          }
-          if (ops.length === 0) {
-            removeAllDrafts()
-            return
-          }
-          setSavingWithRef(true)
-          setFailed(false)
-          setSaveErrorMsg("")
-          setSaveSuccessMsg("")
-          let mutateSuccess = false
-          let httpSuccess = false
-          let lastError = null
-
-          try {
-            // 双轨持久化通道 1：DSH 原生 settings scope mutate（优先顶层字段以规避动态字典深层路径报错）
-            if (activeScope && typeof activeScope.mutate === "function") {
-              try {
-                const topOps = []
-                const changedTopKeys = new Set(entries.map(([k]) => k.split(".")[0]))
-                for (const topKey of changedTopKeys) {
-                  if (topKey in nextConfig) {
-                    topOps.push({ op: "set", path: [topKey], value: nextConfig[topKey] })
-                  }
-                }
-                await activeScope.mutate(topOps.length > 0 ? topOps : ops)
-                mutateSuccess = true
-              } catch (err) {
-                console.warn("[dsh-social-publisher] activeScope.mutate 异常:", err)
-              }
-            }
-
-            // 双轨持久化通道 2：内置安全落盘 HTTP 接口（在 Web 浏览器环境与代理模式下生效）
-            try {
-              let res = await apiFetch(CONFIG_SAVE_ROUTE, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(nextConfig),
-              })
-              if (res.status === 404) {
-                res = await apiFetch(CONFIG_IMPORT_ROUTE + "?mode=overwrite", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify(nextConfig),
-                })
-              }
-              const result = await res.json().catch(() => ({}))
-              if (res.ok && (result.ok || result.config)) {
-                httpSuccess = true
-                if (result.config) {
-                  Object.assign(nextConfig, normalizeValue(result.config))
-                }
-              }
-            } catch (err) {
-              console.warn("[dsh-social-publisher] HTTP 保存接口不可用 (桌面端环境):", err)
-            }
-
-            // 写入本地持久化水合缓存，防止刷新后丢失
-            writeLocalConfigCache(nextConfig)
-
-            newUploadsRef.current.clear()
-            setUploads({})
-            removeAllDrafts()
-            setSnapshot((cur) => ({ ...(cur || {}), value: nextConfig, status: "ready" }))
-            setSaveSuccessMsg("✓ 配置已成功保存并同步落盘")
-            setTimeout(() => setSaveSuccessMsg(""), 3500)
-          } catch (err) {
-            setFailed(true)
-            setSaveErrorMsg(err?.message || String(err))
-            console.error("[dsh-social-publisher] 保存配置失败：", err)
-          } finally {
-            setSavingWithRef(false)
-          }
-        }
-
-        const activePlatform = String(currentValue(["accounts", activeAccountId, "platform"]) ?? "gzh")
-        const activePublishMode = String(currentValue(["accounts", activeAccountId, "publish_mode"]) ?? "api")
-        const isXhs = activePlatform === "xiaohongshu"
-        const isZhihu = activePlatform === "zhihu"
-        const isBaijiahao = activePlatform === "baijiahao"
-        const isGzh = !isXhs && !isZhihu && !isBaijiahao
-
-        const accountFields = [
-          // 发布平台不在编辑表单重复提供：平台在「极速添加向导」选定后与账号绑定
-          // （编辑表单重复出现同一选择曾导致误改平台、产出错误账号类型），改平台请删除账号重建。
-          { path: ["name"], label: "显示名称", hint: isXhs ? "例如：小红书学术笔记" : (isZhihu ? "例如：文映知乎专栏" : (isBaijiahao ? "例如：文映百家号" : "账号备注名")), kind: "text" },
-          { path: ["enabled"], label: "启用账号", hint: "关闭后不能用于构建或发布", kind: "boolean" },
-          ...(isZhihu || isBaijiahao ? [
-            { path: ["publish_immediately"], label: "保存后直接发布", hint: isBaijiahao ? "百家号账号：开启后自动直接发布（需封面，触发百度机器审核）；默认只存百家号草稿箱" : "知乎账号：开启后自动直接发布；默认只存知乎草稿箱", kind: "boolean" },
-          ] : isXhs ? [
-            { path: ["publish_immediately"], label: "保存后直接发布", hint: "小红书账号：开启后自动直接发布笔记；默认只存入创作者中心草稿箱", kind: "boolean" },
-          ] : [
-            { path: ["publish_mode"], label: "更新方案", hint: "api=微信官方接口模式（需固定 IP 白名单）；browser=免 API 浏览器模式（扫码登录，后台自动创建草稿）", kind: "select", options: PUBLISH_MODE_OPTIONS },
-            ...(activePublishMode === "browser" ? [
-              { path: ["appid"], label: "AppID（可选）", hint: "免 API 浏览器模式下可留空；填写后可用于凭据备份", kind: "text" },
-              { path: ["app_secret"], label: "AppSecret（可选）", hint: "免 API 浏览器模式下可留空", kind: "secret" },
-            ] : [
-              { path: ["appid"], label: "AppID", hint: "微信公众号 AppID（wx 开头，API 模式必填）", kind: "text" },
-              { path: ["app_secret"], label: "AppSecret", hint: "API 模式必填；留空不修改", kind: "secret" },
-            ]),
-            { path: ["auto_enable_original"], label: "开启原创声明", hint: "公众号：草稿创建后自动通过浏览器模拟打开草稿箱批量开启文字原创并保存草稿", kind: "boolean" },
-          ]),
-          ...(isXhs ? [] : [
-            { path: ["author_name"], label: "作者名", hint: "文章固定署名", kind: "text" },
-            { path: ["brand_name"], label: "品牌名", hint: "结尾引导语中的品牌名", kind: "text" },
-          ]),
-        ].map((field) => ({ ...field, path: ["accounts", activeAccountId, ...field.path] }))
-
-        const providerFields = [
-          { path: ["name"], label: "接口名称", hint: "用于识别接口来源", kind: "text" },
-          { path: ["enabled"], label: "启用接口", hint: "停用后不参与轮换", kind: "boolean" },
-          { path: ["base_url"], label: "接口地址", hint: "OpenAI 兼容 API 根地址", kind: "text", wide: true },
-          { path: ["api_key"], label: "API Key", hint: "留空不修改；可恢复默认", kind: "secret" },
-          { path: ["model"], label: "生图模型", hint: "例如 gpt-image-2", kind: "text" },
-          { path: ["priority"], label: "优先级", hint: "数值越小越先使用", kind: "number" },
-        ].map((field) => ({ ...field, path: ["image_providers", activeProviderId, ...field.path] }))
-
-        const currentArticleType = String(currentValue(["accounts", activeAccountId, "content", "article_type"]) ?? "news")
-        const isSyncNewspic = Boolean(currentValue(["accounts", activeAccountId, "content", "sync_newspic"]) ?? false)
-        const isBoth = isGzh && (currentArticleType === "both" || isSyncNewspic)
-        const isNewspicOnly = isGzh && currentArticleType === "newspic"
-        const showNews = isZhihu || isBaijiahao || (isGzh && (currentArticleType === "news" || isBoth))
-        const showNewspic = isGzh && (isNewspicOnly || isBoth)
-
-        const contentFields = (isXhs ? [
-          { path: ["articles_per_day"], label: "每日笔记篇数", hint: "小红书每日独立笔记篇数（1–10 篇，单篇独立发布，不合并）", kind: "number" },
-          { path: ["xhs_images_per_note"], label: "每篇笔记配图数", hint: "小红书：每篇轮播配图张数（1–18 张，默认 4 张，3:4 竖版尺寸）", kind: "number" },
-          { path: ["xhs_min_words"], label: "正文最低字数", hint: "小红书：纯文字正文下限（字，推荐 100–500 字，上限 1000 字，默认 200）", kind: "number" },
-          { path: ["xhs_tags"], label: "常用话题标签", hint: "小红书笔记话题（如 #学术 #干货，每行一项或逗号分隔，自动追加在正文末尾）", kind: "lines", wide: true },
-          { path: ["topics"], label: "核心业务选题关键词", hint: "用于检索关联选题，禁止作为标题开头词；每行或逗号分隔", kind: "lines", wide: true },
-          { path: ["preferred_topic_angles"], label: "偏好选题切入角度", hint: "如「新手避坑」「保姆级实操」「干货速记」，每行一项或逗号分隔", kind: "lines", wide: true },
-          { path: ["enable_hot_tracking"], label: "热点追踪", hint: "结合近期学术与科技热点智能切入选题", kind: "boolean" },
-          { path: ["forbidden_words"], label: "禁词表", hint: "每行或逗号分隔，任何一篇出现即校验失败", kind: "lines", wide: true },
-        ] : [
-          ...(!isZhihu && !isBaijiahao ? [
-            { path: ["article_type"], label: "文章形态", hint: "news=仅长文，newspic=仅小绿书图片消息，both=长文与小绿书同步更新（一文双发）", kind: "select", options: ARTICLE_TYPE_OPTIONS, wide: true },
-            { path: ["sync_newspic"], label: "小绿书同步草稿", hint: "公众号更新时长文与小绿书同步执行（一文双发：长文草稿 + 对应提炼的小绿书卡片草稿）", kind: "boolean" },
-          ] : []),
-          ...(showNews ? [
-            { path: ["articles_per_day"], label: isBoth ? "长文每日篇数" : (isZhihu ? "知乎每日篇数" : (isBaijiahao ? "百家号每日篇数" : "每日文章数")), hint: isZhihu ? "知乎专栏篇数（1–10 篇，独立草稿）" : (isBaijiahao ? "百家号每日篇数（1–10 篇，独立草稿，默认存草稿箱）" : (isBoth ? "长文每日篇数（1–10 篇，公众号长文组合为 1 个多图文草稿包）" : "每日文章数（1–10 篇，公众号长文组合为 1 个多图文草稿包）")), kind: "number" },
-            { path: ["min_words"], label: isBoth ? "长文最低字数" : (isZhihu || isBaijiahao ? "正文最低字数" : "长文最低字数"), hint: "每篇纯文字下限（字，推荐 ≥2000，可设为 0）", kind: "number" },
-          ] : []),
-          ...(showNewspic ? [
-            { path: ["newspic_articles_per_day"], label: "小绿书每日篇数", hint: "小绿书每日独立草稿篇数（1–20 篇，单篇独立发布草稿，不合并）", kind: "number" },
-            { path: ["newspic_images_per_article"], label: "小绿书卡片张数", hint: "小绿书：每篇轮播卡片图片张数（1–20 张，默认 4 张）", kind: "number" },
-            { path: ["newspic_image_ratio"], label: "小绿书卡片比例", hint: "小绿书：卡片图片宽高比（默认 3:4 竖版，首张卡片图自动作为封面）", kind: "select", options: NEWSPIC_RATIOS },
-            { path: ["newspic_min_words"], label: "小绿书文案最低字数", hint: "小绿书：纯文字文案下限（字，推荐 80–300 字，默认 100）", kind: "number" },
-          ] : []),
-          { path: ["topics"], label: "核心业务关键词", hint: "用于检索关联选题，禁止作为标题开头词；每行或逗号分隔", kind: "lines", wide: true },
-          { path: ["preferred_topic_angles"], label: "偏好选题切入角度", hint: "如「技术落地剖析」「方法论拆解」「前沿综述」，每行一项或逗号分隔", kind: "lines", wide: true },
-          { path: ["enable_hot_tracking"], label: "热点追踪", hint: "结合近期学术与科技热点智能切入选题", kind: "boolean" },
-          { path: ["forbidden_words"], label: "禁词表", hint: "每行或逗号分隔，任何一篇出现即校验失败", kind: "lines", wide: true },
-          { path: ["ending_guide_required"], label: "结尾品牌引导", hint: "结尾必须自然引导关注品牌「" + (accounts[activeAccountId]?.brand_name || "文映千秋学术网") + "」", kind: "boolean" },
-        ]).map((field) => ({ ...field, path: ["accounts", activeAccountId, "content", ...field.path] }))
-
-        const brandFields = (slot) => [
-          { path: ["enabled"], label: "启用该品牌图", hint: slot === "header" ? "关闭后文章不从头部品牌图开始" : "关闭后不插入尾部品牌图", kind: "boolean" },
-          { path: ["frame"], label: "卡片边框", hint: "白色卡片边框与阴影", kind: "boolean" },
-          { path: ["file"], label: "图片路径", hint: "brand_assets 内相对路径；也可直接上传", kind: "text", wide: true },
-          { path: ["width"], label: "显示宽度", hint: "文章宽度百分比 10–100", kind: "number" },
-          { path: ["height"], label: "固定高度", hint: "px；0 表示按原图比例", kind: "number" },
-          { path: ["fit"], label: "适配方式", hint: "固定高度时决定显示方式", kind: "select", options: IMAGE_FITS },
-          { path: ["position"], label: "对齐位置", hint: "裁切或留白时的垂直位置", kind: "select", options: IMAGE_POSITIONS },
-          { path: ["radius"], label: "图片圆角", hint: "px", kind: "number" },
-          { path: ["margin_top"], label: "上方间距", hint: "px", kind: "number" },
-          { path: ["margin_bottom"], label: "下方间距", hint: "px", kind: "number" },
-        ].map((field) => ({ ...field, path: ["accounts", activeAccountId, "brand_images", slot, ...field.path] }))
-
-        const accountTypographyFields = [
-          { path: ["headline_theme"], label: "头条主题", hint: "该账号头条文章视觉主题（独享品牌风格）", kind: "select", options: THEMES },
-          { path: ["secondary_theme"], label: "次条主题", hint: "rotate 表示自动轮换各主题", kind: "select", options: [["rotate", "自动轮换"], ...THEMES] },
-          { path: ["font_size"], label: "正文字号", hint: "默认 13px（公众号铁律）", kind: "text" },
-          { path: ["line_height"], label: "正文行高", hint: "默认 20px（公众号铁律）", kind: "text" },
-          { path: ["paragraph_margin"], label: "段落间距", hint: "默认 25px", kind: "text" },
-          { path: ["text_indent"], label: "首行缩进", hint: "默认 2em", kind: "text" },
-        ].map((field) => ({ ...field, path: ["accounts", activeAccountId, "content", ...field.path] }))
-
-        const accountImageFields = [
-          { path: ["headline_cover_ratio"], label: "头条封面比例", hint: "该账号头条封面尺寸（默认 2.35:1）", kind: "select", options: RATIOS },
-          { path: ["secondary_cover_ratio"], label: "次条封面比例", hint: "该账号次条封面尺寸（次条不支持 2.35:1）", kind: "select", options: SECONDARY_RATIOS },
-          { path: ["content_images_per_article"], label: "每篇正文配图数", hint: "0–4 张；第 1 张 AI 信息图、第 2 张真实图", kind: "number" },
-          { path: ["image_lang_zh_only"], label: "图中文字仅中文", hint: "生图提示词自动附加中文文字约束", kind: "boolean" },
-        ].map((field) => ({ ...field, path: ["accounts", activeAccountId, "content", ...field.path] }))
-
-        const accountXhsImageFields = [
-          { path: ["xhs_images_per_note"], label: "每篇笔记配图数", hint: "小红书：每篇轮播卡片图片张数（1–18 张，默认 4 张，3:4 竖版）", kind: "number" },
-          { path: ["image_lang_zh_only"], label: "图中文字仅中文", hint: "生图提示词自动附加中文文字约束", kind: "boolean" },
-        ].map((field) => ({ ...field, path: ["accounts", activeAccountId, "content", ...field.path] }))
-
-        const accountZhihuImageFields = [
-          { path: ["content_images_per_article"], label: "每篇正文配图数", hint: "知乎：每篇 Markdown 正文配图张数（0–4 张，封面按 16:9 单独生成）", kind: "number" },
-          { path: ["image_lang_zh_only"], label: "图中文字仅中文", hint: "生图提示词自动附加中文文字约束", kind: "boolean" },
-        ].map((field) => ({ ...field, path: ["accounts", activeAccountId, "content", ...field.path] }))
-
-        const accountBaijiahaoImageFields = [
-          { path: ["content_images_per_article"], label: "每篇正文配图数", hint: "百家号：每篇 Markdown 正文配图张数（0–4 张，封面由系统按 2.35:1 单独生成）", kind: "number" },
-          { path: ["image_lang_zh_only"], label: "图中文字仅中文", hint: "生图提示词自动附加中文文字约束", kind: "boolean" },
-        ].map((field) => ({ ...field, path: ["accounts", activeAccountId, "content", ...field.path] }))
-
-        const globalImageFields = [
-          { path: ["image_api", "concurrency"], label: "生图并发数", hint: "多线程同时并发请求生图（默认 3，大幅缩短总耗时）", kind: "number" },
-        ]
-
-        const runtimeFields = [
-          { path: ["runtime", "project_root"], label: "任务工作区", hint: "留空使用插件专用目录；也可填写其它绝对路径", invalidHint: "请输入 Windows 绝对路径，或留空使用默认工作区", kind: "workspace", wide: true },
-          { path: ["runtime", "python_path"], label: "Python 解释器", hint: "Python 3.12 + requests + Pillow", kind: "text" },
-          { path: ["runtime", "request_timeout_ms"], label: "请求超时", hint: "单位毫秒", kind: "number" },
-          { path: ["runtime", "chrome_path"], label: "浏览器路径", hint: "Chrome/Edge 绝对路径；留空自动探测本机浏览器（浏览器自动化用）", kind: "text", wide: true },
-          { path: ["runtime", "zhihu_headless"], label: "知乎无头模式", hint: "默认开启（后台静默运行）；排障时可关闭以观察浏览器自动化操作", kind: "boolean" },
-          { path: ["runtime", "baijiahao_headless"], label: "百家号无头模式", hint: "默认开启（后台静默运行）；排障或首次登录时可关闭以观察浏览器自动化操作", kind: "boolean" },
-          { path: ["runtime", "dry_run"], label: "演练模式", hint: "不联网生图、不发布", kind: "boolean" },
-          { path: ["runtime", "verify_after_publish"], label: "发布后核验", hint: "自动 draft/get 核验", kind: "boolean" },
-          { path: ["runtime", "use_upload_cache"], label: "上传缓存", hint: "断点续跑素材上传", kind: "boolean" },
-          { path: ["runtime", "need_open_comment"], label: "开启留言", hint: "草稿开启留言", kind: "boolean" },
-        ]
-
-        const generateSuggestedId = (plat = "gzh") => {
-          const prefix = plat === "zhihu" ? "zhihu" : plat === "xiaohongshu" ? "xhs" : plat === "baijiahao" ? "baijiahao" : "gzh"
-          if (!accounts[prefix]) return prefix
-          for (let i = 1; i <= 99; i++) {
-            const candidate = prefix + "-" + i
-            if (!accounts[candidate]) return candidate
-          }
-          return prefix + "-" + Date.now().toString().slice(-4)
-        }
-
-        const openAddAccount = () => {
-          const initPlat = "gzh"
-          const suggested = generateSuggestedId(initPlat)
-          setAccountDraft({
-            platform: initPlat,
-            name: "",
-            id: suggested,
-            publish_mode: "browser",
-            appid: "",
-            app_secret: "",
-            author_name: "文映学术win00.cn",
-            brand_name: "文映千秋学术网",
-          })
-          setAccountDraftManualId(false)
-          setAccountCreateMsg("")
-          setAddingAccount(true)
-        }
-
-        const createAndSaveAccount = async () => {
-          const p = accountDraft.platform || "gzh"
-          const name = accountDraft.name.trim() || (p === "zhihu" ? "知乎专栏" : p === "xiaohongshu" ? "小红书账号" : p === "baijiahao" ? "百家号" : "微信公众号")
-          const id = accountDraft.id.trim()
-          if (!id) {
-            setAccountCreateMsg("请输入账号 ID")
-            return
-          }
-          if (!ACCOUNT_ID_RE.test(id)) {
-            setAccountCreateMsg("账号 ID 格式不合规范（仅支持字母、数字、下划线及连字符）")
-            return
-          }
-          if (accounts[id]) {
-            setAccountCreateMsg("账号 ID「" + id + "」已存在，请换一个")
-            return
-          }
-
-          setAccountCreating(true)
-          setAccountCreateMsg("")
-
-          const template = clone(DEFAULT_ACCOUNT)
-          template.name = name
-          template.platform = p
-          template.enabled = true
-          template.publish_mode = p === "gzh" ? (accountDraft.publish_mode || "browser") : "browser"
-          template.appid = (p === "gzh" && accountDraft.publish_mode === "api") ? accountDraft.appid.trim() : ""
-          template.app_secret = (p === "gzh" && accountDraft.publish_mode === "api") ? accountDraft.app_secret.trim() : ""
-          template.author_name = accountDraft.author_name || DEFAULT_ACCOUNT.author_name
-          template.brand_name = accountDraft.brand_name || DEFAULT_ACCOUNT.brand_name
-
-          if (p === "zhihu") {
-            template.content.headline_cover_ratio = "16:9"
-            template.content.secondary_cover_ratio = "16:9"
-            template.publish_immediately = false
-          } else if (p === "baijiahao") {
-            template.content.headline_cover_ratio = "2.35:1"
-            template.content.secondary_cover_ratio = "1:1"
-            template.publish_immediately = false
-          } else if (p === "xiaohongshu") {
-            template.content.headline_cover_ratio = "3:4"
-            template.content.secondary_cover_ratio = "3:4"
-            template.content.xhs_images_per_note = 4
-            template.content.xhs_min_words = 200
-          }
-
-          const nextConfig = clone(value)
-          nextConfig.accounts = nextConfig.accounts || {}
-          nextConfig.accounts[id] = template
-          if (!nextConfig.default_account || !nextConfig.accounts[nextConfig.default_account]) {
-            nextConfig.default_account = id
-          }
-
-          let mutateSuccess = false
-          if (activeScope && typeof activeScope.mutate === "function") {
-            try {
-              await activeScope.mutate([
-                { op: "set", path: ["accounts", id], value: template },
-                { op: "set", path: ["default_account"], value: nextConfig.default_account },
-              ])
-              mutateSuccess = true
-            } catch (err) {
-              console.warn("[dsh-social-publisher] activeScope.mutate 异常:", err)
-            }
-          }
-
-          let httpSuccess = false
-          try {
-            let res = await apiFetch(CONFIG_SAVE_ROUTE, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify(nextConfig),
-            })
-            if (res.status === 404) {
-              res = await apiFetch(CONFIG_IMPORT_ROUTE + "?mode=overwrite", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(nextConfig),
-              })
-            }
-            const result = await res.json().catch(() => ({}))
-            if (res.ok && (result.ok || result.config)) {
-              httpSuccess = true
-              if (result.config) Object.assign(nextConfig, normalizeValue(result.config))
-            }
-          } catch (err) {
-            console.warn("[dsh-social-publisher] HTTP 接口暂时不可用 (桌面端或离线模式):", err)
-          }
-
-          // 写入本地持久化水合缓存，确保刷新后不丢
-          writeLocalConfigCache(nextConfig)
-
-          const finalized = normalizeValue(nextConfig)
-          setSnapshot((cur) => ({ ...(cur || {}), value: finalized, status: "ready" }))
-          setSelectedAccountId(id)
-          setEditingAccount(true)
-          setAddingAccount(false)
-          setAccountCreating(false)
-          setSaveSuccessMsg("✓ 账号「" + name + "」创建并保存成功！")
-          setTimeout(() => setSaveSuccessMsg(""), 4000)
-        }
-
-        const openCopyAccount = (accountId) => {
-          const profile = accounts[accountId]
-          if (!profile) return
-          const base = accountId + "-copy"
-          let candidate = base
-          for (let n = 2; accounts[candidate]; n++) candidate = base + "-" + n
-          setCopyingAccountId(accountId)
-          setCopyDraft({ id: candidate, name: (profile.name || accountId) + " 副本" })
-        }
-
-        const createAccountCopy = async () => {
-          const source = copyingAccountId ? accounts[copyingAccountId] : null
-          const id = copyDraft.id.trim()
-          if (!source || !ACCOUNT_ID_RE.test(id) || accounts[id]) return
-          setCopyCreating(true)
-          const copy = clone(source)
-          copy.name = copyDraft.name.trim() || source.name || id
-
-          const nextConfig = clone(value)
-          nextConfig.accounts = nextConfig.accounts || {}
-          nextConfig.accounts[id] = copy
-
-          try {
-            let res = await apiFetch(CONFIG_SAVE_ROUTE, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify(nextConfig),
-            })
-            if (res.status === 404) {
-              res = await apiFetch(CONFIG_IMPORT_ROUTE + "?mode=overwrite", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(nextConfig),
-              })
-            }
-            const result = await res.json().catch(() => ({}))
-            if (result.config) Object.assign(nextConfig, normalizeValue(result.config))
-          } catch {}
-
-          if (activeScope && typeof activeScope.mutate === "function") {
-            try {
-              await activeScope.mutate([{ op: "set", path: ["accounts", id], value: copy }])
-            } catch {}
-          }
-
-          writeLocalConfigCache(nextConfig)
-          const finalized = normalizeValue(nextConfig)
-          setSnapshot((cur) => ({ ...(cur || {}), value: finalized, status: "ready" }))
-          setSelectedAccountId(id)
-          setEditingAccount(true)
-          setCopyingAccountId("")
-          setCopyDraft({ id: "", name: "" })
-          setCopyCreating(false)
-          setSaveSuccessMsg("账号副本「" + copy.name + "」已创建并立即保存落盘！")
-          setTimeout(() => setSaveSuccessMsg(""), 4000)
-        }
-
-        const deleteAccount = (accountId = activeAccountId) => {
-          if (!accountId || accountIds.length <= 1 || accountId === defaultAccountId) return
-          if (drafts["accounts." + accountId]?.object) removeDrafts("accounts." + accountId)
-          else {
-            // 先清掉该账号下已编辑字段的残留草稿，再整体标记删除
-            removeDrafts("accounts." + accountId)
-            edit(["accounts", accountId], { reset: true })
-          }
-          if (accountId === activeAccountId) {
-            setSelectedAccountId(accountIds.find((id) => id !== accountId) ?? "")
-          }
-        }
-
-        const toggleAccount = async (accountId, nextEnabled) => {
-          if (!accountId || !writable || saving) return
-          edit(["accounts", accountId, "enabled"], { value: nextEnabled })
-          const otherDraftKeys = Object.keys(drafts).filter((k) => k !== "accounts." + accountId + ".enabled")
-          if (otherDraftKeys.length === 0) {
-            setSavingWithRef(true)
-            setFailed(false)
-            setSaveErrorMsg("")
-            try {
-              const nextConfig = clone(value)
-              setAt(nextConfig, ["accounts", accountId, "enabled"], nextEnabled)
-              let mutateSuccess = false
-              let httpSuccess = false
-              let lastError = null
-
-              if (activeScope && typeof activeScope.mutate === "function") {
-                try {
-                  await activeScope.mutate([{ op: "set", path: ["accounts"], value: nextConfig.accounts }])
-                  mutateSuccess = true
-                } catch (e) {
-                  console.warn("[dsh-social-publisher] toggleAccount activeScope.mutate 异常:", e)
-                }
-              }
-              try {
-                let res = await apiFetch(CONFIG_SAVE_ROUTE, {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify(nextConfig),
-                })
-                if (res.status === 404) {
-                  res = await apiFetch(CONFIG_IMPORT_ROUTE + "?mode=overwrite", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify(nextConfig),
-                  })
-                }
-                const result = await res.json().catch(() => ({}))
-                if (res.ok && (result.ok || result.config)) {
-                  httpSuccess = true
-                  if (result.config) {
-                    Object.assign(nextConfig, normalizeValue(result.config))
-                  }
-                }
-              } catch (err) {
-                console.warn("[dsh-social-publisher] toggleAccount HTTP 保存接口不可用 (桌面端环境):", err)
-              }
-
-              writeLocalConfigCache(nextConfig)
-              removeAllDrafts()
-              setSnapshot((cur) => ({ ...(cur || {}), value: nextConfig, status: "ready" }))
-            } catch (err) {
-              setFailed(true)
-              setSaveErrorMsg(err?.message || String(err))
-            } finally {
-              setSavingWithRef(false)
-            }
-          }
-        }
-
-        const createProvider = () => {
-          const id = providerDraft.id.trim()
-          const name = providerDraft.name.trim() || id
-          if (!PROVIDER_ID_RE.test(id) || providers[id]) return
-          const template = clone(providers[activeProviderId] ?? DEFAULT_PROVIDER)
-          template.name = name
-          template.api_key = ""
-          template.priority = providerIds.length
-          edit(["image_providers", id], { object: true, value: template }, JSON.stringify(template))
-          setSelectedProviderId(id)
-          setEditingProvider(true)
-          setAddingProvider(false)
-          setProviderDraft({ id: "", name: "" })
-        }
-
-        const deleteProvider = (providerId = activeProviderId) => {
-          if (!providerId || providerIds.length <= 1) return
-          if (drafts["image_providers." + providerId]?.object) removeDrafts("image_providers." + providerId)
-          else {
-            // 先清掉该接口下已编辑字段的残留草稿，再整体标记删除
-            removeDrafts("image_providers." + providerId)
-            edit(["image_providers", providerId], { reset: true })
-          }
-          if (providerId === activeProviderId) setSelectedProviderId(providerIds.find((id) => id !== providerId) ?? "")
-        }
-
-        const toggleProvider = async (providerId, nextEnabled) => {
-          if (!providerId || !writable || saving) return
-          edit(["image_providers", providerId, "enabled"], { value: nextEnabled })
-          const otherDraftKeys = Object.keys(drafts).filter((k) => k !== "image_providers." + providerId + ".enabled")
-          if (otherDraftKeys.length === 0) {
-            setSavingWithRef(true)
-            setFailed(false)
-            setSaveErrorMsg("")
-            try {
-              const nextConfig = clone(value)
-              setAt(nextConfig, ["image_providers", providerId, "enabled"], nextEnabled)
-              let mutateSuccess = false
-              let httpSuccess = false
-              let lastError = null
-
-              if (activeScope && typeof activeScope.mutate === "function") {
-                try {
-                  await activeScope.mutate([{ op: "set", path: ["image_providers"], value: nextConfig.image_providers }])
-                  mutateSuccess = true
-                } catch (e) {
-                  console.warn("[dsh-social-publisher] toggleProvider activeScope.mutate 异常:", e)
-                }
-              }
-              try {
-                let res = await apiFetch(CONFIG_SAVE_ROUTE, {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify(nextConfig),
-                })
-                if (res.status === 404) {
-                  res = await apiFetch(CONFIG_IMPORT_ROUTE + "?mode=overwrite", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify(nextConfig),
-                  })
-                }
-                const result = await res.json().catch(() => ({}))
-                if (res.ok && (result.ok || result.config)) {
-                  httpSuccess = true
-                  if (result.config) {
-                    Object.assign(nextConfig, normalizeValue(result.config))
-                  }
-                }
-              } catch (err) {
-                console.warn("[dsh-social-publisher] toggleProvider HTTP 保存接口不可用 (桌面端环境):", err)
-              }
-
-              writeLocalConfigCache(nextConfig)
-              removeAllDrafts()
-              setSnapshot((cur) => ({ ...(cur || {}), value: nextConfig, status: "ready" }))
-            } catch (err) {
-              setFailed(true)
-              setSaveErrorMsg(err?.message || String(err))
-            } finally {
-              setSavingWithRef(false)
-            }
-          }
-        }
-
-        const testProvider = async (providerId) => {
-          if (!providerId || testingProviderId) return
-          setTestingProviderId(providerId)
-          setProviderTests((current) => ({ ...current, [providerId]: { status: "testing" } }))
-          try {
-            const response = await apiFetch("/api/gzh-publisher/test-image", {
-              method: "POST",
-              headers: { "content-type": "application/json", "x-dsh-gzh-test": "image-test" },
-              body: JSON.stringify({ provider_id: providerId }),
-            })
-            const result = await response.json().catch(() => ({}))
-            if (!response.ok || result.error) throw new Error(result.error || "接口测试失败")
-            setProviderTests((current) => ({ ...current, [providerId]: { status: "success", ...result } }))
-          } catch (error) {
-            setProviderTests((current) => ({ ...current, [providerId]: { status: "error", error: error?.message || String(error) } }))
-          } finally {
-            setTestingProviderId("")
-          }
-        }
-
-        const discoverDsh = async () => {
-          setDiscoveringDsh(true)
-          setDshDiscoverMsg("")
-          try {
-            const response = await apiFetch("/api/gzh-publisher/dsh-image-models")
-            const result = await response.json().catch(() => ({}))
-            if (result.ok && Array.isArray(result.models)) {
-              setDshModels(result.models)
-              if (result.models.length === 0) {
-                setDshDiscoverMsg("主 dsh 中暂未发现包含 image/dall-e/flux 等生图特征的模型")
-              }
-            } else {
-              setDshDiscoverMsg(result.error || "获取主 dsh 模型失败")
-            }
-          } catch (err) {
-            setDshDiscoverMsg(String(err))
-          } finally {
-            setDiscoveringDsh(false)
-          }
-        }
-
-        const importDshModel = (m) => {
-          const cleanId = ("dsh-" + m.provider + "-" + m.model_id).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
-          const template = clone(DEFAULT_PROVIDER)
-          template.name = (m.provider_name || m.provider) + " · " + (m.model_name || m.model_id)
-          template.base_url = m.base_url || DEFAULT_PROVIDER.base_url
-          template.api_key = m.api_key || ""
-          template.model = m.model_id
-          template.priority = providerIds.length
-          edit(["image_providers", cleanId], { object: true, value: template }, JSON.stringify(template))
-          setSelectedProviderId(cleanId)
-          setEditingProvider(true)
-        }
-
-        const accountSaved = hasAt(value.accounts, [activeAccountId])
-        const zhihuLoginAction = async (action) => {
-          if (zhihuLogin.status === "checking" || zhihuLogin.status === "logging") return
-          setZhihuLogin({
-            status: action === "check" ? "checking" : "logging",
-            message: action === "check"
-              ? "正在启动浏览器检查知乎登录态…"
-              : "已打开知乎登录窗口：请使用知乎 App 扫码登录（最长等待 4 分钟），扫码成功后窗口自动关闭。",
-          })
-          try {
-            if (dirty) {
-              await save().catch(() => {})
-            }
-            const response = await apiFetch(ZHIHU_LOGIN_ROUTE, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ account_id: activeAccountId, action, force: true }),
-            })
-            const result = await response.json().catch(() => ({}))
-            if (!response.ok || result.error) {
-              const detail = result.error || result.message || (!response.ok ? ("HTTP " + response.status + (response.statusText ? " " + response.statusText : "")) : "请求失败")
-              throw new Error(detail)
-            }
-            setZhihuLogin({
-              status: "idle",
-              message: result.logged_in
-                ? (action === "check" ? "登录态有效（已检测到知乎凭证）" : "知乎登录成功！登录态已独立保存在该账号目录（accounts/" + activeAccountId + "/zhihu_profile）")
-                : (action === "check" ? "未登录：请点击「扫码登录知乎」" : (result.error || "未完成扫码登录或窗口已关闭，请重试")),
-            })
-          } catch (error) {
-            setZhihuLogin({ status: "idle", message: error?.message || String(error) })
-          }
-        }
-        const zhihuLoginPanel = () => React.createElement(
-          "div",
-          { className: "gzhUpload" },
-          React.createElement(
-            "div", { className: "gzhUploadBody" },
-            React.createElement("strong", { className: "gzhSectionTitle" }, "知乎登录（账号独立隔离）"),
-            React.createElement("p", { className: "gzhHint" },
-              zhihuLogin.message || ("扫码一次长期有效：登录态独立保存在该账号目录（accounts/" + activeAccountId + "/zhihu_profile），多账号完全隔离互不影响。")),
-            React.createElement(
-              "div", { className: "gzhUploadActions" },
-              React.createElement("button", {
-                type: "button", className: "gzhButton",
-                disabled: zhihuLogin.status === "checking" || zhihuLogin.status === "logging",
-                onClick: () => zhihuLoginAction("check"),
-              }, zhihuLogin.status === "checking" ? "检查中…" : "检查登录态"),
-              React.createElement("button", {
-                type: "button", className: "gzhButton gzhButtonPrimary",
-                disabled: zhihuLogin.status === "checking" || zhihuLogin.status === "logging",
-                onClick: () => zhihuLoginAction("login"),
-              }, zhihuLogin.status === "logging" ? "等待扫码…" : "扫码登录知乎"),
-            ),
-          ),
-        )
-
-        const wechatLoginAction = async (action) => {
-          if (wechatLogin.status === "checking" || wechatLogin.status === "logging") return
-          setWechatLogin({
-            status: action === "check" ? "checking" : "logging",
-            message: action === "check"
-              ? "正在启动浏览器检查公众号后台登录态…"
-              : "已打开微信公众号登录窗口：请使用管理员或运营者微信扫码登录（最长等待 4 分钟），扫码成功后窗口自动关闭。",
-          })
-          try {
-            if (dirty) {
-              await save().catch(() => {})
-            }
-            const response = await apiFetch(WECHAT_LOGIN_ROUTE, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ account_id: activeAccountId, action, force: true }),
-            })
-            const result = await response.json().catch(() => ({}))
-            if (!response.ok || result.error) {
-              const detail = result.error || result.message || (!response.ok ? ("HTTP " + response.status + (response.statusText ? " " + response.statusText : "")) : "请求失败")
-              throw new Error(detail)
-            }
-            setWechatLogin({
-              status: "idle",
-              message: result.logged_in
-                ? (action === "check" ? "微信公众号后台登录态有效（已检测到后台 session token）" : "微信公众号登录成功！登录态已独立保存在该账号目录（accounts/" + activeAccountId + "/wechat_profile）")
-                : (action === "check" ? "未登录：请点击「扫码登录微信公众号」" : (result.error || "未完成扫码登录或窗口已关闭，请重试")),
-            })
-          } catch (error) {
-            setWechatLogin({ status: "idle", message: error?.message || String(error) })
-          }
-        }
-        const wechatLoginPanel = () => React.createElement(
-          "div",
-          { className: "gzhUpload" },
-          React.createElement(
-            "div", { className: "gzhUploadBody" },
-            React.createElement("strong", { className: "gzhSectionTitle" }, "微信公众平台登录态（账号独立隔离，免 API 发布与自动开启原创专用）"),
-            React.createElement("p", { className: "gzhHint" },
-              wechatLogin.message || ("扫码一次长期有效：登录态独立保存在该账号目录（accounts/" + activeAccountId + "/wechat_profile），多账号完全隔离互不影响。用于免 API 模式下直接创建草稿，以及草稿生成后自动通过浏览器模拟打开草稿箱开启文字原创并保存草稿。")),
-            React.createElement(
-              "div", { className: "gzhUploadActions" },
-              React.createElement("button", {
-                type: "button", className: "gzhButton",
-                disabled: wechatLogin.status === "checking" || wechatLogin.status === "logging",
-                onClick: () => wechatLoginAction("check"),
-              }, wechatLogin.status === "checking" ? "检查中…" : "检查登录态"),
-              React.createElement("button", {
-                type: "button", className: "gzhButton gzhButtonPrimary",
-                disabled: wechatLogin.status === "checking" || wechatLogin.status === "logging",
-                onClick: () => wechatLoginAction("login"),
-              }, wechatLogin.status === "logging" ? "等待扫码…" : "扫码登录微信公众号"),
-            ),
-          ),
-        )
-
-        const xhsLoginAction = async (action) => {
-          if (xhsLogin.status === "checking" || xhsLogin.status === "logging") return
-          setXhsLogin({
-            status: action === "check" ? "checking" : "logging",
-            message: action === "check"
-              ? "正在启动浏览器检查小红书后台登录态…"
-              : "已打开小红书创作者中心登录窗口：请使用小红书 App 扫码登录（最长等待 4 分钟），扫码成功后窗口自动关闭。",
-          })
-          try {
-            if (dirty) {
-              await save().catch(() => {})
-            }
-            const response = await apiFetch(XHS_LOGIN_ROUTE, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ account_id: activeAccountId, action, force: true }),
-            })
-            const result = await response.json().catch(() => ({}))
-            if (!response.ok || result.error) {
-              const detail = result.error || result.message || (!response.ok ? ("HTTP " + response.status + (response.statusText ? " " + response.statusText : "")) : "请求失败")
-              throw new Error(detail)
-            }
-            const displayName = result.user_name ? (result.user_name + (result.red_id ? " · 小红书号: " + result.red_id : "")) : ""
-            setXhsLogin({
-              status: "idle",
-              message: result.logged_in
-                ? (action === "check"
-                    ? ("小红书创作者中心登录态有效" + (displayName ? "（" + displayName + "）" : "（已检测到登录凭据）"))
-                    : ("小红书扫码登录成功！" + (displayName ? "当前创作者：" + displayName + "，" : "") + "窗口已自动关闭，登录凭据已持久化保存在该账号目录（accounts/" + activeAccountId + "/xhs_profile）"))
-                : (action === "check" ? "未登录：请点击「扫码登录小红书」" : (result.error || "未完成扫码登录或窗口已关闭，请重试")),
-            })
-          } catch (error) {
-            setXhsLogin({ status: "idle", message: error?.message || String(error) })
-          }
-        }
-        const xhsLoginPanel = () => React.createElement(
-          "div",
-          { className: "gzhUpload" },
-          React.createElement(
-            "div", { className: "gzhUploadBody" },
-            React.createElement("strong", { className: "gzhSectionTitle" }, "小红书登录（账号独立隔离）"),
-            React.createElement("p", { className: "gzhHint" },
-              xhsLogin.message || ("扫码一次长期有效：登录态独立保存在该账号目录（accounts/" + activeAccountId + "/xhs_profile），多账号完全隔离互不影响。用于免 API 自动发布小红书图文笔记与存草稿。")),
-            React.createElement(
-              "div", { className: "gzhUploadActions" },
-              React.createElement("button", {
-                type: "button", className: "gzhButton",
-                disabled: xhsLogin.status === "checking" || xhsLogin.status === "logging",
-                onClick: () => xhsLoginAction("check"),
-              }, xhsLogin.status === "checking" ? "检查中…" : "检查登录态"),
-              React.createElement("button", {
-                type: "button", className: "gzhButton gzhButtonPrimary",
-                disabled: xhsLogin.status === "checking" || xhsLogin.status === "logging",
-                onClick: () => xhsLoginAction("login"),
-              }, xhsLogin.status === "logging" ? "等待扫码…" : "扫码登录小红书"),
-            ),
-          ),
-        )
-
-        const baijiahaoLoginAction = async (action) => {
-          if (baijiahaoLogin.status === "checking" || baijiahaoLogin.status === "logging") return
-          setBaijiahaoLogin({
-            status: action === "check" ? "checking" : "logging",
-            message: action === "check"
-              ? "正在启动浏览器检查百家号后台登录态…"
-              : "已打开百度账号登录窗口：请使用百度 App 扫码或输入账号密码登录（最长等待 4 分钟），登录成功后窗口自动关闭。",
-          })
-          try {
-            if (dirty) {
-              await save().catch(() => {})
-            }
-            const response = await apiFetch(BAIJIAHAO_LOGIN_ROUTE, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ account_id: activeAccountId, action, force: true }),
-            })
-            const result = await response.json().catch(() => ({}))
-            if (!response.ok || result.error) {
-              const detail = result.error || result.message || (!response.ok ? ("HTTP " + response.status + (response.statusText ? " " + response.statusText : "")) : "请求失败")
-              throw new Error(detail)
-            }
-            setBaijiahaoLogin({
-              status: "idle",
-              message: result.logged_in
-                ? (action === "check" ? "百家号后台登录态有效（已检测到百度账号凭证）" : "百家号登录成功！登录态已独立保存在该账号目录（accounts/" + activeAccountId + "/baijiahao_profile）")
-                : (action === "check" ? "未登录：请点击「登录百家号」" : (result.error || "未完成登录或窗口已关闭，请重试")),
-            })
-          } catch (error) {
-            setBaijiahaoLogin({ status: "idle", message: error?.message || String(error) })
-          }
-        }
-        const baijiahaoLoginPanel = () => React.createElement(
-          "div",
-          { className: "gzhUpload" },
-          React.createElement(
-            "div", { className: "gzhUploadBody" },
-            React.createElement("strong", { className: "gzhSectionTitle" }, "百家号登录（账号独立隔离）"),
-            React.createElement("p", { className: "gzhHint" },
-              baijiahaoLogin.message || ("百度账号登录一次长期有效：登录态独立保存在该账号目录（accounts/" + activeAccountId + "/baijiahao_profile），多账号完全隔离互不影响。用于浏览器自动化发布百家号图文并默认存草稿箱。")),
-            React.createElement(
-              "div", { className: "gzhUploadActions" },
-              React.createElement("button", {
-                type: "button", className: "gzhButton",
-                disabled: baijiahaoLogin.status === "checking" || baijiahaoLogin.status === "logging",
-                onClick: () => baijiahaoLoginAction("check"),
-              }, baijiahaoLogin.status === "checking" ? "检查中…" : "检查登录态"),
-              React.createElement("button", {
-                type: "button", className: "gzhButton gzhButtonPrimary",
-                disabled: baijiahaoLogin.status === "checking" || baijiahaoLogin.status === "logging",
-                onClick: () => baijiahaoLoginAction("login"),
-              }, baijiahaoLogin.status === "logging" ? "等待登录…" : "登录百家号"),
-            ),
-          ),
-        )
-
-        const accountSelector = (label, value, onChange) => React.createElement(
-          "label",
-          { className: "gzhToolbar" },
-          React.createElement("span", { className: "gzhSectionTitle" }, label),
-          React.createElement(
-            "select",
-            { className: "gzhSelectSmall", value, onChange: (event) => onChange(event.target.value) },
-            ...accountIds.map((id) => React.createElement("option", { key: id, value: id }, (accounts[id]?.name || id) + "（" + id + "）")),
-          ),
-        )
-
-        const providerSelector = () => React.createElement(
-          "label",
-          { className: "gzhToolbar" },
-          React.createElement("span", { className: "gzhSectionTitle" }, "选择接口"),
-          React.createElement(
-            "select",
-            { className: "gzhSelectSmall", value: activeProviderId, onChange: (event) => setSelectedProviderId(event.target.value) },
-            ...providerIds.map((id) => React.createElement(
-              "option", { key: id, value: id },
-              (providers[id]?.name || id) + "（优先级 " + String(providers[id]?.priority ?? 0) + "）",
-            )),
-          ),
-        )
-
-        const accountList = () => React.createElement(
-          "div",
-          { className: "gzhAccountList" },
-          ...accountIds
-            .slice()
-            .sort((left, right) => Number(right === defaultAccountId) - Number(left === defaultAccountId) || left.localeCompare(right))
-            .map((id) => {
-              const profile = accounts[id]
-              if (!profile) return null
-              const selected = id === activeAccountId
-              const isDefault = id === defaultAccountId
-              return React.createElement(
-                "div",
-                { key: id, className: "gzhAccountRow" + (selected ? " gzhAccountRowActive" : "") },
-                React.createElement(
-                  "div",
-                  { className: "gzhAccountMain", role: "button", tabIndex: 0,
-                    onClick: () => setSelectedAccountId(id),
-                    onKeyDown: (event) => {
-                      if (event.key === "Enter" || event.key === " ") setSelectedAccountId(id)
-                    },
-                  },
-                  React.createElement(
-                    "div", { className: "gzhAccountName" },
-                    React.createElement("span", { className: "gzhAccountNameText" }, profile.name || id),
-                    isDefault ? React.createElement("span", { className: "gzhBadge" }, "默认") : null,
-                    React.createElement("span", { className: "gzhBadge" }, profile.platform === "zhihu" ? "知乎" : (profile.platform === "xiaohongshu" ? "小红书" : (profile.platform === "baijiahao" ? "百家号" : "公众号"))),
-                    profile.platform === "gzh" && React.createElement("span", { className: "gzhBadge", title: profile.publish_mode === "browser" ? "免 API 浏览器自动化模式" : "官方 API 接口模式" }, profile.publish_mode === "browser" ? "免 API" : "API 接口"),
-                    profile.platform === "gzh" && (profile.content?.article_type === "newspic" ? React.createElement("span", { className: "gzhBadge" }, "小绿书") : (profile.content?.article_type === "both" || profile.content?.sync_newspic) ? React.createElement("span", { className: "gzhBadge" }, "双发") : null),
-                    profile.platform === "gzh" && profile.auto_enable_original ? React.createElement("span", { className: "gzhBadge", title: "草稿创建后自动通过浏览器模拟打开草稿箱开启文字原创" }, "自动原创") : null,
-                    profile.platform === "xiaohongshu" && React.createElement("span", { className: "gzhBadge", title: "免 API 浏览器自动化发布，3:4 竖版多图文笔记" }, "3:4 竖版图文"),
-                    profile.platform === "baijiahao" && React.createElement("span", { className: "gzhBadge", title: "浏览器自动化发布，默认存百家号草稿箱（百度账号登录）" }, "图文草稿"),
-                  ),
-                  React.createElement("div", { className: "gzhAccountId" }, id),
-                ),
-                React.createElement(
-                  "div", { className: "gzhAccountStatus" },
-                  React.createElement(
-                    "label",
-                    {
-                      className: "gzhAccountSwitch" + (!writable || saving ? " gzhAccountSwitchDisabled" : ""),
-                      title: profile.enabled ? "点击停用该账号" : "点击启用该账号",
-                      onClick: (event) => event.stopPropagation(),
-                    },
-                    React.createElement("input", {
-                      type: "checkbox",
-                      className: "gzhSwitch",
-                      checked: Boolean(profile.enabled),
-                      disabled: !writable || saving,
-                      onChange: (event) => toggleAccount(id, event.target.checked),
-                    }),
-                    React.createElement(
-                      "span",
-                      { className: "gzhAccountSwitchLabel" + (profile.enabled ? " gzhAccountSwitchLabelActive" : "") },
-                      profile.enabled ? "已启用" : "已停用",
-                    ),
-                  ),
-                ),
-                React.createElement(
-                  "div", { className: "gzhAccountActions" },
-                  React.createElement("button", {
-                    type: "button", className: "gzhButton", disabled: selected && editingAccount,
-                    onClick: () => { setSelectedAccountId(id); setEditingAccount(true) },
-                  }, selected && editingAccount ? "编辑中" : "编辑"),
-                  React.createElement("button", {
-                    type: "button", className: "gzhButton", disabled: !writable || saving,
-                    onClick: () => openCopyAccount(id),
-                  }, "复制"),
-                  React.createElement("button", {
-                    type: "button", className: "gzhButton", disabled: isDefault || !writable || saving,
-                    onClick: () => edit(["default_account"], { value: id }),
-                  }, isDefault ? "当前默认" : "设为默认"),
-                  React.createElement("button", {
-                    type: "button", className: "gzhButton",
-                    disabled: accountIds.length <= 1 || isDefault || !writable || saving,
-                    onClick: () => deleteAccount(id),
-                  }, "删除"),
-                ),
-              )
-            }),
-        )
-
-        const contentList = () => React.createElement(
-          "div",
-          { className: "gzhConfigList" },
-          ...accountIds.map((id) => {
-            const profile = accounts[id]
-            if (!profile) return null
-            const selected = id === activeAccountId
-            const content = profile.content || {}
-            const isZhihu = profile.platform === "zhihu"
-            const isXhs = profile.platform === "xiaohongshu"
-            const isBaijiahaoAcc = profile.platform === "baijiahao"
-            const articleType = content.article_type || "news"
-            const syncNewspic = content.sync_newspic === true
-            const isBoth = !isZhihu && !isXhs && !isBaijiahaoAcc && (articleType === "both" || syncNewspic)
-            let typeLabel = "长文"
-            if (isZhihu) {
-              typeLabel = "知乎专栏"
-            } else if (isXhs) {
-              typeLabel = "小红书笔记"
-            } else if (isBaijiahaoAcc) {
-              typeLabel = "百家号图文"
-            } else if (articleType === "newspic") {
-              typeLabel = "小绿书卡片"
-            } else if (isBoth) {
-              typeLabel = "长文+小绿书双发"
-            }
-            const themeName = (THEMES.find(([k]) => k === content.headline_theme)?.[1] || content.headline_theme || "文映学术").replace(/（.*）/, "")
-            const coverRatioInfo = isZhihu ? "16:9" : isXhs ? "3:4" : `${content.headline_cover_ratio || "2.35:1"}/${content.secondary_cover_ratio || "1:1"}`
-            const statusSummary = isZhihu
-              ? `${typeLabel} · ${content.articles_per_day ?? 0} 篇/日 · 最低 ${content.min_words ?? 0} 字 · 封面 ${coverRatioInfo}`
-              : isXhs
-                ? `${typeLabel} · ${content.articles_per_day ?? 1} 篇/日 · ${content.xhs_images_per_note ?? 4} 张配图 · 最低 ${content.xhs_min_words ?? 200} 字 · 封面 3:4`
-                : isBaijiahaoAcc
-                  ? `${typeLabel} · ${content.articles_per_day ?? 0} 篇/日 · 最低 ${content.min_words ?? 0} 字 · 封面 2.35:1`
-                  : articleType === "newspic"
-                  ? `${typeLabel} · ${content.newspic_articles_per_day ?? 1} 篇/日 · ${content.newspic_images_per_article ?? 4} 张卡片 · 比例 ${content.newspic_image_ratio ?? "3:4"}`
-                  : isBoth
-                    ? `${typeLabel} · 长文 ${content.articles_per_day ?? 6} 篇 · 小绿书 ${content.newspic_articles_per_day ?? 1} 篇 · 主题 ${themeName} · 封面 ${coverRatioInfo}`
-                    : `${typeLabel} · ${content.articles_per_day ?? 6} 篇/日 · 最低 ${content.min_words ?? 2000} 字 · 主题 ${themeName} · 封面 ${coverRatioInfo}`
-
-            return React.createElement(
-              "div", { key: id, className: "gzhConfigRow" + (selected && editingContentAccount ? " gzhConfigRowActive" : "") },
-              React.createElement(
-                "div", { className: "gzhConfigMain", role: "button", tabIndex: 0,
-                  onClick: () => setSelectedAccountId(id),
-                  onKeyDown: (event) => { if (event.key === "Enter" || event.key === " ") setSelectedAccountId(id) },
-                },
-                React.createElement("div", { className: "gzhConfigTitle" }, React.createElement("span", { className: "gzhConfigTitleText" }, profile.name || id)),
-                React.createElement("div", { className: "gzhConfigMeta" }, id + " · " + (profile.platform === "zhihu" ? "知乎" : (profile.platform === "xiaohongshu" ? "小红书" : (profile.platform === "baijiahao" ? "百家号" : "公众号")))),
-              ),
-              React.createElement("div", { className: "gzhConfigStatus" }, statusSummary),
-              React.createElement("div", { className: "gzhConfigActions" }, React.createElement("button", {
-                type: "button", className: "gzhButton", onClick: () => { setSelectedAccountId(id); setEditingContentAccount(true) },
-              }, selected && editingContentAccount ? "编辑中" : "编辑规则")),
-            )
-          }),
-        )
-
-        const providerList = () => React.createElement(
-          "div",
-          { className: "gzhConfigList" },
-          ...providerIds.map((id) => {
-            const provider = providers[id]
-            if (!provider) return null
-            const selected = id === activeProviderId
-            return React.createElement(
-              "div", { key: id, className: "gzhConfigRow" + (selected && editingProvider ? " gzhConfigRowActive" : "") },
-              React.createElement(
-                "div", { className: "gzhConfigMain", role: "button", tabIndex: 0,
-                  onClick: () => setSelectedProviderId(id),
-                  onKeyDown: (event) => { if (event.key === "Enter" || event.key === " ") setSelectedProviderId(id) },
-                },
-                React.createElement("div", { className: "gzhConfigTitle" }, React.createElement("span", { className: "gzhConfigTitleText" }, provider.name || id)),
-                React.createElement("div", { className: "gzhConfigMeta" }, id + " · " + String(provider.base_url || "未配置")),
-              ),
-              React.createElement("div", { className: "gzhConfigStatus" },
-                React.createElement(
-                  "label",
-                  {
-                    className: "gzhAccountSwitch" + (!writable || saving ? " gzhAccountSwitchDisabled" : ""),
-                    title: provider.enabled ? "点击停用该生图接口" : "点击启用该生图接口",
-                    onClick: (event) => event.stopPropagation(),
-                  },
-                  React.createElement("input", {
-                    type: "checkbox",
-                    className: "gzhSwitch",
-                    checked: Boolean(provider.enabled),
-                    disabled: !writable || saving,
-                    onChange: (event) => toggleProvider(id, event.target.checked),
-                  }),
-                  React.createElement(
-                    "span",
-                    { className: "gzhAccountSwitchLabel" + (provider.enabled ? " gzhAccountSwitchLabelActive" : "") },
-                    provider.enabled ? "已启用" : "已停用",
-                  ),
-                ),
-                React.createElement("span", { className: "gzhBadge" }, "优先级 " + String(provider.priority ?? 0)),
-              ),
-              React.createElement("div", { className: "gzhConfigActions" },
-                React.createElement("button", { type: "button", className: "gzhButton", disabled: testingProviderId !== "" || !provider.enabled, onClick: () => testProvider(id) }, testingProviderId === id ? "测试中…" : "测试接口"),
-                React.createElement("button", { type: "button", className: "gzhButton", onClick: () => { setSelectedProviderId(id); setEditingProvider(true) } }, selected && editingProvider ? "编辑中" : "编辑接口"),
-                React.createElement("button", { type: "button", className: "gzhButton", disabled: providerIds.length <= 1 || !writable || saving, onClick: () => deleteProvider(id) }, "删除"),
-              ),
-              providerTests[id] ? React.createElement(
-                "div", { className: "gzhProviderTest" },
-                providerTests[id].status === "testing" ? React.createElement("div", { className: "gzhProviderTestInfo" }, "正在请求接口并生成测试图…") : null,
-                providerTests[id].status === "error" ? React.createElement("div", { className: "gzhProviderTestInfo gzhProviderTestError" }, "测试失败：" + providerTests[id].error) : null,
-                providerTests[id].status === "success" ? React.createElement(React.Fragment, null,
-                  providerTests[id].preview_url ? React.createElement("img", { className: "gzhProviderTestPreview", src: providerTests[id].preview_url, alt: "生图接口测试预览" }) : null,
-                  React.createElement("div", { className: "gzhProviderTestInfo gzhProviderTestSuccess" }, providerTests[id].dry_run ? providerTests[id].message : "测试成功 · " + String(providerTests[id].model || provider.model || "")),
-                ) : null,
-              ) : null,
-            )
-          }),
-        )
-
-        const brandEditor = (slot) => {
-          const key = activeAccountId + ":" + slot
-          const upload = uploads[key]
-          const savedAccount = hasAt(value.accounts, [activeAccountId])
-          const savedUrl = savedAccount
-            ? resolveApiUrl(`${BRAND_ROUTE}?account=${encodeURIComponent(activeAccountId)}&slot=${slot}&rev=${snapshot.revision ?? 0}`)
-            : ""
-          const preview = upload?.preview || savedUrl
-          const missing = missingPreviews[key] === true || (!preview && !upload?.error)
-          const chooseFile = (file) => uploadBrandFile(activeAccountId, slot, file)
-          return React.createElement(
-            "div",
-            { className: "gzhUpload" + (dragging === key ? " gzhUploadActive" : "") },
-            preview && !missing
-              ? React.createElement("img", {
-                  className: "gzhPreview",
-                  src: preview,
-                  alt: slot === "header" ? "头部品牌图预览" : "尾部品牌图预览",
-                  onError: () => setMissingPreviews((current) => ({ ...current, [key]: true })),
-                })
-              : React.createElement(
-                  "div",
-                  { className: "gzhPreview gzhPreviewMissing" },
-                  upload?.error ? "上传失败" : savedAccount ? "暂无图片" : "保存账号后预览",
-                ),
-            React.createElement(
-              "div",
-              {
-                className: "gzhUploadBody",
-                onDragOver: (event) => { event.preventDefault(); setDragging(key) },
-                onDragLeave: () => setDragging(""),
-                onDrop: (event) => {
-                  event.preventDefault()
-                  setDragging("")
-                  chooseFile(event.dataTransfer?.files?.[0])
-                },
-              },
-              React.createElement("strong", { className: "gzhSectionTitle" }, slot === "header" ? "上传头部品牌图" : "上传尾部品牌图"),
-              React.createElement("p", { className: "gzhHint" }, "支持 JPEG、PNG、WebP，最大 10 MB；上传后立即写入 brand_assets/uploads。"),
-              React.createElement(
-                "div",
-                { className: "gzhUploadActions" },
-                React.createElement(
-                  "label",
-                  { className: "gzhButton" },
-                  "选择文件",
-                  React.createElement("input", {
-                    type: "file",
-                    accept: "image/jpeg,image/png,image/webp",
-                    hidden: true,
-                    disabled: !writable || saving,
-                    onChange: (event) => {
-                      chooseFile(event.target.files?.[0])
-                      event.target.value = ""
-                    },
-                  }),
-                ),
-                React.createElement("button", {
-                  type: "button",
-                  className: "gzhButton",
-                  disabled: !writable || saving || !currentValue(["accounts", activeAccountId, "brand_images", slot, "file"]),
-                  onClick: () => {
-                    cleanupUpload(activeAccountId, slot)
-                    edit(["accounts", activeAccountId, "brand_images", slot, "file"], { value: "" }, "")
-                  },
-                }, "移除"),
-              ),
-              upload && upload.progress < 100
-                ? React.createElement(
-                    "div",
-                    { className: "gzhProgress" },
-                    React.createElement("div", { className: "gzhProgressBar", style: { width: String(upload.progress) + "%" } }),
-                  )
-                : null,
-              upload?.error ? React.createElement("p", { className: "gzhUploadError" }, upload.error) : null,
-            ),
-          )
-        }
-
-        const historyView = () => {
-          const records = Array.isArray(historyData.records) ? historyData.records : []
-          const keyword = historySearch.trim().toLowerCase()
-          const filteredRecords = keyword
-            ? records.map((rec) => {
-                const matchedItems = (rec.items || []).filter((item) => (item.title || "").toLowerCase().includes(keyword))
-                if (matchedItems.length > 0 || (rec.account_name || "").toLowerCase().includes(keyword) || (rec.author || "").toLowerCase().includes(keyword)) {
-                  return { ...rec, items: matchedItems.length > 0 ? matchedItems : rec.items }
-                }
-                return null
-              }).filter(Boolean)
-            : records
-
-          return React.createElement(
-            "div",
-            { className: "gzhPanel" },
-            React.createElement(
-              "div",
-              { className: "gzhStatGrid" },
-              React.createElement("div", { className: "gzhStatCard" },
-                React.createElement("span", { className: "gzhStatNumber" }, String(historyData.total_batches ?? 0)),
-                React.createElement("span", { className: "gzhStatLabel" }, "累计发布批次"),
-              ),
-              React.createElement("div", { className: "gzhStatCard" },
-                React.createElement("span", { className: "gzhStatNumber" }, String(historyData.total_articles ?? 0)),
-                React.createElement("span", { className: "gzhStatLabel" }, "历史文章总数"),
-              ),
-              React.createElement("div", { className: "gzhStatCard" },
-                React.createElement("span", { className: "gzhStatNumber" }, String(historyData.gzh_articles ?? 0)),
-                React.createElement("span", { className: "gzhStatLabel" }, "公众号长文/小绿书"),
-              ),
-              React.createElement("div", { className: "gzhStatCard" },
-                React.createElement("span", { className: "gzhStatNumber" }, String(historyData.zhihu_articles ?? 0)),
-                React.createElement("span", { className: "gzhStatLabel" }, "知乎专栏草稿"),
-              ),
-            ),
-            React.createElement(
-              "div",
-              { className: "gzhHistoryToolbar" },
-              React.createElement(
-                "div",
-                { className: "gzhHistoryToolbarLeft" },
-                React.createElement(
-                  "select",
-                  {
-                    className: "gzhSelectSmall",
-                    value: historyAccountFilter,
-                    onChange: (e) => setHistoryAccountFilter(e.target.value),
-                  },
-                  React.createElement("option", { value: "" }, "全部账号（" + String(accountIds.length) + " 个）"),
-                  ...accountIds.map((id) => React.createElement("option", { key: id, value: id }, (accounts[id]?.name || id) + "（" + id + "）")),
-                ),
-                React.createElement("input", {
-                  className: "gzhSearchInput",
-                  placeholder: "按文章标题或账号搜索...",
-                  value: historySearch,
-                  onChange: (e) => setHistorySearch(e.target.value),
-                }),
-              ),
-              React.createElement(
-                "button",
-                {
-                  type: "button",
-                  className: "gzhButton",
-                  disabled: historyLoading,
-                  onClick: () => fetchHistory(historyAccountFilter),
-                },
-                historyLoading ? "加载中…" : "刷新记录",
-              ),
-            ),
-            historyError ? React.createElement("p", { className: "gzhInvalid" }, "加载失败：" + historyError) : null,
-            filteredRecords.length === 0 ? React.createElement(
-              "div",
-              { className: "gzhEmptyState" },
-              React.createElement("div", { className: "gzhEmptyTitle" }, historyLoading ? "正在读取历史发表记录…" : (keyword ? "未搜索到匹配的历史文章" : "暂无历史发表文章")),
-              React.createElement("p", { className: "gzhHint" }, keyword ? "请尝试更换关键词或清除搜索条件" : "已发布的公众号多图文草稿或知乎专栏文章将自动记录并归档在此处。"),
-            ) : React.createElement(
-              "div",
-              { className: "gzhBatchList" },
-              ...filteredRecords.map((batch) => {
-                const isZhihu = batch.platform === "zhihu"
-                const isPic = batch.article_type === "newspic"
-                const platformLabel = batch.platform === "baijiahao" ? "百家号图文" : (isZhihu ? "知乎专栏" : (isPic ? "小绿书图片消息" : "公众号多图文"))
-                const items = Array.isArray(batch.items) ? batch.items : []
-                return React.createElement(
-                  "div",
-                  { key: batch.id, className: "gzhBatchCard" },
-                  React.createElement(
-                    "div",
-                    { className: "gzhBatchHeader" },
-                    React.createElement(
-                      "div",
-                      { className: "gzhBatchHeaderLeft" },
-                      React.createElement(
-                        "div",
-                        { className: "gzhBatchTitleRow" },
-                        React.createElement("span", { className: "gzhBatchAccountName" }, batch.account_name || batch.account_id),
-                        React.createElement("span", { className: "gzhBadge" }, platformLabel),
-                        React.createElement("span", { className: "gzhBadge" }, String(batch.article_count || items.length) + " 篇"),
-                        batch.author ? React.createElement("span", { className: "gzhBadge" }, "作者: " + batch.author) : null,
-                      ),
-                      React.createElement("span", { className: "gzhBatchTime" }, "发布时间：" + (batch.timestamp || "未知时间")),
-                      batch.draft_media_id ? React.createElement("span", { className: "gzhBatchMediaId", title: batch.draft_media_id }, "草稿 Media ID: " + batch.draft_media_id) : null,
-                    ),
-                    React.createElement("span", { className: "gzhBadge" }, isZhihu ? "已同步至知乎" : "已同步至草稿箱"),
-                  ),
-                  React.createElement(
-                    "div",
-                    { className: "gzhBatchArticleList" },
-                    ...items.map((item, idx) => {
-                      const itemKey = batch.id + ":" + String(idx)
-                      const isExpanded = Boolean(expandedDigests[itemKey])
-                      return React.createElement(
-                        "div",
-                        { key: itemKey, className: "gzhArticleRow" },
-                        React.createElement(
-                          "div",
-                          { className: "gzhArticleTop" },
-                          React.createElement(
-                            "div",
-                            { className: "gzhArticleTitleWrap" },
-                            React.createElement("span", { className: "gzhArticleSeq" }, String(item.index || idx + 1)),
-                            React.createElement("span", { className: "gzhArticleTitleText" }, item.title),
-                          ),
-                          item.url ? React.createElement(
-                            "a",
-                            { className: "gzhArticleLink", href: item.url, target: "_blank", rel: "noreferrer" },
-                            "查看知乎专栏 ↗",
-                          ) : null,
-                          item.digest ? React.createElement(
-                            "button",
-                            {
-                              type: "button",
-                              className: "gzhButton",
-                              style: { padding: "2px 8px", fontSize: "11px" },
-                              onClick: () => setExpandedDigests((curr) => ({ ...curr, [itemKey]: !isExpanded })),
-                            },
-                            isExpanded ? "收起摘要" : "查看摘要",
-                          ) : null,
-                        ),
-                        isExpanded && item.digest ? React.createElement("p", { className: "gzhArticleDigest" }, item.digest) : null,
-                      )
-                    }),
-                  ),
-                )
-              }),
-            ),
-          )
-        }
-
-        const buildExportPayload = (scope, includeSecrets) => {
-          const partial = {}
-          if (scope === "all" || scope === "accounts") {
-            const accs = clone(value.accounts || {})
-            for (const acc of Object.values(accs)) {
-              if (!includeSecrets) acc.app_secret = ""
-            }
-            partial.accounts = accs
-            partial.default_account = value.default_account
-          }
-          if (scope === "all" || scope === "image_providers") {
-            const provs = clone(value.image_providers || {})
-            for (const p of Object.values(provs)) {
-              if (!includeSecrets) p.api_key = ""
-            }
-            partial.image_providers = provs
-          }
-          if (scope === "all" || scope === "visual_rules") {
-            partial.typography = clone(value.typography || {})
-            partial.image_api = clone(value.image_api || {})
-            if (!includeSecrets && partial.image_api) partial.image_api.api_key = ""
-          }
-          if (scope === "all" || scope === "runtime") {
-            partial.runtime = clone(value.runtime || {})
-          }
-          if (scope === "all") {
-            partial.wechat = clone(value.wechat || {})
-            if (!includeSecrets && partial.wechat) partial.wechat.app_secret = ""
-            partial.content = clone(value.content || {})
-            partial.brand_images = clone(value.brand_images || {})
-          }
-          return {
-            $schema: "https://deepseek.com/schemas/dsh-social-publisher-config.json",
-            meta: {
-              version: "0.2.0",
-              exported_at: new Date().toISOString(),
-              plugin: "dsh-social-publisher",
-              include_secrets: Boolean(includeSecrets),
-              scope: scope,
-              account_count: partial.accounts ? Object.keys(partial.accounts).length : undefined,
-              provider_count: partial.image_providers ? Object.keys(partial.image_providers).length : undefined,
-            },
-            config: partial,
-          }
-        }
-
-        const handleExportDownload = () => {
-          const payload = buildExportPayload(exportScope, exportIncludeSecrets)
-          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" })
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement("a")
-          const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "")
-          link.href = url
-          link.download = `dsh-social-publisher-config-${exportScope}-${dateStr}.json`
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-          URL.revokeObjectURL(url)
-        }
-
-        const handleExportCopy = async () => {
-          const payload = buildExportPayload(exportScope, exportIncludeSecrets)
-          const jsonText = JSON.stringify(payload, null, 2)
-          try {
-            await navigator.clipboard.writeText(jsonText)
-            setExportCopyStatus("已成功复制到剪贴板！")
-            setTimeout(() => setExportCopyStatus(""), 3000)
-          } catch {
-            setExportCopyStatus("复制失败，请尝试下载文件")
-          }
-        }
-
-        const validateConfigInput = (text) => {
-          const trimmed = (text || "").trim()
-          if (!trimmed) {
-            setImportValidation(null)
-            return
-          }
-          let parsed
-          try {
-            parsed = JSON.parse(trimmed)
-          } catch (e) {
-            setImportValidation({
-              valid: false,
-              errors: ["JSON 语法解析错误：" + (e?.message || String(e))],
-              warnings: [],
-            })
-            return
-          }
-          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-            setImportValidation({
-              valid: false,
-              errors: ["导入的配置必须是有效的 JSON 键值对对象"],
-              warnings: [],
-            })
-            return
-          }
-          const candidate = (parsed.meta && parsed.config && typeof parsed.config === "object") ? parsed.config : parsed
-          const errors = []
-          const warnings = []
-          const accs = candidate.accounts && typeof candidate.accounts === "object" && !Array.isArray(candidate.accounts) ? candidate.accounts : null
-          const provs = candidate.image_providers && typeof candidate.image_providers === "object" && !Array.isArray(candidate.image_providers) ? candidate.image_providers : null
-
-          let gzhCount = 0
-          let zhihuCount = 0
-          let xhsCount = 0
-          let baijiahaoCount = 0
-          let overlapCount = 0
-          let newAccCount = 0
-          if (accs) {
-            for (const [id, acc] of Object.entries(accs)) {
-              if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(id)) {
-                errors.push("账号 ID「" + id + "」包含不支持的非法字符（仅限字母、数字、下划线与连字符）")
-              }
-              if (acc?.platform === "zhihu") zhihuCount++
-              else if (acc?.platform === "xiaohongshu") xhsCount++
-              else if (acc?.platform === "baijiahao") baijiahaoCount++
-              else gzhCount++
-              if (value.accounts && value.accounts[id]) overlapCount++
-              else newAccCount++
-            }
-          }
-          if (provs) {
-            for (const [id] of Object.entries(provs)) {
-              if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(id)) {
-                errors.push("生图接口 ID「" + id + "」包含不支持的非法字符")
-              }
-            }
-          }
-          const hasAny = Boolean(accs || provs || candidate.typography || candidate.image_api || candidate.runtime || candidate.content)
-          if (!hasAny) {
-            errors.push("未在数据中检测到有效配置项（如 accounts、image_providers、typography 等）")
-          }
-
-          setImportValidation({
-            valid: errors.length === 0,
-            errors,
-            warnings,
-            summary: {
-              account_count: accs ? Object.keys(accs).length : 0,
-              gzh_accounts: gzhCount,
-              zhihu_accounts: zhihuCount,
-              xhs_accounts: xhsCount,
-              baijiahao_accounts: baijiahaoCount,
-              overlap_accounts: overlapCount,
-              new_accounts: newAccCount,
-              account_ids: accs ? Object.keys(accs) : [],
-              provider_count: provs ? Object.keys(provs).length : 0,
-              provider_ids: provs ? Object.keys(provs) : [],
-              has_typography: Boolean(candidate.typography),
-              has_image_api: Boolean(candidate.image_api),
-              has_runtime: Boolean(candidate.runtime),
-            },
-            data: candidate,
-            meta: parsed.meta || null,
-          })
-        }
-
-        const handleImportFile = (file) => {
-          if (!file) return
-          setImportFileName(file.name)
-          const sizeKb = (file.size / 1024).toFixed(1)
-          setImportFileSize(sizeKb + " KB")
-          setImportFeedback(null)
-          const reader = new FileReader()
-          reader.onload = (e) => {
-            const content = String(e.target?.result || "")
-            setImportText(content)
-            validateConfigInput(content)
-          }
-          reader.readAsText(file, "utf-8")
-        }
-
-        const handleClearImport = () => {
-          setImportText("")
-          setImportFileName("")
-          setImportFileSize("")
-          setImportValidation(null)
-          setImportFeedback(null)
-        }
-
-        const handleApplyImport = async () => {
-          if (!importValidation || !importValidation.valid || !importValidation.data || importing) return
-          setImporting(true)
-          setImportFeedback(null)
-          try {
-            const importedData = importValidation.data
-            const ops = []
-
-            const nextConfig = clone(value)
-
-            if (importMode === "overwrite") {
-              if (importedData.accounts) {
-                nextConfig.accounts = clone(importedData.accounts)
-                ops.push({ op: "set", path: ["accounts"], value: importedData.accounts })
-              }
-              if (importedData.default_account) {
-                nextConfig.default_account = importedData.default_account
-                ops.push({ op: "set", path: ["default_account"], value: importedData.default_account })
-              }
-              if (importedData.image_providers) {
-                nextConfig.image_providers = clone(importedData.image_providers)
-                ops.push({ op: "set", path: ["image_providers"], value: importedData.image_providers })
-              }
-              if (importedData.typography) {
-                nextConfig.typography = clone(importedData.typography)
-                ops.push({ op: "set", path: ["typography"], value: importedData.typography })
-              }
-              if (importedData.image_api) {
-                nextConfig.image_api = clone(importedData.image_api)
-                ops.push({ op: "set", path: ["image_api"], value: importedData.image_api })
-              }
-              if (importedData.runtime) {
-                nextConfig.runtime = clone(importedData.runtime)
-                ops.push({ op: "set", path: ["runtime"], value: importedData.runtime })
-              }
-              if (importedData.wechat) {
-                nextConfig.wechat = clone(importedData.wechat)
-                ops.push({ op: "set", path: ["wechat"], value: importedData.wechat })
-              }
-              if (importedData.content) {
-                nextConfig.content = clone(importedData.content)
-                ops.push({ op: "set", path: ["content"], value: importedData.content })
-              }
-              if (importedData.brand_images) {
-                nextConfig.brand_images = clone(importedData.brand_images)
-                ops.push({ op: "set", path: ["brand_images"], value: importedData.brand_images })
-              }
-            } else {
-              // merge
-              if (importedData.accounts) {
-                nextConfig.accounts = nextConfig.accounts || {}
-                for (const [id, acc] of Object.entries(importedData.accounts)) {
-                  const existing = nextConfig.accounts[id]
-                  if (existing) {
-                    const preservedSecret = (acc.app_secret && acc.app_secret.trim()) ? acc.app_secret : existing.app_secret
-                    nextConfig.accounts[id] = {
-                      ...existing,
-                      ...clone(acc),
-                      app_secret: preservedSecret,
-                      content: { ...(existing.content || {}), ...(acc.content || {}) },
-                      brand_images: {
-                        header: { ...(existing.brand_images?.header || {}), ...(acc.brand_images?.header || {}) },
-                        footer: { ...(existing.brand_images?.footer || {}), ...(acc.brand_images?.footer || {}) },
-                      },
-                    }
-                  } else {
-                    nextConfig.accounts[id] = clone(acc)
-                  }
-                }
-                ops.push({ op: "set", path: ["accounts"], value: nextConfig.accounts })
-                if (importedData.default_account && nextConfig.accounts[importedData.default_account]) {
-                  nextConfig.default_account = importedData.default_account
-                  ops.push({ op: "set", path: ["default_account"], value: importedData.default_account })
-                }
-              }
-
-              if (importedData.image_providers) {
-                nextConfig.image_providers = nextConfig.image_providers || {}
-                for (const [id, prov] of Object.entries(importedData.image_providers)) {
-                  const existing = nextConfig.image_providers[id]
-                  if (existing) {
-                    const preservedKey = (prov.api_key && prov.api_key.trim()) ? prov.api_key : existing.api_key
-                    nextConfig.image_providers[id] = { ...existing, ...clone(prov), api_key: preservedKey }
-                  } else {
-                    nextConfig.image_providers[id] = clone(prov)
-                  }
-                }
-                ops.push({ op: "set", path: ["image_providers"], value: nextConfig.image_providers })
-              }
-
-              if (importedData.typography) {
-                nextConfig.typography = { ...(nextConfig.typography || {}), ...clone(importedData.typography) }
-                ops.push({ op: "set", path: ["typography"], value: nextConfig.typography })
-              }
-              if (importedData.image_api) {
-                const preservedKey = (importedData.image_api.api_key && importedData.image_api.api_key.trim()) ? importedData.image_api.api_key : nextConfig.image_api?.api_key
-                nextConfig.image_api = { ...(nextConfig.image_api || {}), ...clone(importedData.image_api), api_key: preservedKey || "" }
-                ops.push({ op: "set", path: ["image_api"], value: nextConfig.image_api })
-              }
-              if (importedData.runtime) {
-                nextConfig.runtime = { ...(nextConfig.runtime || {}), ...clone(importedData.runtime) }
-                ops.push({ op: "set", path: ["runtime"], value: nextConfig.runtime })
-              }
-            }
-
-            // 1. 同步请求后端进行持久化导入并落盘
-            let serverConfig = null
-            try {
-              const res = await apiFetch(CONFIG_IMPORT_ROUTE + "?mode=" + importMode, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(importedData),
-              })
-              const result = await res.json().catch(() => ({}))
-              if (res.ok && result.ok) {
-                if (result.config) serverConfig = result.config
-              } else {
-                throw new Error(result.error || ("HTTP " + res.status))
-              }
-            } catch (err) {
-              console.warn("[dsh-social-publisher] 后端导入落盘接口不可用 (桌面端环境)：", err)
-            }
-
-            // 2. 尝试向宿主 scope 提交变更
-            if (ops.length > 0 && activeScope && typeof activeScope.mutate === "function") {
-              try {
-                await activeScope.mutate(ops)
-              } catch (e) {
-                console.warn("[dsh-social-publisher] 宿主 activeScope.mutate 提交异常：", e)
-              }
-            }
-
-            // 3. 立即更新前端 React 状态与本地持久化快照
-            const finalized = normalizeValue(serverConfig || nextConfig)
-            writeLocalConfigCache(finalized)
-            setSnapshot((cur) => ({ ...(cur || {}), value: finalized, status: "ready" }))
-            removeAllDrafts()
-
-            const loadedAccountIds = Object.keys(finalized.accounts || {})
-            const loadedAccountsCount = loadedAccountIds.length
-            if (loadedAccountIds.length > 0) {
-              if (!finalized.accounts[selectedAccountId]) {
-                const pick = (finalized.default_account && finalized.accounts[finalized.default_account]) ? finalized.default_account : loadedAccountIds[0]
-                setSelectedAccountId(pick)
-              }
-            }
-
-            setImportFeedback({
-              type: "success",
-              text: `配置已成功导入（${importMode === "merge" ? "增量合并" : "全量覆盖"}）！已成功加载 ${loadedAccountsCount} 个账号，数据已同步落盘。`,
-            })
-          } catch (e) {
-            setImportFeedback({
-              type: "error",
-              text: "导入应用失败：" + (e?.message || String(e)),
-            })
-          } finally {
-            setImporting(false)
-          }
-        }
-
-        const backupView = () => {
-          const totalAccounts = accountIds.length
-          const xhsAccountsCount = Object.values(accounts).filter((a) => a.platform === "xiaohongshu").length
-          const zhihuAccountsCount = Object.values(accounts).filter((a) => a.platform === "zhihu").length
-          const baijiahaoAccountsCount = Object.values(accounts).filter((a) => a.platform === "baijiahao").length
-          const gzhAccountsCount = Object.values(accounts).filter((a) => a.platform !== "zhihu" && a.platform !== "xiaohongshu" && a.platform !== "baijiahao").length
-          const totalProvidersCount = providerIds.length
-          const enabledProvidersCount = Object.values(providers).filter((p) => p.enabled).length
-
-          const currentPayload = buildExportPayload(exportScope, exportIncludeSecrets)
-          const payloadSizeKb = (new TextEncoder().encode(JSON.stringify(currentPayload)).length / 1024).toFixed(1)
-
-          const uploadSvg = React.createElement(
-            "svg",
-            {
-              width: 26,
-              height: 26,
-              viewBox: "0 0 24 24",
-              fill: "none",
-              stroke: "currentColor",
-              strokeWidth: 1.8,
-              strokeLinecap: "round",
-              strokeLinejoin: "round",
-              style: { color: "var(--dsw-alias-brand-primary)", opacity: 0.8 },
-            },
-            React.createElement("path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }),
-            React.createElement("polyline", { points: "17 8 12 3 7 8" }),
-            React.createElement("line", { x1: "12", y1: "3", x2: "12", y2: "15" }),
-          )
-
-          const fileSvg = React.createElement(
-            "svg",
-            {
-              width: 20,
-              height: 20,
-              viewBox: "0 0 24 24",
-              fill: "none",
-              stroke: "currentColor",
-              strokeWidth: 1.8,
-              strokeLinecap: "round",
-              strokeLinejoin: "round",
-              style: { color: "var(--dsw-alias-brand-primary)" },
-            },
-            React.createElement("path", { d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" }),
-            React.createElement("polyline", { points: "14 2 14 8 20 8" }),
-            React.createElement("line", { x1: "16", y1: "13", x2: "8", y2: "13" }),
-            React.createElement("line", { x1: "16", y1: "17", x2: "8", y2: "17" }),
-          )
-
-          return React.createElement(
-            "div",
-            { className: "gzhPanel" },
-            // 顶部标准工具栏与子页签
-            React.createElement(
-              "div",
-              { className: "gzhSectionBar" },
-              React.createElement(
-                "div",
-                { className: "gzhSectionBarBody" },
-                React.createElement("h3", { className: "gzhSectionTitle" }, "配置备份与恢复"),
-                React.createElement("p", { className: "gzhSectionHint" }, "支持按模块导出标准 JSON 备份包，以及带安全合规预检的增量配置恢复。"),
-              ),
-              React.createElement(
-                "div",
-                { className: "gzhSubTabs", style: { marginBottom: 0 } },
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhSubTab" + (backupSubTab === "export" ? " gzhSubTabActive" : ""),
-                    onClick: () => setBackupSubTab("export"),
-                  },
-                  "导出配置备份",
-                ),
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhSubTab" + (backupSubTab === "import" ? " gzhSubTabActive" : ""),
-                    onClick: () => setBackupSubTab("import"),
-                  },
-                  "恢复与导入",
-                ),
-              ),
-            ),
-
-            // 导出面板
-            backupSubTab === "export" ? React.createElement(
-              "div",
-              { className: "gzhSurface" },
-              React.createElement(
-                "div",
-                { className: "gzhSurfaceHeader" },
-                React.createElement(
-                  "div",
-                  { className: "gzhSurfaceHeaderBody" },
-                  React.createElement("h3", { className: "gzhSectionTitle" }, "导出配置数据包"),
-                  React.createElement("p", { className: "gzhSectionHint" }, "将社媒账号档案、AI 生图接口池、内容规则与正文排版打包导出为 JSON 文件。"),
-                ),
-              ),
-
-              React.createElement(
-                "div",
-                { className: "gzhGrid" },
-                React.createElement(
-                  "div",
-                  { className: "gzhField gzhFieldWide" },
-                  React.createElement("label", { className: "gzhLabel" }, "导出范围选择"),
-                  React.createElement(
-                    "select",
-                    {
-                      className: "gzhSelect",
-                      value: exportScope,
-                      onChange: (e) => setExportScope(e.target.value),
-                    },
-                    ...EXPORT_SCOPE_OPTIONS.map(([val, label]) => React.createElement("option", { key: val, value: val }, label)),
-                  ),
-                ),
-                React.createElement(
-                  "div",
-                  { className: "gzhField gzhFieldWide" },
-                  React.createElement(
-                    "div",
-                    { className: "gzhSecurityCard" },
-                    React.createElement(
-                      "div",
-                      { style: { display: "flex", flexDirection: "column", gap: "3px", minWidth: 0 } },
-                      React.createElement("div", { style: { fontSize: "13px", fontWeight: 600, color: "var(--dsw-alias-label-primary)" } }, "包含敏感凭据（AppSecret 与 API Key）"),
-                      React.createElement(
-                        "div",
-                        { style: { fontSize: "12px", color: exportIncludeSecrets ? "var(--dsw-alias-label-warning)" : "var(--dsw-alias-label-tertiary)", lineHeight: 1.5 } },
-                        exportIncludeSecrets
-                          ? "包含明文密钥：导出的备份包将包含真实的 API Key 和密钥凭证，请妥善保管，切勿泄露至公开代码仓库。"
-                          : "推荐安全脱敏：导出的 AppSecret 与 API Key 将被置空，便于安全分享或公开归档。",
-                      ),
-                    ),
-                    React.createElement("input", {
-                      type: "checkbox",
-                      id: "gzh-export-secrets",
-                      className: "gzhSwitch",
-                      checked: exportIncludeSecrets,
-                      onChange: (e) => setExportIncludeSecrets(e.target.checked),
-                    }),
-                  ),
-                ),
-              ),
-
-              // 数据摘要条
-              React.createElement(
-                "div",
-                { className: "gzhExportSummary" },
-                React.createElement("span", { style: { fontWeight: 500 } }, "导出内容概览："),
-                React.createElement("span", { className: "gzhBadge" }, `${totalAccounts} 个账号 (${gzhAccountsCount} 公众号 · ${zhihuAccountsCount} 知乎 · ${xhsAccountsCount} 小红书 · ${baijiahaoAccountsCount} 百家号)`),
-                React.createElement("span", { className: "gzhBadge" }, `${totalProvidersCount} 个生图接口 (${enabledProvidersCount} 启用)`),
-                React.createElement("span", { className: "gzhBadge" }, "包含排版预设"),
-                React.createElement("span", { style: { marginLeft: "auto", fontSize: "11px", color: "var(--dsw-alias-label-tertiary)" } }, `预计包大小约 ${payloadSizeKb} KB`),
-              ),
-
-              // 操作按钮栏
-              React.createElement(
-                "div",
-                { style: { display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", paddingTop: "4px" } },
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhButton gzhButtonPrimary",
-                    onClick: handleExportDownload,
-                  },
-                  "下载配置备份 (.json)",
-                ),
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhButton",
-                    onClick: handleExportCopy,
-                  },
-                  exportCopyStatus || "复制 JSON 文本",
-                ),
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhButton",
-                    style: { marginLeft: "auto" },
-                    onClick: () => setExportPreviewOpen((prev) => !prev),
-                  },
-                  exportPreviewOpen ? "收起 JSON 源码 ▴" : "查看 JSON 源码 ▾",
-                ),
-              ),
-
-              // 代码预览
-              exportPreviewOpen ? React.createElement(
-                "pre",
-                { className: "gzhCodePreview" },
-                JSON.stringify(currentPayload, null, 2),
-              ) : null,
-            ) : null,
-
-            // 导入面板
-            backupSubTab === "import" ? React.createElement(
-              "div",
-              { className: "gzhSurface" },
-              React.createElement(
-                "div",
-                { className: "gzhSurfaceHeader" },
-                React.createElement(
-                  "div",
-                  { className: "gzhSurfaceHeaderBody" },
-                  React.createElement("h3", { className: "gzhSectionTitle" }, "从备份恢复配置"),
-                  React.createElement("p", { className: "gzhSectionHint" }, "支持从本地 JSON 文件或剪贴板文本恢复配置，系统在应用前自动执行合规性诊断。"),
-                ),
-              ),
-
-              // 步骤 1：导入策略选择
-              React.createElement(
-                "div",
-                { className: "gzhField" },
-                React.createElement("label", { className: "gzhLabel" }, "1. 选择导入策略"),
-                React.createElement(
-                  "div",
-                  { className: "gzhStrategyGrid" },
-                  React.createElement(
-                    "div",
-                    {
-                      className: "gzhStrategyCard" + (importMode === "merge" ? " gzhStrategyCardActive" : ""),
-                      onClick: () => setImportMode("merge"),
-                    },
-                    React.createElement(
-                      "div",
-                      { className: "gzhStrategyTitleRow" },
-                      React.createElement("span", { className: "gzhStrategyTitle" }, "增量合并"),
-                      React.createElement("span", { className: "gzhBadge", style: { background: "color-mix(in srgb, var(--dsw-alias-brand-primary) 15%, transparent)", color: "var(--dsw-alias-brand-primary)" } }, "推荐"),
-                    ),
-                    React.createElement("p", { className: "gzhStrategyDesc" }, "保留现有账号与配置，智能追加新账号并更新同名配置。若备份中的密码为空，保留本地已有有效密钥。"),
-                  ),
-                  React.createElement(
-                    "div",
-                    {
-                      className: "gzhStrategyCard" + (importMode === "overwrite" ? " gzhStrategyCardActive" : ""),
-                      onClick: () => setImportMode("overwrite"),
-                    },
-                    React.createElement(
-                      "div",
-                      { className: "gzhStrategyTitleRow" },
-                      React.createElement("span", { className: "gzhStrategyTitle" }, "全量覆盖"),
-                      React.createElement("span", { className: "gzhBadge", style: { background: "color-mix(in srgb, var(--dsw-alias-label-warning) 15%, transparent)", color: "var(--dsw-alias-label-warning)" } }, "谨慎"),
-                    ),
-                    React.createElement("p", { className: "gzhStrategyDesc" }, "以备份数据为唯一基准完全重构配置。旧账号、旧生图接口将被整体替换，适用于全新设备初始化。"),
-                  ),
-                ),
-              ),
-
-              // 步骤 2：数据源录入
-              React.createElement(
-                "div",
-                { className: "gzhField", style: { marginTop: "4px" } },
-                React.createElement(
-                  "div",
-                  { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" } },
-                  React.createElement("label", { className: "gzhLabel" }, "2. 提供备份数据"),
-                  React.createElement(
-                    "div",
-                    { className: "gzhModeTabs" },
-                    React.createElement("button", {
-                      type: "button",
-                      className: "gzhModeTab" + (importInputMethod === "file" ? " gzhModeTabActive" : ""),
-                      onClick: () => setImportInputMethod("file"),
-                    }, "本地文件上传"),
-                    React.createElement("button", {
-                      type: "button",
-                      className: "gzhModeTab" + (importInputMethod === "text" ? " gzhModeTabActive" : ""),
-                      onClick: () => setImportInputMethod("text"),
-                    }, "粘贴 JSON 文本"),
-                  ),
-                ),
-
-                importInputMethod === "file" ? (
-                  importFileName ? React.createElement(
-                    "div",
-                    { className: "gzhFilePill" },
-                    React.createElement(
-                      "div",
-                      { className: "gzhFilePillInfo" },
-                      fileSvg,
-                      React.createElement(
-                        "div",
-                        { style: { minWidth: 0 } },
-                        React.createElement("div", { className: "gzhFileName", title: importFileName }, importFileName),
-                        React.createElement("div", { className: "gzhFileSize" }, `${importFileSize || "文件已加载"} · 准备就绪`),
-                      ),
-                    ),
-                    React.createElement(
-                      "div",
-                      { style: { display: "flex", gap: "6px" } },
-                      React.createElement(
-                        "button",
-                        {
-                          type: "button",
-                          className: "gzhButton",
-                          style: { padding: "4px 10px", fontSize: "12px" },
-                          onClick: () => {
-                            const input = document.getElementById("gzh-import-file-input")
-                            if (input) input.click()
-                          },
-                        },
-                        "更换文件",
-                      ),
-                      React.createElement(
-                        "button",
-                        {
-                          type: "button",
-                          className: "gzhButton",
-                          style: { padding: "4px 10px", fontSize: "12px" },
-                          onClick: handleClearImport,
-                        },
-                        "清除",
-                      ),
-                    ),
-                  ) : React.createElement(
-                    "div",
-                    {
-                      className: "gzhDropzone" + (importDragging ? " gzhDropzoneActive" : ""),
-                      onDragOver: (e) => { e.preventDefault(); setImportDragging(true) },
-                      onDragLeave: () => setImportDragging(false),
-                      onDrop: (e) => {
-                        e.preventDefault()
-                        setImportDragging(false)
-                        handleImportFile(e.dataTransfer?.files?.[0])
-                      },
-                      onClick: () => {
-                        const input = document.getElementById("gzh-import-file-input")
-                        if (input) input.click()
-                      },
-                    },
-                    uploadSvg,
-                    React.createElement("span", { className: "gzhDropzoneText" }, "点击选择文件，或将 .json 备份文件拖曳至此"),
-                    React.createElement("span", { className: "gzhDropzoneSub" }, "支持由本插件导出的 JSON 配置文件，单文件大小不超过 5MB"),
-                    React.createElement("input", {
-                      id: "gzh-import-file-input",
-                      type: "file",
-                      accept: "application/json,.json",
-                      hidden: true,
-                      onChange: (e) => {
-                        handleImportFile(e.target.files?.[0])
-                        e.target.value = ""
-                      },
-                    }),
-                  )
-                ) : React.createElement(
-                  "div",
-                  { className: "gzhField" },
-                  React.createElement("textarea", {
-                    className: "gzhTextarea",
-                    style: { minHeight: "120px", fontFamily: "ui-monospace,SFMono-Regular,Consolas,monospace", fontSize: "12px" },
-                    placeholder: '{\n  "meta": { "version": "0.2.0" },\n  "config": { "accounts": { ... } }\n}',
-                    value: importText,
-                    onChange: (e) => {
-                      setImportText(e.target.value)
-                      validateConfigInput(e.target.value)
-                    },
-                  }),
-                ),
-              ),
-
-              // 步骤 3：智能预检与诊断报告
-              importValidation ? React.createElement(
-                "div",
-                { className: "gzhPreviewArea" },
-                React.createElement(
-                  "div",
-                  { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" } },
-                  React.createElement(
-                    "div",
-                    { style: { display: "flex", alignItems: "center", gap: "6px" } },
-                    React.createElement("strong", { style: { fontSize: "13px", color: importValidation.valid ? "var(--dsw-alias-label-success)" : "var(--dsw-alias-label-error)" } },
-                      importValidation.valid ? "配置结构校验通过" : "配置数据未通过校验",
-                    ),
-                    importValidation.meta?.version ? React.createElement("span", { className: "gzhBadge" }, `备份版本 v${importValidation.meta.version}`) : null,
-                  ),
-                  importValidation.meta?.exported_at ? React.createElement("span", { style: { fontSize: "11px", color: "var(--dsw-alias-label-tertiary)" } },
-                    "备份生成时间: " + importValidation.meta.exported_at.slice(0, 19).replace("T", " "),
-                  ) : null,
-                ),
-
-                importValidation.summary ? React.createElement(
-                  "div",
-                  { className: "gzhPreviewSummaryGrid" },
-                  React.createElement("div", { className: "gzhPreviewSummaryItem" },
-                    React.createElement("span", { style: { color: "var(--dsw-alias-label-tertiary)" } }, "社媒账号:"),
-                    React.createElement("strong", null, `${importValidation.summary.account_count} 个`),
-                    React.createElement("span", { style: { fontSize: "11px", color: "var(--dsw-alias-label-tertiary)" } }, `(公众号 ${importValidation.summary.gzh_accounts} · 知乎 ${importValidation.summary.zhihu_accounts})`),
-                  ),
-                  React.createElement("div", { className: "gzhPreviewSummaryItem" },
-                    React.createElement("span", { style: { color: "var(--dsw-alias-label-tertiary)" } }, "生图接口:"),
-                    React.createElement("strong", null, `${importValidation.summary.provider_count} 个`),
-                  ),
-                  React.createElement("div", { className: "gzhPreviewSummaryItem" },
-                    React.createElement("span", { style: { color: "var(--dsw-alias-label-tertiary)" } }, "排版预设:"),
-                    React.createElement("span", null, importValidation.summary.has_typography ? "已包含" : "未包含"),
-                  ),
-                  React.createElement("div", { className: "gzhPreviewSummaryItem" },
-                    React.createElement("span", { style: { color: "var(--dsw-alias-label-tertiary)" } }, "运行环境:"),
-                    React.createElement("span", null, importValidation.summary.has_runtime ? "已包含" : "未包含"),
-                  ),
-                ) : null,
-
-                importValidation.summary?.account_ids && importValidation.summary.account_ids.length > 0 ? React.createElement(
-                  "div",
-                  { style: { display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" } },
-                  React.createElement("span", { style: { fontSize: "11px", color: "var(--dsw-alias-label-tertiary)" } }, "包含账号:"),
-                  ...importValidation.summary.account_ids.map((id) => {
-                    const acc = importValidation.data?.accounts?.[id]
-                    const isZhihu = acc?.platform === "zhihu"
-                    return React.createElement(
-                      "span",
-                      { key: id, className: "gzhBadge", title: `ID: ${id}` },
-                      (acc?.name || id) + (acc?.platform === "zhihu" ? " · 知乎" : (acc?.platform === "xiaohongshu" ? " · 小红书" : (acc?.platform === "baijiahao" ? " · 百家号" : " · 公众号"))),
-                    )
-                  }),
-                ) : null,
-
-                importMode === "merge" && importValidation.valid && importValidation.summary ? React.createElement(
-                  "div",
-                  { style: { fontSize: "12px", color: "var(--dsw-alias-label-secondary)", background: "var(--dsw-alias-bg-layer-3)", padding: "8px 12px", borderRadius: "8px" } },
-                  `提示：本次导入将更新 ${importValidation.summary.overlap_accounts} 个同名账号，并追加 ${importValidation.summary.new_accounts} 个全新账号；本地已存在的密码与 Secret 受到保护。`,
-                ) : null,
-
-                importValidation.errors && importValidation.errors.length > 0 ? React.createElement(
-                  "div",
-                  { style: { display: "flex", flexDirection: "column", gap: "4px" } },
-                  ...importValidation.errors.map((err, i) => React.createElement("p", { key: i, className: "gzhInvalid", style: { margin: 0 } }, "• " + err)),
-                ) : null,
-              ) : null,
-
-              // 反馈消息
-              importFeedback ? React.createElement(
-                "div",
-                { className: importFeedback.type === "success" ? "gzhSuccessBox" : "gzhNoticeBox" },
-                React.createElement("span", null, importFeedback.text),
-              ) : null,
-
-              // 步骤 4：确认按钮
-              React.createElement(
-                "div",
-                { style: { paddingTop: "8px" } },
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhButton gzhButtonPrimary",
-                    disabled: !importValidation || !importValidation.valid || importing,
-                    onClick: handleApplyImport,
-                    style: { padding: "8px 20px", fontSize: "13px" },
-                  },
-                  importing ? "正在应用配置并同步落盘…" : (`确认导入并立即生效（${importMode === "merge" ? "增量合并" : "全量覆盖"}）`),
-                ),
-              ),
-            ) : null,
-          )
-        }
-
-        const tabContent = () => {
-          try {
-            if (activeTab === "配置备份" || activeTab === "备份" || activeTab === "导入导出") {
-              return backupView()
-            }
-          if (activeTab === "发表记录") {
-            return historyView()
-          }
-          if (activeTab === "账号管理" || activeTab === "公众号账号") {
-            return React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                "div", { className: "gzhSectionBar" },
-                React.createElement("div", { className: "gzhSectionBarBody" },
-                  React.createElement("h3", { className: "gzhSectionTitle" }, "账号管理"),
-                  React.createElement("p", { className: "gzhSectionHint" }, accountIds.length + " 个账号 · 默认账号置顶；公众号/知乎账号均支持保存后扫码登录。"),
-                ),
-                React.createElement(
-                  "div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
-                  React.createElement("button", { type: "button", className: "gzhButton", onClick: () => { setActiveTab("配置备份"); setBackupSubTab("export") } }, "备份与导入"),
-                  React.createElement("button", { type: "button", className: "gzhButton gzhButtonPrimary", onClick: () => { if (!addingAccount) openAddAccount(); else setAddingAccount(false) } }, addingAccount ? "关闭向导" : "添加账号"),
-                ),
-              ),
-              accountList(),
-              addingAccount ? React.createElement(
-                "div", { className: "gzhSurface", style: { border: "1.5px solid var(--dsw-alias-brand-primary, #3b82f6)", boxShadow: "0 4px 16px rgba(0,0,0,.15)" } },
-                React.createElement("div", { className: "gzhSurfaceHeader" },
-                  React.createElement("div", { className: "gzhSurfaceHeaderBody" },
-                    React.createElement("h3", { className: "gzhSectionTitle", style: { display: "flex", alignItems: "center", gap: "8px" } },
-                      React.createElement("span", { style: { display: "inline-flex", color: "var(--dsw-alias-brand-primary, #3b82f6)" } }, Icons.users(16)),
-                      "极速添加社媒账号向导",
-                    ),
-                    React.createElement("p", { className: "gzhSectionHint" }, "选择发布平台，输入账号名称，一键完成创建并直接原子落盘持久化。"),
-                  ),
-                  React.createElement("button", { type: "button", className: "gzhButton", onClick: () => setAddingAccount(false) }, "关闭"),
-                ),
-
-                // 步骤 1：选择平台
-                React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "6px" } },
-                  React.createElement("label", { style: { fontSize: "12px", fontWeight: "600", color: "var(--dsw-alias-label-secondary)" } }, "1. 选择发布平台"),
-                  React.createElement("div", { className: "gzhPlatformGrid" },
-                    // 公众号卡片
-                    React.createElement("div", {
-                      className: "gzhPlatformCard" + (accountDraft.platform === "gzh" ? " gzhPlatformCardActive" : ""),
-                      onClick: () => {
-                        const nextId = accountDraftManualId ? accountDraft.id : generateSuggestedId("gzh")
-                        setAccountDraft((cur) => ({ ...cur, platform: "gzh", id: nextId }))
-                        setAccountCreateMsg("")
-                      },
-                    },
-                      React.createElement("div", { className: "gzhPlatformIcon", style: { background: "rgba(16, 185, 129, 0.15)", color: "#10b981" } }, "📢"),
-                      React.createElement("div", null,
-                        React.createElement("div", { className: "gzhPlatformTitle" }, "微信公众号"),
-                        React.createElement("div", { className: "gzhPlatformDesc" }, "长文草稿/小绿书/免API或官方API"),
-                      ),
-                    ),
-                    // 知乎专栏卡片
-                    React.createElement("div", {
-                      className: "gzhPlatformCard" + (accountDraft.platform === "zhihu" ? " gzhPlatformCardActive" : ""),
-                      onClick: () => {
-                        const nextId = accountDraftManualId ? accountDraft.id : generateSuggestedId("zhihu")
-                        setAccountDraft((cur) => ({ ...cur, platform: "zhihu", id: nextId, publish_mode: "browser" }))
-                        setAccountCreateMsg("")
-                      },
-                    },
-                      React.createElement("div", { className: "gzhPlatformIcon", style: { background: "rgba(14, 116, 226, 0.15)", color: "#0066ff" } }, "知"),
-                      React.createElement("div", null,
-                        React.createElement("div", { className: "gzhPlatformTitle" }, "知乎专栏"),
-                        React.createElement("div", { className: "gzhPlatformDesc" }, "专栏长文自动存草稿/免API扫码登录"),
-                      ),
-                    ),
-                    // 小红书卡片
-                    React.createElement("div", {
-                      className: "gzhPlatformCard" + (accountDraft.platform === "xiaohongshu" ? " gzhPlatformCardActive" : ""),
-                      onClick: () => {
-                        const nextId = accountDraftManualId ? accountDraft.id : generateSuggestedId("xiaohongshu")
-                        setAccountDraft((cur) => ({ ...cur, platform: "xiaohongshu", id: nextId, publish_mode: "browser" }))
-                        setAccountCreateMsg("")
-                      },
-                    },
-                      React.createElement("div", { className: "gzhPlatformIcon", style: { background: "rgba(239, 68, 68, 0.15)", color: "#ff2442" } }, "📕"),
-                      React.createElement("div", null,
-                        React.createElement("div", { className: "gzhPlatformTitle" }, "小红书"),
-                        React.createElement("div", { className: "gzhPlatformDesc" }, "3:4 竖版图文笔记/标签/扫码登录"),
-                      ),
-                    ),
-                    // 百家号卡片
-                    React.createElement("div", {
-                      className: "gzhPlatformCard" + (accountDraft.platform === "baijiahao" ? " gzhPlatformCardActive" : ""),
-                      onClick: () => {
-                        const nextId = accountDraftManualId ? accountDraft.id : generateSuggestedId("baijiahao")
-                        setAccountDraft((cur) => ({ ...cur, platform: "baijiahao", id: nextId, publish_mode: "browser" }))
-                        setAccountCreateMsg("")
-                      },
-                    },
-                      React.createElement("div", { className: "gzhPlatformIcon", style: { background: "rgba(41, 79, 158, 0.15)", color: "#294f9e" } }, "百"),
-                      React.createElement("div", null,
-                        React.createElement("div", { className: "gzhPlatformTitle" }, "百家号"),
-                        React.createElement("div", { className: "gzhPlatformDesc" }, "百度内容平台/图文自动存草稿箱/百度账号登录"),
-                      ),
-                    ),
-                  ),
-                  // 同平台账号提醒：避免在已有同平台账号时无意创建重复/相似账号
-                  (() => {
-                    const same = Object.entries(accounts)
-                      .filter(([, a]) => a && a.platform === accountDraft.platform && a.enabled !== false)
-                      .map(([id, a]) => a.name || id)
-                    return React.createElement("div", { style: { fontSize: "11px", color: same.length > 0 ? "#d97706" : "var(--dsw-alias-label-tertiary)" } },
-                      same.length > 0
-                        ? "⚠ 已有 " + same.length + " 个启用中的同平台账号（" + same.slice(0, 3).join("、") + (same.length > 3 ? " 等" : "") + "）；多账号矩阵属正常需求，但请确认不是重复创建。"
-                        : "选中平台后将自动推荐唯一账号 ID 与平台默认配置。",
-                    )
-                  })(),
-                ),
-
-                // 步骤 2：账号名称与 ID
-                React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: "6px" } },
-                  React.createElement("label", { style: { fontSize: "12px", fontWeight: "600", color: "var(--dsw-alias-label-secondary)" } }, "2. 账号名称与标识符"),
-                  React.createElement("div", { className: "gzhAddRow" },
-                    React.createElement("input", {
-                      className: "gzhAddInput",
-                      style: { flex: 1, minWidth: "220px" },
-                      placeholder: accountDraft.platform === "zhihu" ? "例如：文映知乎专栏" : (accountDraft.platform === "xiaohongshu" ? "例如：小红书学术笔记" : (accountDraft.platform === "baijiahao" ? "例如：文映百家号" : "例如：文映千秋学术网")),
-                      value: accountDraft.name,
-                      onChange: (event) => setAccountDraft((cur) => ({ ...cur, name: event.target.value })),
-                    }),
-                    React.createElement("div", { style: { display: "inline-flex", alignItems: "center", gap: "6px" } },
-                      React.createElement("span", { style: { fontSize: "12px", color: "var(--dsw-alias-label-tertiary)" } }, "账号 ID:"),
-                      React.createElement("input", {
-                        className: "gzhAddInput",
-                        style: { width: "140px", minWidth: "120px", fontFamily: "ui-monospace,SFMono-Regular,Consolas,monospace" },
-                        placeholder: "ID (如 zhihu-1)",
-                        value: accountDraft.id,
-                        onChange: (event) => {
-                          setAccountDraftManualId(true)
-                          setAccountDraft((cur) => ({ ...cur, id: event.target.value }))
-                        },
-                      }),
-                    ),
-                  ),
-                  React.createElement("div", { style: { fontSize: "11px", color: "var(--dsw-alias-label-tertiary)" } },
-                    "提示：系统已为您根据平台推荐唯一标识符「" + accountDraft.id + "」，支持数字、字母、连字符与下划线。",
-                  ),
-                ),
-
-                // 步骤 3：平台专属即时设置
-                accountDraft.platform === "gzh" ? React.createElement(
-                  "div", { style: { display: "flex", flexDirection: "column", gap: "8px", padding: "10px 12px", borderRadius: "8px", background: "var(--dsw-alias-bg-layer-2)" } },
-                  React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" } },
-                    React.createElement("span", { style: { fontSize: "12px", fontWeight: "600" } }, "公众号发布模式："),
-                    React.createElement("div", { style: { display: "inline-flex", gap: "8px" } },
-                      React.createElement("label", { style: { fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "4px", cursor: "pointer" } },
-                        React.createElement("input", {
-                          type: "radio",
-                          name: "new_acc_mode",
-                          checked: accountDraft.publish_mode === "browser",
-                          onChange: () => setAccountDraft((cur) => ({ ...cur, publish_mode: "browser" })),
-                        }),
-                        "免 API 扫码模式（推荐，创建后扫码即用）",
-                      ),
-                      React.createElement("label", { style: { fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "4px", cursor: "pointer" } },
-                        React.createElement("input", {
-                          type: "radio",
-                          name: "new_acc_mode",
-                          checked: accountDraft.publish_mode === "api",
-                          onChange: () => setAccountDraft((cur) => ({ ...cur, publish_mode: "api" })),
-                        }),
-                        "官方 API 模式",
-                      ),
-                    ),
-                  ),
-                  accountDraft.publish_mode === "api" ? React.createElement(
-                    "div", { className: "gzhAddRow", style: { marginTop: "4px" } },
-                    React.createElement("input", {
-                      className: "gzhAddInput", style: { flex: 1 },
-                      placeholder: "微信 AppID（如 wxf657...）",
-                      value: accountDraft.appid,
-                      onChange: (e) => setAccountDraft((cur) => ({ ...cur, appid: e.target.value })),
-                    }),
-                    React.createElement("input", {
-                      className: "gzhAddInput", style: { flex: 1 },
-                      type: "password",
-                      placeholder: "微信 AppSecret",
-                      value: accountDraft.app_secret,
-                      onChange: (e) => setAccountDraft((cur) => ({ ...cur, app_secret: e.target.value })),
-                    }),
-                  ) : React.createElement(
-                    "div", { style: { fontSize: "11px", color: "#10b981" } },
-                    "✓ 免 API 模式无需填写微信 AppID 与密钥，也无需配置 IP 白名单；创建后直接在列表点击【扫码登录】即可自动化发布！",
-                  ),
-                ) : (accountDraft.platform === "zhihu" ? React.createElement(
-                  "div", { style: { padding: "8px 12px", borderRadius: "8px", background: "var(--dsw-alias-bg-layer-2)", fontSize: "11px", color: "var(--dsw-alias-label-secondary)" } },
-                  "ℹ 知乎专栏已自动预设 16:9 封面规范与专栏排版；创建后直接在列表点击【扫码登录知乎】即可持久化凭据。",
-                ) : (accountDraft.platform === "baijiahao" ? React.createElement(
-                  "div", { style: { padding: "8px 12px", borderRadius: "8px", background: "var(--dsw-alias-bg-layer-2)", fontSize: "11px", color: "var(--dsw-alias-label-secondary)" } },
-                  "ℹ 百家号已自动预设 2.35:1 封面规范与 Markdown 图文排版；创建后直接在列表点击【登录百家号】即可持久化百度账号凭据。",
-                ) : React.createElement(
-                  "div", { style: { padding: "8px 12px", borderRadius: "8px", background: "var(--dsw-alias-bg-layer-2)", fontSize: "11px", color: "var(--dsw-alias-label-secondary)" } },
-                  "ℹ 小红书已自动预设 3:4 竖版封面与多图笔记排版；创建后直接在列表点击【扫码登录小红书】即可免 API 自动发布。",
-                ))),
-
-                // 错误提示
-                accountCreateMsg ? React.createElement(
-                  "div", { style: { padding: "6px 12px", borderRadius: "6px", background: "rgba(239,68,68,0.12)", color: "#ef4444", fontSize: "12px" } },
-                  accountCreateMsg,
-                ) : null,
-
-                // 操作按钮条
-                React.createElement(
-                  "div", { style: { display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px" } },
-                  React.createElement("button", { type: "button", className: "gzhButton", onClick: () => setAddingAccount(false) }, "取消"),
-                  React.createElement("button", {
-                    type: "button",
-                    className: "gzhButton gzhButtonPrimary",
-                    disabled: accountCreating || !accountDraft.id.trim(),
-                    onClick: createAndSaveAccount,
-                    style: { padding: "7px 18px" },
-                  }, accountCreating ? "正在创建并同步落盘…" : "立即创建并保存落盘"),
-                ),
-              ) : null,
-
-              copyingAccountId && accounts[copyingAccountId] ? React.createElement(
-                "div", { className: "gzhSurface gzhSurfaceSoft" },
-                React.createElement("div", { className: "gzhSurfaceHeader" }, React.createElement("div", { className: "gzhSurfaceHeaderBody" },
-                  React.createElement("h3", { className: "gzhSectionTitle" }, "复制账号：" + (accounts[copyingAccountId]?.name || copyingAccountId)),
-                  React.createElement("p", { className: "gzhSectionHint" }, "完整复制该账号全部配置（含排版与品牌图）；点击「立即创建副本」自动同步落盘。"),
-                )),
-                React.createElement("div", { className: "gzhAddRow" },
-                  React.createElement("input", { className: "gzhAddInput", placeholder: "新账号 ID，如 " + copyingAccountId + "-copy", value: copyDraft.id, onChange: (event) => setCopyDraft((current) => ({ ...current, id: event.target.value })) }),
-                  React.createElement("input", { className: "gzhAddInput", placeholder: "显示名称", value: copyDraft.name, onChange: (event) => setCopyDraft((current) => ({ ...current, name: event.target.value })) }),
-                  React.createElement("button", { type: "button", className: "gzhButton gzhButtonPrimary", disabled: copyCreating || !ACCOUNT_ID_RE.test(copyDraft.id.trim()) || Boolean(accounts[copyDraft.id.trim()]) || !copyingAccountId, onClick: createAccountCopy }, copyCreating ? "创建中…" : "立即创建副本并保存"),
-                  React.createElement("button", { type: "button", className: "gzhButton", onClick: () => { setCopyingAccountId(""); setCopyDraft({ id: "", name: "" }) } }, "取消"),
-                ),
-              ) : null,
-              editingAccount
-                ? React.createElement(
-                    "div", { className: "gzhSurface" },
-                    React.createElement("div", { className: "gzhSurfaceHeader" },
-                      React.createElement("div", { className: "gzhSurfaceHeaderBody" }, React.createElement("h3", { className: "gzhSectionTitle" }, accounts[activeAccountId]?.name || activeAccountId), React.createElement("p", { className: "gzhSectionHint" }, "账号 ID：" + activeAccountId)),
-                      React.createElement("button", { type: "button", className: "gzhButton", onClick: () => setEditingAccount(false) }, "收起"),
-                    ),
-                    React.createElement("div", { className: "gzhGrid" }, ...accountFields.map(fieldNode)),
-                    ...(activePlatform === "zhihu" ? [zhihuLoginPanel()] : (activePlatform === "xiaohongshu" ? [xhsLoginPanel()] : (activePlatform === "baijiahao" ? [baijiahaoLoginPanel()] : [wechatLoginPanel()]))),
-                  )
-                : null,
-            )
-          }
-
-          if (activeTab === "内容规则") {
-            const acc = accounts[activeAccountId]
-            const isZhihuAcc = acc?.platform === "zhihu"
-            const isXhsAcc = acc?.platform === "xiaohongshu"
-            const isBaijiahaoAcc = acc?.platform === "baijiahao"
-            const hRatio = String(currentValue(["accounts", activeAccountId, "content", "headline_cover_ratio"]) ?? (isXhsAcc ? "3:4" : (isZhihuAcc ? "16:9" : "2.35:1")))
-            const sRatio = String(currentValue(["accounts", activeAccountId, "content", "secondary_cover_ratio"]) ?? (isXhsAcc ? "3:4" : (isZhihuAcc ? "16:9" : "1:1")))
-            return React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                "div", { className: "gzhSectionBar" },
-                React.createElement("div", { className: "gzhSectionBarBody" },
-                  React.createElement("h3", { className: "gzhSectionTitle" }, "账号内容与排版规则（一号一配置）"),
-                  React.createElement("p", { className: "gzhSectionHint" }, isBaijiahaoAcc
-                    ? "百家号图文配置：发文篇数、字数下限、选题关键词、禁词与正文配图；封面比例机器固定 2.35:1，发布默认存百家号草稿箱。"
-                    : "深度融合发文形态、专属排版调性、AI 封面与配图比例、以及品牌头尾图，实现真正的一号一配置。"),
-                ),
-              ),
-              contentList(),
-              editingContentAccount && acc
-                ? React.createElement(
-                    "div", { className: "gzhSurface" },
-                    React.createElement(
-                      "div", { className: "gzhSurfaceHeader" },
-                      React.createElement("div", { className: "gzhSurfaceHeaderBody" },
-                        React.createElement("h3", { className: "gzhSectionTitle" }, `${acc.name || activeAccountId} · 专属内容与视觉规则`),
-                        React.createElement("p", { className: "gzhSectionHint" }, `账号 ID：${activeAccountId} · 平台：${isZhihuAcc ? "知乎专栏" : (isXhsAcc ? "小红书" : (isBaijiahaoAcc ? "百家号" : "微信公众号"))}`),
-                      ),
-                      React.createElement("button", { type: "button", className: "gzhButton", onClick: () => setEditingContentAccount(false) }, "收起"),
-                    ),
-                    React.createElement(
-                      "div", { className: "gzhSubTabs" },
-                      React.createElement("button", {
-                        type: "button",
-                        className: "gzhSubTab" + (contentSubTab === "basic" ? " gzhSubTabActive" : ""),
-                        onClick: () => setContentSubTab("basic"),
-                      }, isXhsAcc ? "笔记参数与选题" : (isBaijiahaoAcc ? "发文篇数与选题" : "发文形态与篇数")),
-                      React.createElement("button", {
-                        type: "button",
-                        className: "gzhSubTab" + (contentSubTab === "typography" ? " gzhSubTabActive" : ""),
-                        onClick: () => setContentSubTab("typography"),
-                      }, isXhsAcc ? "笔记排版形态" : (isZhihuAcc ? "知乎专栏排版" : (isBaijiahaoAcc ? "百家号排版说明" : "正文排版（13px）"))),
-                      React.createElement("button", {
-                        type: "button",
-                        className: "gzhSubTab" + (contentSubTab === "image" ? " gzhSubTabActive" : ""),
-                        onClick: () => setContentSubTab("image"),
-                      }, isXhsAcc ? "AI 配图规格（3:4）" : (isBaijiahaoAcc ? "AI 配图规格（2.35:1）" : (isZhihuAcc ? "AI 配图规格（16:9）" : "AI 封面与配图"))),
-                      React.createElement("button", {
-                        type: "button",
-                        className: "gzhSubTab" + (contentSubTab === "brand" ? " gzhSubTabActive" : ""),
-                        onClick: () => setContentSubTab("brand"),
-                      }, isXhsAcc || isZhihuAcc ? "品牌图说明" : "品牌头尾图"),
-                    ),
-                    contentSubTab === "basic" ? React.createElement("div", { className: "gzhGrid" }, ...contentFields.map(fieldNode)) : null,
-                    contentSubTab === "typography" ? (
-                      isXhsAcc ? React.createElement(
-                        "div", { className: "gzhNoticeBox" },
-                        "ℹ️ 小红书账号：流水线自动输出纯文本多图笔记（支持 Emoji 表情与 #话题# 标签，正文上限 1000 字），无微信公众号的主题色板、引言卡、三列目录及 13px 单行排版等专有样式。",
-                      ) : (isZhihuAcc ? React.createElement(
-                        "div", { className: "gzhNoticeBox" },
-                        "ℹ️ 知乎专栏账号：流水线自动输出标准 Markdown 纯文本及加粗关键词，无主题色板/引言卡/三列目录等公众号专有排版样式。",
-                      ) : (isBaijiahaoAcc ? React.createElement(
-                        "div", { className: "gzhNoticeBox" },
-                        "ℹ️ 百家号账号：流水线自动输出标准 Markdown 图文（章节标题/加粗关键词/引用/配图），由百家号编辑器按平台默认样式渲染，无公众号主题色板/引言卡/字号行高等专有排版配置。",
-                      ) : React.createElement("div", { className: "gzhGrid" }, ...accountTypographyFields.map(fieldNode))))
-                    ) : null,
-                    contentSubTab === "image" ? (
-                      isXhsAcc ? React.createElement(
-                        React.Fragment, null,
-                        React.createElement("div", { className: "gzhNoticeBox" },
-                          "ℹ️ 小红书配图固定为 3:4 竖版高清尺寸（1080×1440 px），首图自动作为封面，支持 1–18 张轮播卡片图。系统生图时按 3:4 比例生成。",
-                        ),
-                        React.createElement("div", { className: "gzhGrid", style: { marginTop: "10px" } }, ...accountXhsImageFields.map(fieldNode)),
-                      ) : (isZhihuAcc ? React.createElement(
-                        React.Fragment, null,
-                        React.createElement("div", { className: "gzhNoticeBox" },
-                          "ℹ️ 知乎专栏封面比例机器固定统一为 16:9，系统自动适配生成；正文配图按下方设置生成。",
-                        ),
-                        React.createElement("div", { className: "gzhGrid", style: { marginTop: "10px" } }, ...accountZhihuImageFields.map(fieldNode)),
-                      ) : (isBaijiahaoAcc ? React.createElement(
-                        React.Fragment, null,
-                        React.createElement("div", { className: "gzhNoticeBox" },
-                          "ℹ️ 百家号封面比例机器固定统一为 2.35:1，系统按此比例生成封面并在发布时自动上传；正文配图按下方设置生成。",
-                        ),
-                        React.createElement("div", { className: "gzhGrid", style: { marginTop: "10px" } }, ...accountBaijiahaoImageFields.map(fieldNode)),
-                      ) : React.createElement(
-                        React.Fragment, null,
-                        React.createElement("div", { className: "gzhNoticeBox" },
-                          `当前封面尺寸：头条 ${hRatio}（${COVER_PIXELS[hRatio] || hRatio} px） · 次条 ${sRatio}（${COVER_PIXELS[sRatio] || sRatio} px）；该账号下次生图时按此比例生成。`,
-                        ),
-                        React.createElement("div", { className: "gzhGrid", style: { marginTop: "10px" } }, ...accountImageFields.map(fieldNode)),
-                      )))
-                    ) : null,
-                    contentSubTab === "brand" ? (
-                      isXhsAcc ? React.createElement(
-                        "div", { className: "gzhNoticeBox" },
-                        "ℹ️ 小红书为竖版多图轮播与纯文本形态，不插入卡片式品牌头尾图。",
-                      ) : (isZhihuAcc ? React.createElement(
-                        "div", { className: "gzhNoticeBox" },
-                        "ℹ️ 知乎专栏为 Markdown 纯文本形态，不插入卡片式品牌头尾图。",
-                      ) : React.createElement(
-                        React.Fragment, null,
-                        React.createElement(
-                          "div", { className: "gzhSubTabs" },
-                          React.createElement("button", {
-                            type: "button",
-                            className: "gzhSubTab" + (contentBrandSlot === "header" ? " gzhSubTabActive" : ""),
-                            onClick: () => setContentBrandSlot("header"),
-                          }, "头部品牌图（文章开头）"),
-                          React.createElement("button", {
-                            type: "button",
-                            className: "gzhSubTab" + (contentBrandSlot === "footer" ? " gzhSubTabActive" : ""),
-                            onClick: () => setContentBrandSlot("footer"),
-                          }, "尾部品牌图（文章结尾）"),
-                        ),
-                        isBaijiahaoAcc ? React.createElement(
-                          "div", { className: "gzhNoticeBox" },
-                          "ℹ️ 百家号品牌图：启用后流水线将在文章首尾插入品牌图并在发布时自动上传至百度 CDN 替换；如需隐藏边框可关闭卡片边框。",
-                        ) : null,
-                        brandEditor(contentBrandSlot),
-                        React.createElement("div", { className: "gzhGrid" }, ...brandFields(contentBrandSlot).map(fieldNode)),
-                      ))
-                    ) : null,
-                  )
-                : null,
-            )
-          }
-
-          if (activeTab === "生图接口") {
-            return React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                "div", { className: "gzhSectionBar" },
-                React.createElement("div", { className: "gzhSectionBarBody" }, React.createElement("h3", { className: "gzhSectionTitle" }, "生图接口"), React.createElement("p", { className: "gzhSectionHint" }, providerIds.length + " 个接口 · 数字越小越优先，失败时自动轮换。")),
-                React.createElement(
-                  "div", { style: { display: "flex", gap: "8px", flexWrap: "wrap" } },
-                  React.createElement("button", { type: "button", className: "gzhButton", disabled: discoveringDsh, onClick: discoverDsh }, Icons.search(13), React.createElement("span", null, discoveringDsh ? "正在检索接口…" : "检测主 dsh 已有生图模型")),
-                  React.createElement("button", { type: "button", className: "gzhButton gzhButtonPrimary", onClick: () => setAddingProvider((value) => !value) }, addingProvider ? "取消添加" : "添加接口"),
-                ),
-              ),
-              dshModels.length > 0 || dshDiscoverMsg ? React.createElement(
-                "div", { className: "gzhSurface gzhSurfaceSoft", style: { border: "1px solid var(--dsw-alias-brand-primary)" } },
-                React.createElement("div", { className: "gzhSurfaceHeader" },
-                  React.createElement("div", { className: "gzhSurfaceHeaderBody" },
-                    React.createElement("h3", { className: "gzhSectionTitle" }, "主 dsh 发现的生图模型候选"),
-                    React.createElement("p", { className: "gzhSectionHint" }, dshDiscoverMsg || ("共找到 " + dshModels.length + " 个匹配模型，可一键导入为插件生图接口：")),
-                  ),
-                  React.createElement("button", { type: "button", className: "gzhButton", onClick: () => { setDshModels([]); setDshDiscoverMsg("") } }, "关闭"),
-                ),
-                dshModels.length > 0 ? React.createElement(
-                  "div", { style: { display: "flex", flexDirection: "column", gap: "8px" } },
-                  ...dshModels.map((m) => React.createElement(
-                    "div", { key: m.provider + ":" + m.model_id, style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "8px 12px", background: "var(--dsw-alias-bg-layer-3)", borderRadius: "8px", border: ".5px solid var(--dsw-alias-border-l2)" } },
-                    React.createElement("div", { style: { minWidth: 0 } },
-                      React.createElement("div", { style: { fontWeight: 600, fontSize: "13px" } }, m.model_name || m.model_id),
-                      React.createElement("div", { style: { fontSize: "11px", color: "var(--dsw-alias-label-tertiary)" } }, "提供商：" + (m.provider_name || m.provider) + " · 模型 ID: " + m.model_id + (m.base_url ? " · " + m.base_url : "")),
-                    ),
-                    React.createElement("button", { type: "button", className: "gzhButton gzhButtonPrimary", onClick: () => importDshModel(m) }, "导入接口"),
-                  ))
-                ) : null,
-              ) : null,
-              providerList(),
-              addingProvider ? React.createElement("div", { className: "gzhSurface gzhSurfaceSoft" },
-                React.createElement("div", { className: "gzhSurfaceHeader" }, React.createElement("div", { className: "gzhSurfaceHeaderBody" }, React.createElement("h3", { className: "gzhSectionTitle" }, "添加生图接口"), React.createElement("p", { className: "gzhSectionHint" }, "创建后继续填写接口地址、API Key、模型和优先级。"))),
-                React.createElement("div", { className: "gzhAddRow" }, React.createElement("input", { className: "gzhAddInput", placeholder: "接口 ID，如 relay-a", value: providerDraft.id, onChange: (event) => setProviderDraft((current) => ({ ...current, id: event.target.value })) }), React.createElement("input", { className: "gzhAddInput", placeholder: "接口名称", value: providerDraft.name, onChange: (event) => setProviderDraft((current) => ({ ...current, name: event.target.value })) }), React.createElement("button", { type: "button", className: "gzhButton gzhButtonPrimary", disabled: !PROVIDER_ID_RE.test(providerDraft.id.trim()) || Boolean(providers[providerDraft.id.trim()]), onClick: createProvider }, "创建并编辑")),
-              ) : null,
-              editingProvider
-                ? React.createElement(
-                    "div", { className: "gzhSurface" },
-                    React.createElement("div", { className: "gzhSurfaceHeader" }, React.createElement("div", { className: "gzhSurfaceHeaderBody" }, React.createElement("h3", { className: "gzhSectionTitle" }, providers[activeProviderId]?.name || activeProviderId), React.createElement("p", { className: "gzhSectionHint" }, "接口 ID：" + activeProviderId)), React.createElement("button", { type: "button", className: "gzhButton", onClick: () => setEditingProvider(false) }, "收起")),
-                    React.createElement("div", { className: "gzhGrid" }, ...providerFields.map(fieldNode)),
-                  )
-                : null,
-              React.createElement(
-                "div",
-                { className: "gzhSurface", style: { marginTop: "16px" } },
-                React.createElement(
-                  "div",
-                  { className: "gzhSurfaceHeader" },
-                  React.createElement(
-                    "div",
-                    { className: "gzhSurfaceHeaderBody" },
-                    React.createElement("h3", { className: "gzhSectionTitle" }, "生图全局调度与保底"),
-                    React.createElement("p", { className: "gzhSectionHint" }, "控制跨接口的并发请求速度与全部接口异常时的本地保底学术卡片兜底机制。各个账号的具体封面比例与配图数量请在「内容规则」中独立配置。"),
-                  ),
-                ),
-                React.createElement("div", { className: "gzhGrid" }, ...globalImageFields.map(fieldNode)),
-              ),
-            )
-          }
-
-          const configuredWorkspace = String(currentValue(["runtime", "project_root"]) ?? "").trim()
-          const actualWorkspace = !configuredWorkspace || ["default", "plugin-default"].includes(configuredWorkspace.toLowerCase())
-            ? PLUGIN_DEFAULT_WORKSPACE : configuredWorkspace
-          return React.createElement("div", { className: "gzhSurface" },
-            React.createElement("div", { className: "gzhSurfaceHeader" }, React.createElement("div", { className: "gzhSurfaceHeaderBody" },
-              React.createElement("h3", { className: "gzhSectionTitle" }, "当前任务工作区"),
-              React.createElement("p", { className: "gzhSectionHint" }, actualWorkspace),
-            )),
-            React.createElement("div", { className: "gzhGrid" }, ...runtimeFields.map(fieldNode)),
-          )
-        } catch (tabErr) {
-          console.error("[dsh-social-publisher] Tab content render error:", tabErr)
-          return React.createElement(
-            "div",
-            { className: "gzhSurface", style: { border: "1px solid var(--dsw-alias-label-error)", padding: "16px" } },
-            React.createElement("h3", { className: "gzhSectionTitle", style: { color: "var(--dsw-alias-label-error)" } }, "当前配置标签页渲染遇到异常"),
-            React.createElement("p", { className: "gzhHint" }, String(tabErr?.message || tabErr)),
-            React.createElement("button", {
-              type: "button",
-              className: "gzhButton",
-              style: { marginTop: "10px" },
-              onClick: () => setActiveTab("账号管理"),
-            }, "返回账号管理"),
-          )
-        }
-      }
-
-      const TAB_ITEMS = [
-        { id: "发表记录", label: "发表记录", icon: Icons.history },
-        { id: "账号管理", label: "账号管理", icon: Icons.users },
-        { id: "内容规则", label: "内容规则", icon: Icons.rules },
-        { id: "生图接口", label: "生图接口", icon: Icons.image },
-        { id: "运行设置", label: "运行设置", icon: Icons.settings },
-        { id: "配置备份", label: "配置备份", icon: Icons.backup },
-      ]
-      const tabIds = TAB_ITEMS.map((t) => t.id)
-
-      const xhsAccountsCount = Object.values(accounts).filter((a) => a.platform === "xiaohongshu").length
-      const zhihuAccountsCount = Object.values(accounts).filter((a) => a.platform === "zhihu").length
-      const baijiahaoAccountsCount = Object.values(accounts).filter((a) => a.platform === "baijiahao").length
-      const gzhAccountsCount = Object.values(accounts).filter((a) => a.platform !== "zhihu" && a.platform !== "xiaohongshu" && a.platform !== "baijiahao").length
-      const providerCount = Object.keys(providers).length
-      const isDryRun = Boolean(currentValue(["runtime", "dry_run"]))
-      const configuredWorkspace = String(currentValue(["runtime", "project_root"]) ?? "").trim()
-      const actualWorkspace = !configuredWorkspace || ["default", "plugin-default"].includes(configuredWorkspace.toLowerCase())
-        ? PLUGIN_DEFAULT_WORKSPACE : configuredWorkspace
-      const defaultAccountObj = accounts[defaultAccountId]
-      const defaultAccountName = defaultAccountObj?.name || defaultAccountId || "无默认账号"
-
-      React.useEffect(() => {
-        if (mode !== "modal" || !onClose) return
-        const onKeyDown = (e) => {
-          if (e.key === "Escape") {
-            if (!dirty || confirm("当前有未保存的修改，确定要关闭卡片吗？")) {
-              onClose()
-            }
-          }
-        }
-        window.addEventListener("keydown", onKeyDown)
-        return () => window.removeEventListener("keydown", onKeyDown)
-      }, [mode, onClose, dirty])
-
-      const cardHeader = React.createElement(
-        "header",
-        { className: "gzhCardHeader" },
-        React.createElement(
-          "div",
-          { className: "gzhCardHeaderMain" },
-          React.createElement(
-            "div",
-            { className: "gzhCardIcon" },
-            Icons.feed(18),
-          ),
-          React.createElement(
-            "div",
-            { className: "gzhCardHeading" },
-            React.createElement(
-              "div",
-              { className: "gzhCardTitleRow" },
-              React.createElement("h3", { className: "gzhCardTitle" }, "社媒发布工作台"),
-              React.createElement("span", { className: "gzhCardVersion" }, "v0.2.0"),
-              dirty ? React.createElement("span", { className: "gzhDirtyTag" }, "未保存修改") : null,
-            ),
-            React.createElement("p", { className: "gzhCardDescription" }, "微信公众号、知乎专栏与小红书多平台账号管理、排版规范与自动化发布"),
-          ),
-        ),
-        React.createElement(
-          "div",
-          { className: "gzhCardHeaderActions" },
-          React.createElement(
-            "div",
-            { className: "gzhCardStatusCluster" },
-            React.createElement("span", { className: "gzhCardStatusItem" }, "公众号 " + String(gzhAccountsCount)),
-            React.createElement("span", { className: "gzhCardStatusItem" }, "知乎 " + String(zhihuAccountsCount)),
-            React.createElement("span", { className: "gzhCardStatusItem" }, "小红书 " + String(xhsAccountsCount)),
-            React.createElement("span", { className: "gzhCardStatusItem" }, "百家号 " + String(baijiahaoAccountsCount)),
-            React.createElement("span", { className: "gzhCardStatusItem" }, "生图 " + String(providerCount)),
-            React.createElement(
-              "span",
-              { className: "gzhCardStatusItem" },
-              React.createElement("span", { className: "gzhStatusDot " + (isDryRun ? "gzhStatusDotWarn" : "gzhStatusDotOn") }),
-              isDryRun ? "演练测试" : "线上生产",
-            ),
-          ),
-          React.createElement(
-            "button",
-            {
-              type: "button",
-              className: "gzhButton",
-              title: "刷新配置与发表记录",
-              onClick: async () => {
-                try {
-                  const res = await apiFetch(CONFIG_EXPORT_ROUTE + "?scope=all&include_secrets=true&download=false")
-                  const data = await res.json()
-                  if (data && data.config) {
-                    const norm = normalizeValue(data.config)
-                    setSnapshot((cur) => ({ ...(cur || {}), status: "ready", value: norm }))
-                    removeAllDrafts()
-                    const accIds = Object.keys(norm.accounts || {})
-                    if (accIds.length > 0 && (!selectedAccountId || !norm.accounts[selectedAccountId])) {
-                      setSelectedAccountId(norm.default_account || accIds[0])
-                    }
-                    const provIds = Object.keys(norm.image_providers || {})
-                    if (provIds.length > 0 && (!selectedProviderId || !norm.image_providers[selectedProviderId])) {
-                      setSelectedProviderId(provIds[0])
-                    }
-                    setSaveSuccessMsg("✓ 已从本地磁盘重新载入最新配置")
-                    setTimeout(() => setSaveSuccessMsg(""), 3000)
-                  }
-                } catch (e) {
-                  console.warn("[dsh-social-publisher] 刷新配置失败：", e)
-                }
-                if (activeTab === "发表记录") fetchHistory(historyAccountFilter)
-              },
-            },
-            Icons.refresh(13),
-            React.createElement("span", null, "刷新"),
-          ),
-          dirty ? React.createElement(
-            "button",
-            {
-              type: "button",
-              className: "gzhButton gzhButtonPrimary",
-              disabled: invalid || saving || !writable,
-              onClick: save,
-            },
-            saving ? "保存中…" : "保存修改",
-          ) : null,
-          onClose ? React.createElement(
-            "button",
-            {
-              type: "button",
-              className: "gzhCardCloseBtn",
-              "aria-label": "关闭卡片",
-              title: "关闭页面卡片",
-              onClick: () => {
-                if (!dirty || confirm("当前有未保存的修改，确定要关闭卡片吗？")) {
-                  onClose()
-                }
-              },
-            },
-            Icons.close(14),
-          ) : null,
-        ),
-      )
-
-      const tabBar = React.createElement(
-        "div",
-        { className: "gzhTabs", role: "tablist", "aria-label": "社媒配置分类" },
-        ...TAB_ITEMS.map((item, index) => {
-          const isActive = item.id === activeTab ||
-            (item.id === "账号管理" && activeTab === "公众号账号") ||
-            (item.id === "运行设置" && activeTab === "运行") ||
-            (item.id === "配置备份" && (activeTab === "备份" || activeTab === "导入导出"))
-          return React.createElement(
-            "button",
-            {
-              type: "button",
-              role: "tab",
-              id: "gzh-tab-" + String(index),
-              className: "gzhTab" + (isActive ? " gzhTabActive" : ""),
-              "aria-selected": isActive,
-              "aria-controls": "gzh-panel-" + String(index),
-              tabIndex: isActive ? 0 : -1,
-              key: item.id,
-              onClick: () => {
-                setActiveTab(item.id)
-                setEditingAccount(false)
-                setEditingContentAccount(false)
-                setEditingProvider(false)
-                setAddingAccount(false)
-                setAddingProvider(false)
-                setCopyingAccountId("")
-                setCopyDraft({ id: "", name: "" })
-              },
-            },
-            item.icon(14),
-            React.createElement("span", null, item.label),
-          )
-        }),
-      )
-
-      const tabPanel = React.createElement(
-        "section",
-        {
-          className: "gzhPanel",
-          role: "tabpanel",
-          id: "gzh-panel-" + String(tabIds.indexOf(activeTab) >= 0 ? tabIds.indexOf(activeTab) : 0),
-          "aria-labelledby": "gzh-tab-" + String(tabIds.indexOf(activeTab) >= 0 ? tabIds.indexOf(activeTab) : 0),
-        },
-        !["发表记录", "账号管理", "公众号账号", "内容规则", "生图接口", "配置备份"].includes(activeTab) ? React.createElement(
-          "div",
-          { className: "gzhPanelHeader" },
-          React.createElement("h4", { className: "gzhSectionTitle" }, activeTab),
-          React.createElement("p", { className: "gzhSectionHint" }, "全局运行时、浏览器路径与发布参数。"),
-        ) : null,
-        tabContent(),
-      )
-
-      const footer = React.createElement(
-        "div",
-        { className: "gzhFooter" },
-        React.createElement(
-          "div",
-          { className: "gzhFooterStatus" },
-          React.createElement(
-            "span",
-            { className: "gzhFooterTag" },
-            Icons.folder(12),
-            React.createElement("span", null, "工作区: " + actualWorkspace),
-          ),
-          React.createElement("span", { className: "gzhFooterTag" }, "默认账号: " + defaultAccountName),
-          failed ? React.createElement("span", { className: "gzhFailed" }, "保存失败：" + (saveErrorMsg || "请检查配置或稍后重试")) : null,
-          saveSuccessMsg ? React.createElement("span", { className: "gzhSuccess" }, saveSuccessMsg) : null,
-        ),
-        dirty ? React.createElement("button", {
-          type: "button", className: "gzhDiscard", disabled: !dirty || saving, onClick: discard,
-        }, "放弃修改") : null,
-        React.createElement("button", {
-          type: "button", className: "gzhSave", disabled: !dirty || invalid || saving || !writable, onClick: save,
-        }, saving ? "保存中…" : (dirty ? "保存修改" : "配置已保存")),
-      )
-
-      const isModal = mode === "modal"
-      const containerClass = isModal ? "gzhCardModalContainer" : (mode === "card" ? "gzhCardEmbed" : "gzhCardPage")
-
-      const tabBarWrapper = React.createElement(
-        "div",
-        { className: "gzhTabBarWrapper" },
-        tabBar,
-      )
-
-      const cardElement = React.createElement(
-        "div",
-        { className: containerClass, onClick: (e) => e.stopPropagation() },
-        cardHeader,
-        tabBarWrapper,
-        React.createElement("div", { className: "gzhCardBody" }, tabPanel),
-        footer,
-      )
-
-      if (isModal) {
-        return React.createElement(
-          "div",
-          {
-            className: "gzhCardModalBackdrop",
-            onClick: (e) => {
-              if (e.target === e.currentTarget && onClose) {
-                if (!dirty || confirm("当前有未保存的修改，确定要关闭卡片吗？")) {
-                  onClose()
-                }
-              }
-            },
-          },
-          cardElement,
-        )
-      }
-
-      return cardElement
-    }
-
-    class GzhErrorBoundary extends React.Component {
-      constructor(props) {
-        super(props)
-        this.state = { hasError: false, error: null }
-      }
-
-      static getDerivedStateFromError(error) {
-        return { hasError: true, error }
-      }
-
-      componentDidCatch(error, errorInfo) {
-        console.error("[dsh-social-publisher] Settings ErrorBoundary caught error:", error, errorInfo)
-      }
-
-      render() {
-        if (this.state.hasError) {
-          return React.createElement(
-            "div",
-            { className: "gzhCardPage", style: { padding: "24px", maxWidth: "900px", margin: "20px auto" } },
-            React.createElement(
-              "div",
-              {
-                className: "gzhSurface",
-                style: {
-                  border: "1px solid var(--dsw-alias-label-error)",
-                  borderRadius: "12px",
-                  padding: "20px",
-                  background: "var(--dsw-alias-bg-layer-2)",
-                },
-              },
-              React.createElement(
-                "h3",
-                { className: "gzhSectionTitle", style: { color: "var(--dsw-alias-label-error)", fontSize: "16px", marginBottom: "8px" } },
-                "社媒发布卡片遇到异常",
-              ),
-              React.createElement(
-                "p",
-                { className: "gzhHint", style: { color: "var(--dsw-alias-label-secondary)", fontSize: "13px", lineHeight: "1.6" } },
-                "插件卡片在渲染时发生了异常，已自动拦截保护以防止界面空白。您可以尝试重试恢复或刷新。",
-              ),
-              React.createElement(
-                "pre",
-                {
-                  className: "gzhCodePreview",
-                  style: { margin: "12px 0", maxHeight: "160px", color: "var(--dsw-alias-label-error)", fontSize: "12px" },
-                },
-                String(this.state.error?.stack || this.state.error?.message || this.state.error),
-              ),
-              React.createElement(
-                "div",
-                { style: { display: "flex", gap: "10px", marginTop: "12px" } },
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhButton gzhButtonPrimary",
-                    onClick: () => this.setState({ hasError: false, error: null }),
-                  },
-                  "重试恢复",
-                ),
-                React.createElement(
-                  "button",
-                  {
-                    type: "button",
-                    className: "gzhButton",
-                    onClick: () => { if (typeof window !== "undefined") window.location.reload() },
-                  },
-                  "刷新页面",
-                ),
-              ),
-            ),
-          )
-        }
-        return this.props.children
-      }
-    }
-
-    function SafeGzhPublisherCard(props) {
-      return React.createElement(GzhErrorBoundary, null, React.createElement(GzhPublisherCard, props))
-    }
-
-    const modalState = {
-      open: false,
-      listeners: new Set(),
-      setOpen(val) {
-        modalState.open = val
-        modalState.listeners.forEach((fn) => {
-          try { fn(val) } catch {}
-        })
-      },
-      subscribe(fn) {
-        modalState.listeners.add(fn)
-        return () => modalState.listeners.delete(fn)
-      },
-    }
-
-    if (typeof window !== "undefined") {
-      window.__openSocialPublisher = () => modalState.setOpen(true)
-      window.__closeSocialPublisher = () => modalState.setOpen(false)
-      window.addEventListener("dsh:open-social-publisher", () => modalState.setOpen(true))
-    }
-
-    function SidebarFooterButton() {
-      const [open, setOpen] = React.useState(modalState.open)
-      React.useEffect(() => modalState.subscribe(setOpen), [])
-
-      return React.createElement(
-        React.Fragment,
-        null,
-        React.createElement(
-          "button",
-          {
-            type: "button",
-            className: "gzhSidebarFooterBtn" + (open ? " gzhSidebarFooterBtnActive" : ""),
-            onClick: () => modalState.setOpen(!open),
-            title: "打开社媒发布工作台卡片",
-          },
-          Icons.feed(14),
-          React.createElement("span", { className: "gzhSidebarFooterLabel" }, "社媒发布"),
-          React.createElement("span", { className: "gzhStatusDot gzhStatusDotOn" }),
-        ),
-        open ? React.createElement(SafeGzhPublisherCard, {
-          mode: "modal",
-          onClose: () => modalState.setOpen(false),
-        }) : null,
-      )
-    }
-
-    function SessionHeaderButton() {
-      const [open, setOpen] = React.useState(modalState.open)
-      React.useEffect(() => modalState.subscribe(setOpen), [])
-
-      return React.createElement(
-        React.Fragment,
-        null,
-        React.createElement(
-          "button",
-          {
-            type: "button",
-            className: "gzhSessionHeaderBtn" + (open ? " gzhSessionHeaderBtnActive" : ""),
-            onClick: () => modalState.setOpen(true),
-            title: "打开社媒发布工作台卡片",
-          },
-          Icons.feed(13),
-          React.createElement("span", null, "社媒发布"),
-        ),
-        open ? React.createElement(SafeGzhPublisherCard, {
-          mode: "modal",
-          onClose: () => modalState.setOpen(false),
-        }) : null,
-      )
-    }
-
-    function summaryText() {
-      const snap = safeGetSnapshot(scope)
-      const val = normalizeValue(snap?.value ?? {})
-      const accCount = Object.keys(val.accounts || {}).length
-      const provCount = Object.keys(val.image_providers || {}).length
-      return `社媒自动化发布工作台（${accCount} 个账号，${provCount} 个生图接口）`
-    }
-
-    if (ctx && ctx.slots) {
-      // 1. 侧栏底部独立卡片入口（sidebar.footer.action）
-      try {
-        ctx.slots.inject("sidebar.footer.action", () =>
-          ctx.slots.register(
-            {
-              name: "sidebar.footer.action",
-              id: "social-publisher-footer",
-              order: 15,
-              label: () => "社媒发布",
-            },
-            SidebarFooterButton,
-          )
-        )
-      } catch (err) {
-        console.warn("[dsh-social-publisher] Failed to register sidebar.footer.action:", err)
-      }
-
-      // 2. 会话顶部快捷入口（conversation.session.header.actions）
-      try {
-        ctx.slots.inject("conversation.session.header.actions", () =>
-          ctx.slots.register(
-            {
-              name: "conversation.session.header.actions",
-              id: "social-publisher-header",
-              order: 25,
-              label: () => "社媒发布",
-            },
-            SessionHeaderButton,
-          )
-        )
-      } catch (err) {
-        console.warn("[dsh-social-publisher] Failed to register conversation.session.header.actions:", err)
-      }
-
-      // 3. 插件页独立行配置页面卡片（plugins.row.config）
-      try {
-        const configRowHandler = (slotProps) => {
-          if (slotProps && slotProps.view === "summary") {
-            return summaryText()
-          }
-          return React.createElement(SafeGzhPublisherCard, { mode: "page", ...slotProps })
-        }
-
-        ctx.slots.inject("plugins.row.config", () => [
-          ctx.slots.register({ name: "plugins.row.config", key: "dsh-social-publisher#social-publisher" }, configRowHandler),
-          ctx.slots.register({ name: "plugins.row.config", key: "dsh-social-publisher#social-publisher-dev" }, configRowHandler),
-          ctx.slots.register({ name: "plugins.row.config", key: "file:///D:/666/gzh/dsh-plugin/src/index.ts#social-publisher-dev" }, configRowHandler),
-          ctx.slots.register({ name: "plugins.row.config", key: "dsh-social-publisher" }, configRowHandler),
-        ])
-      } catch (err) {
-        console.warn("[dsh-social-publisher] Failed to register plugins.row.config:", err)
-      }
-
-      // 4. 设置页插件项卡片（settings.plugin.item）
-      try {
-        ctx.slots.inject("settings.plugin.item", () =>
-          ctx.slots.register(
-            {
-              name: "settings.plugin.item",
-              key: "social-publisher",
-              id: "dsh-social-publisher",
-              order: 20,
-              inject: () => ({}),
-            },
-            (props) => React.createElement(SafeGzhPublisherCard, { ...props, mode: "card" }),
-          )
-        )
-      } catch (err) {
-        console.warn("[dsh-social-publisher] Failed to register settings.plugin.item:", err)
-      }
-    }
-    }
-
-    return {
-      name: "dsh-social-publisher",
-      inject: ["slots"],
-      apply,
-    }
-  },
-})
+      `).catch(()=>{});triggerWechatQrAutoSwitch();onCheckLoginStateRef.current(targetUrl)};const onDidNavigateInPage=e=>{const targetUrl=e.url||``;setCurrentUrl(targetUrl);currentUrlRef.current=targetUrl;triggerWechatQrAutoSwitch();onCheckLoginStateRef.current(targetUrl)};const evts=[[`did-start-loading`,onDidStartLoading],[`did-stop-loading`,onDidStopLoading],[`dom-ready`,onDomReady],[`did-navigate`,onDidNavigate],[`did-navigate-in-page`,onDidNavigateInPage]];for(const[evt,fn]of evts)webview.addEventListener(evt,fn);let fastWatcher=null;if(isWechatPlatform){let fastWatchCount=0;fastWatcher=setInterval(async()=>{fastWatchCount+=1;if(!webviewRef.current||fastWatchCount>20||qrStabilized){clearInterval(fastWatcher);return}await injectWechatPermissionsShield(webviewRef.current);if((await ensureWechatQrCodeLogin(webviewRef.current)).hasQrCode){qrStabilized=true;clearInterval(fastWatcher)}},250)}const poller=setInterval(()=>{try{const url=webview.getURL?.()||currentUrlRef.current;if(url)onCheckLoginStateRef.current(url)}catch{}},2e3);return()=>{if(fastWatcher)clearInterval(fastWatcher);clearInterval(poller);for(const[evt,fn]of evts)webview.removeEventListener(evt,fn)}},[open,platform]);return{webviewRef,loading,canGoBack,canGoForward,currentUrl,setCurrentUrl}}const PLATFORM_NAMES={gzh:`微信公众平台`,wechat:`微信公众平台`,zhihu:`知乎创作平台`,xiaohongshu:`小红书创作服务平台`,xhs:`小红书创作服务平台`,baijiahao:`百家号平台`,toutiao:`今日头条号平台`};async function extractWechatTokenAndName(url,webview){const match=url.match(/token=([0-9a-zA-Z_-]+)/);let userName;try{const dom=await webview.executeJavaScript(`(() => { const el = document.querySelector('.weui-desktop-account__nickname, .account_name, .user_name'); return el ? (el.textContent || '').trim() : ''; })()`).catch(()=>``);if(dom)userName=dom}catch{}return{token:match?match[1]:void 0,userName}}function SocialPublisherLoginModal({open,onOpenChange,platform,accountId,accountName,onLoginSuccess}){const services=useServices();const socialPublisherRpc=services?.socialPublisherService??services?.socialPublisherRpc??null;const platformService=useOptionalPlatform();const mountTimeRef=(0,react.useRef)(Date.now());const[savingSession,setSavingSession]=(0,react.useState)(false);const[loginSucceeded,setLoginSucceeded]=(0,react.useState)(false);const[statusText,setStatusText]=(0,react.useState)(`正在载入登录页，请稍候...`);const platformDisplayName=PLATFORM_NAMES[platform.toLowerCase()]||platform;const loginUrl=getSocialPlatformLoginUrl(platform);const partitionKey=`persist:social_${platform.toLowerCase()}_${(accountId||`default`).trim()}`;const handleClose=(0,react.useCallback)(()=>{onOpenChange(false);setLoginSucceeded(false);setSavingSession(false)},[onOpenChange]);const commitLoginSession=(0,react.useCallback)(async(cookies,token,userName)=>{if(savingSession||loginSucceeded)return;setSavingSession(true);setStatusText(`正在持久化保存已授权的会话凭据...`);try{const data=await(await publisherApiFetch(`/api/gzh-publisher/login/${platform.toLowerCase().replace(`xiaohongshu`,`xhs`).replace(`gzh`,`wechat`)}`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({account_id:accountId,action:`save_session`,cookies,token,user_name:userName})},socialPublisherRpc)).json().catch(()=>({}));if(data.ok){setLoginSucceeded(true);setStatusText(`授权成功！账号 [${accountId}] 登录态已建立并在专属会话分区中持久化。`);window.dispatchEvent(new CustomEvent(`wincode:social-account-login-synced`,{detail:{accountId,userName}}));setTimeout(()=>{onLoginSuccess();handleClose()},1200)}else setStatusText(`保存凭据未通过: ${data.error||`服务端拒绝保存该凭据`}`)}catch(err){logger.error(`[SocialLoginModal] 保存登录凭据失败:`,err);setStatusText(`保存凭据异常: ${err.message||String(err)}`)}finally{setSavingSession(false)}},[accountId,handleClose,loginSucceeded,onLoginSuccess,platform,savingSession,socialPublisherRpc]);const extractSessionCookies=(0,react.useCallback)(async fallbackUrl=>{if(typeof window!==`undefined`&&window.dshDesktop?.getPartitionCookies)try{const partitionCookies=await window.dshDesktop.getPartitionCookies(partitionKey);if(Array.isArray(partitionCookies)&&partitionCookies.length>0)return partitionCookies}catch(err){logger.warn(`[SocialLoginModal] 提取 Desktop Partition Cookie 失败:`,err)}if(platformService?.getPartitionCookies)try{const partitionCookies=await platformService.getPartitionCookies(partitionKey);if(Array.isArray(partitionCookies)&&partitionCookies.length>0)return partitionCookies}catch(err){logger.warn(`[SocialLoginModal] 提取 Partition Cookie 失败，降级读取 DOM:`,err)}const webview=webviewRef.current;if(webview){const cookieStr=await webview.executeJavaScript(`document.cookie`).catch(()=>``);if(cookieStr){const targetUrl=fallbackUrl||loginUrl;try{return parseCookieString(cookieStr,`.`+new URL(targetUrl).hostname.split(`.`).slice(-2).join(`.`))}catch{return parseCookieString(cookieStr,``)}}}return[]},[loginUrl,partitionKey,platformService]);const{webviewRef,loading,canGoBack,canGoForward,currentUrl}=useSocialPublisherWebview({open,platform,onCheckLoginState:(0,react.useCallback)(async url=>{const webview=webviewRef.current;if(!webview||!open||loginSucceeded||savingSession)return;if(Date.now()-mountTimeRef.current<2500)return;if(isSocialPlatformLoginUrl(platform,url)||!isSocialPlatformSuccessUrl(platform,url))return;if(await webview.executeJavaScript(`
+        (() => {
+          const loginContainer = document.querySelector('.login__type__container, .login_frame, #login_container, .login-box, .login-container');
+          const qrcode = loginContainer ? loginContainer.querySelector('.qrcode, [class*="qrcode"], canvas, img') : null;
+          const loginBtn = document.querySelector('.login-form button[type="submit"], form[action*="login"] button, button.btn_login, .login-btn, input[type="password"]');
+          return Boolean((qrcode && qrcode.offsetParent !== null) || (loginBtn && loginBtn.offsetParent !== null));
+        })()
+      `).catch(()=>false))return;const p=platform.toLowerCase();const isXhs=p===`xhs`||p===`xiaohongshu`;let extractedUserName;if(isXhs){const xhsProbe=await probeXhsWebviewLogin(webview);if(!xhsProbe.ok)return;if(xhsProbe.userName)extractedUserName=xhsProbe.userName}let token;if(p===`gzh`||p===`wechat`){const wx=await extractWechatTokenAndName(url,webview);token=wx.token;if(!extractedUserName&&wx.userName)extractedUserName=wx.userName}const cookies=await extractSessionCookies(url);if(!hasSocialPlatformAuthCredentials(platform,cookies,token).valid)return;await commitLoginSession(cookies,token,extractedUserName)},[commitLoginSession,extractSessionCookies,loginSucceeded,open,platform,savingSession])});const handleManualSync=async()=>{const webview=webviewRef.current;if(!webview)return;setStatusText(`正在从内置浏览器中提取授权会话并核验...`);try{const url=webview.getURL?.()||currentUrl;const p=platform.toLowerCase();const isXhs=p===`xhs`||p===`xiaohongshu`;let extractedUserName;if(isXhs){const xhsProbe=await probeXhsWebviewLogin(webview);if(!xhsProbe.ok){setStatusText(`小红书创作者服务平台尚未检测到有效登录态，请在页面中完成扫码登录后再试`);return}if(xhsProbe.userName)extractedUserName=xhsProbe.userName}const cookies=await extractSessionCookies(url);let token;if(p===`gzh`||p===`wechat`){const wx=await extractWechatTokenAndName(url,webview);token=wx.token;if(!extractedUserName&&wx.userName)extractedUserName=wx.userName}const credCheck=hasSocialPlatformAuthCredentials(platform,cookies,token);if(!credCheck.valid){setStatusText(credCheck.reason||`当前尚未检测到有效登录态凭据，请确保已在页面完成扫码登录`);return}await commitLoginSession(cookies,token,extractedUserName)}catch(err){setStatusText(`提取会话失败: ${err.message||String(err)}`)}};const handleOpenExternal=()=>{const url=currentUrl||loginUrl;if(platformService?.openExternal)platformService.openExternal(url);else if(typeof window!==`undefined`)window.open(url,`_blank`)};(0,react.useEffect)(()=>{if(!open)return;const handleKeyDown=e=>{if(e.key===`Escape`)handleClose()};window.addEventListener(`keydown`,handleKeyDown);return()=>window.removeEventListener(`keydown`,handleKeyDown)},[handleClose,open]);(0,react.useEffect)(()=>{if(!open)return;mountTimeRef.current=Date.now();setLoginSucceeded(false);setSavingSession(false);setStatusText(`请在下方内置浏览器中完成扫码或登录授权...`)},[open]);if(!open||typeof document===`undefined`)return null;return(0,react_dom.createPortal)((0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherLoginModal_module_css_default.modalRoot,"data-testid":`social-publisher-login-modal`,onClick:e=>{if(e.target===e.currentTarget)handleClose()},children:(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.modalContainer,onClick:e=>e.stopPropagation(),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.header,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.headerTop,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.headerNavGroup,children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:SocialPublisherLoginModal_module_css_default.headerNavBtn,title:`后退`,disabled:!canGoBack,onClick:()=>webviewRef.current?.goBack?.(),children:(0,react_jsx_runtime.jsx)(ChevronLeft,{className:`size-4`})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:SocialPublisherLoginModal_module_css_default.headerNavBtn,title:`前进`,disabled:!canGoForward,onClick:()=>webviewRef.current?.goForward?.(),children:(0,react_jsx_runtime.jsx)(ChevronRight,{className:`size-4`})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:SocialPublisherLoginModal_module_css_default.headerNavBtn,title:`重新载入页面`,onClick:()=>webviewRef.current?.reload?.(),children:(0,react_jsx_runtime.jsx)(RefreshCw,{className:`size-3.5 ${loading?`animate-spin`:``}`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.headerTitle,children:[(0,react_jsx_runtime.jsx)(ShieldCheck,{className:`size-4 text-emerald-500`}),(0,react_jsx_runtime.jsxs)(`span`,{children:[platformDisplayName,` · 扫码登录授权 [`,accountName||accountId,`]`]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.headerActions,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:SocialPublisherLoginModal_module_css_default.externalLinkBtn,onClick:handleOpenExternal,title:`在外部系统浏览器中打开此登录页面`,children:[(0,react_jsx_runtime.jsx)(ExternalLink,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`在外部浏览器打开`})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:SocialPublisherLoginModal_module_css_default.closeBtn,onClick:handleClose,title:`关闭内置登录窗口 (Esc)`,children:(0,react_jsx_runtime.jsx)(X,{className:`size-4`})})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.headerSub,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.partitionBadge,children:[(0,react_jsx_runtime.jsx)(ShieldCheck,{className:`size-3.5`}),(0,react_jsx_runtime.jsxs)(`span`,{children:[`多开隔离专属分区: `,partitionKey]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.urlText,children:[(0,react_jsx_runtime.jsx)(Globe,{className:`size-3.5 shrink-0`}),(0,react_jsx_runtime.jsx)(`span`,{title:currentUrl||loginUrl,children:currentUrl||loginUrl})]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.webviewWrapper,children:[(0,react_jsx_runtime.jsx)(`webview`,{ref:webviewRef,src:loginUrl,partition:partitionKey,useragent:DEFAULT_DESKTOP_CHROME_UA,allowpopups:``,nodeintegrationinsubframes:`true`,className:SocialPublisherLoginModal_module_css_default.webviewTag}),loginSucceeded&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.successOverlay,children:[(0,react_jsx_runtime.jsx)(CircleCheck,{className:`size-16 text-emerald-500`}),(0,react_jsx_runtime.jsx)(`h3`,{className:SocialPublisherLoginModal_module_css_default.successTitle,children:`登录授权成功！`}),(0,react_jsx_runtime.jsx)(`p`,{className:SocialPublisherLoginModal_module_css_default.successSubtitle,children:`已成功抓取最新会话凭据并同步至专属隔离存储，窗口即将自动关闭...`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.footer,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.statusContainer,children:[(0,react_jsx_runtime.jsx)(QrCode,{className:`size-4 ${SocialPublisherLoginModal_module_css_default.statusIcon}`}),(0,react_jsx_runtime.jsx)(`span`,{className:SocialPublisherLoginModal_module_css_default.statusMessage,children:statusText})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherLoginModal_module_css_default.footerActions,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:SocialPublisherLoginModal_module_css_default.syncBtn,onClick:handleManualSync,disabled:savingSession||loginSucceeded,children:[(0,react_jsx_runtime.jsx)(RefreshCw,{className:`size-3.5 ${savingSession?`animate-spin`:``}`}),(0,react_jsx_runtime.jsx)(`span`,{children:savingSession?`同步核验中...`:`我已完成扫码，手动同步凭据`})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:SocialPublisherLoginModal_module_css_default.cancelBtn,onClick:handleClose,children:`关闭`})]})]})]})}),document.body)}function r(e){var t,f,n=``;if(`string`==typeof e||`number`==typeof e)n+=e;else if(`object`==typeof e)if(Array.isArray(e)){var o=e.length;for(t=0;t<o;t++)e[t]&&(f=r(e[t]))&&(n&&(n+=` `),n+=f)}else for(f in e)e[f]&&(n&&(n+=` `),n+=f);return n}function clsx(){for(var e,t,f=0,n=``,o=arguments.length;f<o;f++)(e=arguments[f])&&(t=r(e))&&(n&&(n+=` `),n+=t);return n}function cn(...inputs){return clsx(inputs)}const Button=react.forwardRef(function Button({className,variant=`default`,size=`default`,style,disabled,...props},ref){const baseClasses=`inline-flex items-center justify-center font-medium rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none`;const variantStyleMap={default:{background:`#10b981`,color:`#ffffff`,border:`1px solid #059669`,boxShadow:`0 1px 2px rgba(0, 0, 0, 0.05)`},outline:{background:`transparent`,color:`var(--dsw-alias-label-primary, inherit)`,border:`1px solid var(--dsw-alias-border-l2, rgba(125, 125, 125, 0.25))`},secondary:{background:`var(--dsw-alias-bg-layer-2, rgba(125, 125, 125, 0.1))`,color:`var(--dsw-alias-label-primary, inherit)`,border:`1px solid var(--dsw-alias-border-l1, rgba(125, 125, 125, 0.15))`},ghost:{background:`transparent`,color:`var(--dsw-alias-label-secondary, #6b7280)`,border:`1px solid transparent`},destructive:{background:`#ef4444`,color:`#ffffff`,border:`1px solid #dc2626`},warning:{background:`#d97706`,color:`#ffffff`,border:`1px solid #b45309`},link:{background:`transparent`,color:`#10b981`,border:`none`,textDecoration:`underline`,padding:0}};const sizeStyleMap={default:{height:32,padding:`0 12px`,fontSize:13,gap:6},xs:{height:22,padding:`0 6px`,fontSize:11,gap:4},sm:{height:28,padding:`0 10px`,fontSize:12,gap:5},lg:{height:38,padding:`0 16px`,fontSize:14,gap:8},icon:{width:32,height:32,padding:0},"icon-xs":{width:20,height:20,padding:0},"icon-sm":{width:24,height:24,padding:0},"icon-md":{width:28,height:28,padding:0},"icon-lg":{width:36,height:36,padding:0}};return(0,react_jsx_runtime.jsx)(`button`,{ref,disabled,style:{display:`inline-flex`,alignItems:`center`,justifyContent:`center`,fontWeight:500,borderRadius:6,cursor:disabled?`not-allowed`:`pointer`,opacity:disabled?.5:1,transition:`all 0.15s ease`,boxSizing:`border-box`,lineHeight:1,userSelect:`none`,...variantStyleMap[variant],...sizeStyleMap[size],...style},className:cn(baseClasses,className),...props})});function SocialPreflightGateModal({open,unreadyAccounts,onClose,onOpenLoginModal,onContinueWithReadyOnly}){if(!open)return null;return(0,react_jsx_runtime.jsx)(`div`,{className:`fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4 animate-in fade-in duration-150`,children:(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-col gap-3 max-w-md w-full rounded-2xl border border-amber-500/40 bg-card p-4 shadow-xl`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-start gap-2.5`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400`,children:(0,react_jsx_runtime.jsx)(TriangleExclamationPoint,{className:`size-4`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-col gap-0.5`,children:[(0,react_jsx_runtime.jsx)(`h4`,{className:`text-ui-sm font-bold text-foreground`,children:`社媒账号登录态预检提醒`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-ui-2xs text-foreground-muted`,children:`检测到以下选中账号尚未登录或会话凭据已失效，实盘发布时可能会遭遇拦截：`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`flex flex-col gap-1.5 rounded-lg border border-border/40 bg-surface/40 p-2.5 max-h-36 overflow-y-auto`,children:unreadyAccounts.map(acc=>(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between text-ui-xs py-0.5`,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:`font-medium text-foreground`,children:[acc.name||acc.id,` (`,acc.platform,`)`]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>onOpenLoginModal(acc),className:`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer`,children:[(0,react_jsx_runtime.jsx)(QrCode,{className:`size-2.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`立即扫码`})]})]},acc.id))}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-end gap-2 border-t border-border/30 pt-2`,children:[(0,react_jsx_runtime.jsx)(Button,{type:`button`,variant:`ghost`,size:`sm`,onClick:onClose,className:`h-7 text-ui-2xs cursor-pointer`,children:`取消`}),(0,react_jsx_runtime.jsx)(Button,{type:`button`,size:`sm`,onClick:onContinueWithReadyOnly,className:`h-7 text-ui-2xs cursor-pointer`,children:`仅发布已就绪账号`})]})]})})}function ProFeatureGateModal({open,onClose,onOpenChange,featureTitle,description,onConfirmTrial}){if(!open)return null;const handleClose=()=>{onClose?.();onOpenChange?.(false)};return(0,react_jsx_runtime.jsx)(`div`,{style:{position:`fixed`,inset:0,zIndex:9999,display:`flex`,alignItems:`center`,justifyContent:`center`,background:`rgba(0,0,0,0.5)`},children:(0,react_jsx_runtime.jsxs)(`div`,{style:{background:`#fff`,borderRadius:`8px`,padding:`24px`,maxWidth:`400px`,textAlign:`center`},children:[(0,react_jsx_runtime.jsx)(`h3`,{children:featureTitle||`专业版功能`}),(0,react_jsx_runtime.jsx)(`p`,{style:{margin:`16px 0`,color:`#666`},children:description||`此功能已在当前环境中全面开放使用。`}),(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,justifyContent:`center`,gap:`8px`},children:[onConfirmTrial&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>{onConfirmTrial();handleClose()},style:{padding:`6px 16px`,borderRadius:`4px`,cursor:`pointer`},children:`开启体验`}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:handleClose,style:{padding:`6px 16px`,borderRadius:`4px`,cursor:`pointer`},children:`我知道了`})]})]})})}function SocialPublisherComposerModals({loginModalState,setLoginModalState,checkSingleAccount,preflightGateOpen,setPreflightGateOpen,unreadyAccountsList,doSubmit,effectivePlatforms:_effectivePlatforms,notes,selectAllAccounts:_selectAllAccounts,effectiveAccounts,setErrorMessage,featureGateOpen,setFeatureGateOpen}){return(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[loginModalState.open&&(0,react_jsx_runtime.jsx)(SocialPublisherLoginModal,{open:loginModalState.open,onOpenChange:open=>setLoginModalState(prev=>({...prev,open})),platform:loginModalState.platform,accountId:loginModalState.accountId,accountName:loginModalState.accountName,onLoginSuccess:()=>{setLoginModalState(prev=>({...prev,open:false}));checkSingleAccount(loginModalState.platform,loginModalState.accountId)}}),(0,react_jsx_runtime.jsx)(SocialPreflightGateModal,{open:preflightGateOpen,unreadyAccounts:unreadyAccountsList,onClose:()=>setPreflightGateOpen(false),onOpenLoginModal:acc=>{setPreflightGateOpen(false);setLoginModalState({open:true,platform:acc.platform===`xhs`?`xiaohongshu`:acc.platform||`gzh`,accountId:acc.id,accountName:acc.name||acc.id})},onContinueWithReadyOnly:()=>{setPreflightGateOpen(false);const readyAccounts=effectiveAccounts.filter(a=>!unreadyAccountsList.some(u=>u.id===a.id));if(readyAccounts.length>0)doSubmit(void 0,notes,false,readyAccounts);else setErrorMessage(`已无就绪账号可供发布，请先完成扫码登录`)}}),(0,react_jsx_runtime.jsx)(ProFeatureGateModal,{open:featureGateOpen,onOpenChange:setFeatureGateOpen,featureId:`social_matrix_concurrency`,featureTitle:`社媒多平台多账号矩阵并发发布`,description:`系统检测到您已勾选多个发布账号。矩阵并发执行将为每个账号创建独立的 AI 调度会话与并发内容生产，属于高级会员专属特权。`,onConfirmTrial:()=>{doSubmit()}})]})}const PLATFORMS=[{key:`gzh`,label:`微信公众号`,shortLabel:`公众号`,color:`text-emerald-600 dark:text-emerald-400`,selectedColor:`border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30`},{key:`xiaohongshu`,label:`小红书`,shortLabel:`小红书`,color:`text-rose-600 dark:text-rose-400`,selectedColor:`border-rose-500/50 bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30`},{key:`zhihu`,label:`知乎专栏`,shortLabel:`知乎`,color:`text-blue-600 dark:text-blue-400`,selectedColor:`border-blue-500/50 bg-blue-500/10 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500/30`},{key:`baijiahao`,label:`百家号`,shortLabel:`百家号`,color:`text-indigo-600 dark:text-indigo-400`,selectedColor:`border-indigo-500/50 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-500/30`},{key:`toutiao`,label:`今日头条`,shortLabel:`头条`,color:`text-red-600 dark:text-red-400`,selectedColor:`border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300 ring-1 ring-red-500/30`}];function getPlatformCapability(platform,articleType){const p=(platform||``).toLowerCase();if(p===`gzh`||p===`wechat`||p===`weixin`){const isNewspic=articleType===`newspic`;return{platform:`gzh`,platformDisplayName:isNewspic?`微信小绿书`:`微信公众号`,supportsDraft:true,supportsSchedule:true,supportsDirectPublish:false,showPrimeTime:true,draftButtonLabel:isNewspic?`存入公众号小绿书草稿`:`推送到公众号草稿箱`,publishButtonLabel:isNewspic?`发布小绿书图文`:`群发公众号长文`,scheduleButtonLabel:`公众号定时排期`,themeStyle:{accentColor:`text-emerald-600 dark:text-emerald-400`,lightBg:`bg-emerald-500/[0.03]`,borderHover:`hover:border-emerald-500/50`,badgeBg:`bg-emerald-500/10`,badgeText:`text-emerald-700 dark:text-emerald-300`,badgeBorder:`border-emerald-500/25`,primaryBtnClass:`bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20`,ringColor:`ring-emerald-500/20`},getFormatSummary:(totalCount,index)=>{if(isNewspic)return`微信小绿书 (3:4 多图卡片 · 瀑布流)`;if(totalCount>1)return index===0?`公众号首篇 (2.35:1 题图 · 13px 单行)`:`公众号次篇 #${index+1} (1:1 方形封面 · 13px 单行)`;return`微信公众号长文排版 (13px 单行 · 2.35:1 题图)`}}}if(p===`zhihu`)return{platform:`zhihu`,platformDisplayName:`知乎专栏`,supportsDraft:true,supportsSchedule:false,supportsDirectPublish:true,showPrimeTime:false,draftButtonLabel:`存为知乎草稿`,publishButtonLabel:`一键发布知乎专栏`,scheduleButtonLabel:``,themeStyle:{accentColor:`text-sky-600 dark:text-sky-400`,lightBg:`bg-sky-500/[0.03]`,borderHover:`hover:border-sky-500/50`,badgeBg:`bg-sky-500/10`,badgeText:`text-sky-700 dark:text-sky-300`,badgeBorder:`border-sky-500/25`,primaryBtnClass:`bg-sky-600 hover:bg-sky-700 text-white shadow-sky-600/20`,ringColor:`ring-sky-500/20`},getFormatSummary:()=>`知乎专栏 · 深度研报 · Markdown 排版`};if(p===`xiaohongshu`||p===`xhs`)return{platform:`xiaohongshu`,platformDisplayName:`小红书`,supportsDraft:true,supportsSchedule:true,supportsDirectPublish:true,showPrimeTime:true,draftButtonLabel:`存为小红书草稿`,publishButtonLabel:`一键发布小红书笔记`,scheduleButtonLabel:`定时发布笔记`,themeStyle:{accentColor:`text-rose-600 dark:text-rose-400`,lightBg:`bg-rose-500/[0.03]`,borderHover:`hover:border-rose-500/50`,badgeBg:`bg-rose-500/10`,badgeText:`text-rose-700 dark:text-rose-300`,badgeBorder:`border-rose-500/25`,primaryBtnClass:`bg-rose-600 hover:bg-rose-700 text-white shadow-rose-600/20`,ringColor:`ring-rose-500/20`},getFormatSummary:()=>`小红书图文笔记 (3:4 竖版多图 · 标签优化)`};if(p===`toutiao`)return{platform:`toutiao`,platformDisplayName:`今日头条`,supportsDraft:true,supportsSchedule:true,supportsDirectPublish:true,showPrimeTime:true,draftButtonLabel:`存入头条号草稿箱`,publishButtonLabel:`一键发布头条文章`,scheduleButtonLabel:`头条定时排期`,themeStyle:{accentColor:`text-red-600 dark:text-red-400`,lightBg:`bg-red-500/[0.03]`,borderHover:`hover:border-red-500/50`,badgeBg:`bg-red-500/10`,badgeText:`text-red-700 dark:text-red-300`,badgeBorder:`border-red-500/25`,primaryBtnClass:`bg-red-600 hover:bg-red-700 text-white shadow-red-600/20`,ringColor:`ring-red-500/20`},getFormatSummary:()=>`头条号专栏文章 · 16:9 横版封面 · 红色强调排版`};if(p===`baijiahao`)return{platform:`baijiahao`,platformDisplayName:`百家号`,supportsDraft:true,supportsSchedule:true,supportsDirectPublish:true,showPrimeTime:true,draftButtonLabel:`存入百家号草稿箱`,publishButtonLabel:`一键发布百家号文章`,scheduleButtonLabel:`百家号定时排期`,themeStyle:{accentColor:`text-indigo-600 dark:text-indigo-400`,lightBg:`bg-indigo-500/[0.03]`,borderHover:`hover:border-indigo-500/50`,badgeBg:`bg-indigo-500/10`,badgeText:`text-indigo-700 dark:text-indigo-300`,badgeBorder:`border-indigo-500/25`,primaryBtnClass:`bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/20`,ringColor:`ring-indigo-500/20`},getFormatSummary:()=>`百家号图文 · 2.35:1 宽幅封面 · 搜索收录优化`};return{platform:p||`generic`,platformDisplayName:`社媒专栏`,supportsDraft:true,supportsSchedule:false,supportsDirectPublish:true,showPrimeTime:false,draftButtonLabel:`存为草稿`,publishButtonLabel:`一键发布`,scheduleButtonLabel:`定时发布`,themeStyle:{accentColor:`text-primary`,lightBg:`bg-primary/[0.02]`,borderHover:`hover:border-primary/50`,badgeBg:`bg-primary/10`,badgeText:`text-primary`,badgeBorder:`border-primary/20`,primaryBtnClass:`bg-primary hover:bg-primary/90 text-primary-foreground`,ringColor:`ring-primary/20`},getFormatSummary:()=>`深度图文专栏排版`}}const SocialPlatformGridPicker=(0,react.memo)(function SocialPlatformGridPicker({selectedPlatforms,onTogglePlatform}){return(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherComposerCard_module_css_default.platformGrid,children:PLATFORMS.map(platform=>{const isSelected=selectedPlatforms.includes(platform.key);return(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>onTogglePlatform(platform.key),title:platform.label,className:`${SocialPublisherComposerCard_module_css_default.platformBtn} ${isSelected?SocialPublisherComposerCard_module_css_default.platformBtnActive:``}`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:platform.shortLabel}),isSelected?(0,react_jsx_runtime.jsx)(Check,{size:12,strokeWidth:2.5,style:{flexShrink:0}}):null]},platform.key)})})});const SOCIAL_VIRAL_SPARKS=[{label:`🔥 行业深度综述`,prompt:`围绕本周最新行业前沿热点写一篇深度综述，包含事件回顾、行业影响与独家观点洞察。`},{label:`💡 步骤实操拆解`,prompt:`将复杂操作整理为手把手实操干货指南，条理清晰，分为 4 个步骤，小红书配 4 张 3:4 竖版多图。`},{label:`✨ 爆款故事种草`,prompt:`以第一视角故事化分享体验心得，语气亲切真诚，小红书网感风格，提炼 3 个核心优势。`},{label:`📊 观点对比测评`,prompt:`从功能、体验、性价比多维度进行客观深度对比测评，给出明确选购与使用建议。`}];const SocialViralSparksBar=(0,react.memo)(function SocialViralSparksBar({onSelectPrompt}){return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.sparksBar,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:SocialPublisherComposerCard_module_css_default.sparksLabel,children:[(0,react_jsx_runtime.jsx)(Sparkles,{size:12,style:{color:`#10b981`}}),`爆款灵感:`]}),SOCIAL_VIRAL_SPARKS.map(spark=>(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>onSelectPrompt(spark.prompt),className:SocialPublisherComposerCard_module_css_default.sparkChip,children:spark.label},spark.label))]})});function useSocialAccountsHealth(socialPublisherRpc,effectiveAccounts){const[accountHealthMap,setAccountHealthMap]=(0,react.useState)({});const checkSingleAccount=(0,react.useCallback)(async(platform,accountId)=>{setAccountHealthMap(prev=>({...prev,[accountId]:{...prev[accountId],checking:true}}));try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/login/${platform===`xiaohongshu`?`xhs`:platform===`wechat`?`gzh`:platform}`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({account_id:accountId,action:`check`})},socialPublisherRpc));const isValid=parsed.ok?Boolean(parsed.data?.logged_in):false;setAccountHealthMap(prev=>({...prev,[accountId]:{valid:isValid,checking:false,userName:parsed.data?.user_name,error:parsed.data?.error}}))}catch{setAccountHealthMap(prev=>({...prev,[accountId]:{valid:false,checking:false,error:`检测超时或异常`}}))}},[socialPublisherRpc]);const checkEffectiveAccountsHealth=(0,react.useCallback)(async targets=>{if(!targets||targets.length===0)return;const accountsPayload=targets.map(a=>({platform:a.platform===`xiaohongshu`?`xhs`:a.platform===`wechat`?`gzh`:a.platform||`gzh`,account_id:a.id}));setAccountHealthMap(prev=>{const next={...prev};for(const t of targets)next[t.id]={...next[t.id],checking:true};return next});try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/login/batch-check`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({accounts:accountsPayload})},socialPublisherRpc));if(parsed.ok&&parsed.data?.results){const results=parsed.data.results;setAccountHealthMap(prev=>{const next={...prev};for(const[aid,resData]of Object.entries(results))next[aid]={valid:Boolean(resData?.logged_in),checking:false,userName:resData?.user_name,error:resData?.error};return next});return}}catch{}await Promise.all(targets.map(a=>checkSingleAccount(a.platform||`gzh`,a.id)))},[checkSingleAccount,socialPublisherRpc]);(0,react.useEffect)(()=>{if(effectiveAccounts.length===0)return;const timer=setTimeout(()=>{checkEffectiveAccountsHealth(effectiveAccounts)},200);return()=>clearTimeout(timer)},[effectiveAccounts,checkEffectiveAccountsHealth]);return{accountHealthMap,checkSingleAccount,checkEffectiveAccountsHealth}}function useSocialComposerAccounts(params){const{accounts,socialAccountsLimit=1,selectedPlatforms,selectedAccountIds,selectAllAccounts,socialPublisherRpc}=params;const quotaResult=(0,react.useMemo)(()=>resolveEffectiveSocialAccounts(accounts,socialAccountsLimit),[accounts,socialAccountsLimit]);const filteredAccounts=(0,react.useMemo)(()=>{return quotaResult.activeAccounts.filter(acc=>{const platformKey=acc.platform===`xhs`?`xiaohongshu`:acc.platform;return selectedPlatforms.includes(platformKey)})},[quotaResult.activeAccounts,selectedPlatforms]);const effectiveAccounts=(0,react.useMemo)(()=>{if(selectAllAccounts)return filteredAccounts;return quotaResult.activeAccounts.filter(a=>a.id&&selectedAccountIds.includes(a.id))},[selectAllAccounts,filteredAccounts,quotaResult.activeAccounts,selectedAccountIds]);const{accountHealthMap,checkSingleAccount}=useSocialAccountsHealth(socialPublisherRpc,effectiveAccounts);return{quotaResult,filteredAccounts,effectiveAccounts,effectivePlatforms:(0,react.useMemo)(()=>{if(selectAllAccounts)return selectedPlatforms;const derived=new Set;effectiveAccounts.forEach(acc=>{const pKey=acc.platform===`xhs`?`xiaohongshu`:acc.platform;if(pKey)derived.add(pKey)});return Array.from(derived)},[selectAllAccounts,selectedPlatforms,effectiveAccounts]),accountHealthMap,checkSingleAccount}}function buildSocialComposerPrompts(params){const{platformsToSubmit,accountsToUse,selectAll,notesToSubmit,isDryRun,platformsMeta,sessionId,workspacePath}=params;const platformNames=platformsToSubmit.map(p=>platformsMeta.find(item=>item.key===p)?.label??p).join(`、`);const accountNames=accountsToUse.map(a=>a.name||a.id).join(`、`);const accountNotice=selectAll?`所选平台下全部已启用账号（共 ${accountsToUse.length} 个账号：${accountNames}）`:`指定账号（共 ${accountsToUse.length} 个账号：${accountNames}）`;const pad=n=>String(n).padStart(2,`0`);const now=new Date;const dateStr=`${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;const rand=Math.random().toString(36).slice(2,6);const sShort=sessionId?`_s_${sessionId.replace(/[^a-zA-Z0-9]/g,``).slice(0,8)}`:``;const singlePlatform=platformsToSubmit.length===1?platformsToSubmit[0]:null;const singleAcc=accountsToUse.length===1?accountsToUse[0]:null;const singleTaskId=singleAcc?`task_${dateStr}${sShort}_${singleAcc.platform===`xhs`?`xiaohongshu`:singleAcc.platform||singlePlatform||`gzh`}_${singleAcc.id}_${rand}`:void 0;const wsArg=workspacePath?` --workspace "${workspacePath.replace(/\\/g,`/`)}"`:``;const taskArg=singleTaskId?` --task-id ${singleTaskId}`:``;const cmdFirstLine=singlePlatform?selectAll?`/publish ${singlePlatform} all`:`/publish ${singlePlatform} ${accountsToUse.map(a=>a.id).join(` `)}${taskArg}${wsArg}`:selectAll?`/publish all`:`/publish ${accountsToUse.map(a=>a.id).join(` `)}${taskArg}${wsArg}`;const dryRunNotice=isDryRun?`【执行模式】演练模式（Dry Run：全流程模拟推演，不调用真实扣费生图与官方发布接口）`:`【执行模式】真实发布模式（严格执行选题与发布确认门禁）`;const formattedPrompt=[cmdFirstLine,dryRunNotice,accountsToUse.length>1?`【社媒矩阵任务】本次任务包含 ${accountsToUse.length} 个独立账号并发执行（${accountNames}），启用主总控看板与会话隔离调度。`:``,`【发布平台】${platformNames}`,`【执行账号】${accountNotice}`,notesToSubmit.trim()?`【定制要求与备注】${notesToSubmit.trim()}`:``,`请启动社媒流水线：执行前置预检与热点选题雷达，生成排版规范图文并等待我确认审核。`].filter(Boolean).join(`
+`);const matrixBatchId=`batch_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;return{formattedPrompt,accountsPlan:accountsToUse.map(acc=>{const pKey=(acc.platform===`xhs`?`xiaohongshu`:acc.platform)||`gzh`;const pLabel=platformsMeta.find(p=>p.key===pKey)?.label||pKey;const rand=Math.random().toString(36).slice(2,6);const taskId=`task_${dateStr}${sessionId?`_s_${sessionId.replace(/[^a-zA-Z0-9]/g,``).slice(0,8)}`:``}_${pKey}_${acc.id}_${rand}`;const wsArg=workspacePath?` --workspace "${workspacePath.replace(/\\/g,`/`)}"`:``;const singlePrompt=[`/publish ${pKey} ${acc.id} --task-id ${taskId}${wsArg}`,`【社媒矩阵任务 · ${pLabel} · ${acc.name||acc.id}】`,dryRunNotice,`【单账号专属执行】当前会话为该账号专属的一级会话，流程针对本账号端到端推进。`,`【发布平台】${pLabel}`,`【执行账号】${acc.name||acc.id} (ID: ${acc.id})`,notesToSubmit.trim()?`【定制要求与备注】${notesToSubmit.trim()}`:``,`请启动社媒流水线：预检登录态与规范，严格按平台规则生成排版稿件并呈现审校卡片等待确认。`].filter(Boolean).join(`
+`);return{accountId:acc.id,accountName:acc.name||acc.id,platform:pKey,platformLabel:pLabel,singlePrompt,taskId,matrixBatchId}})}}function useTabStore(selector){const store={activeTab:`main`,setActiveTab:()=>{},openSettingsTab:()=>{},tabs:[]};return selector?selector(store):store}function useWinCodeIntl(){return{intl:{formatMessage:(descriptor,values)=>{let msg=descriptor.defaultMessage||descriptor.id||``;if(values)for(const[k,v]of Object.entries(values))msg=msg.replace(new RegExp(`\\{${k}\\}`,`g`),String(v));return msg},locale:`zh-CN`}}}function setPendingSettingsSectionIntent(intent){if(typeof window!==`undefined`)window.__pendingSettingsSectionIntent=intent}function ModelConfigSelect(_props){return null}const SocialPublisherModelPicker=(0,react.memo)(function SocialPublisherModelPicker({modelSelectionView,value,onChange,disabled=false}){const{intl}=useWinCodeIntl();const openSettingsTab=useTabStore(state=>state.openSettingsTab);const modelGroups=(0,react.useMemo)(()=>{if(!modelSelectionView?.providers||modelSelectionView.providers.length===0)return[];const groups=[];for(const p of modelSelectionView.providers){if(!p.models||p.models.length===0)continue;const pLabel=p.providerName?.trim()||p.providerId;groups.push({key:p.providerId,label:pLabel,items:p.models.map(m=>({key:`${p.providerId}:${m.modelId}`,value:`${p.providerId}/${m.modelId}`,name:m.modelId}))})}return groups},[modelSelectionView]);const normalizedValue=(0,react.useMemo)(()=>{if(value?.provider&&value?.model)return`${value.provider}/${value.model}`;const firstGroup=modelGroups[0];if(firstGroup&&firstGroup.items[0])return firstGroup.items[0].value;return``},[value,modelGroups]);const{triggerLabel,triggerPrefix,triggerModel}=(0,react.useMemo)(()=>{const defaultLabel=intl.formatMessage({id:`chat.toolbar.model`});if(!normalizedValue)return{triggerLabel:defaultLabel,triggerPrefix:void 0,triggerModel:defaultLabel};const slashIndex=normalizedValue.indexOf(`/`);if(slashIndex>0){const pId=normalizedValue.slice(0,slashIndex);const mId=normalizedValue.slice(slashIndex+1);const targetGroup=modelGroups.find(g=>g.key===pId);const targetItem=targetGroup?.items.find(item=>item.value===normalizedValue);const pName=targetGroup?.label||pId;const mName=targetItem?.name||mId;return{triggerLabel:`${pName}/${mName}`,triggerPrefix:`${pName}/`,triggerModel:mName}}return{triggerLabel:normalizedValue,triggerPrefix:void 0,triggerModel:normalizedValue}},[normalizedValue,modelGroups,intl]);const handleModelValueChange=nextValue=>{const slashIndex=nextValue.indexOf(`/`);if(slashIndex>0){const pId=nextValue.slice(0,slashIndex);const mId=nextValue.slice(slashIndex+1);const targetGroup=modelGroups.find(g=>g.key===pId);const targetItem=targetGroup?.items.find(item=>item.value===nextValue);onChange({provider:pId,model:mId,displayName:`${targetGroup?.label||pId}/${targetItem?.name||mId}`});return}onChange({provider:``,model:nextValue,displayName:nextValue})};const handleOpenModelSettings=()=>{setPendingSettingsSectionIntent(`modelProvider`);openSettingsTab()};if(modelGroups.length===0)return null;return(0,react_jsx_runtime.jsx)(ModelConfigSelect,{modelGroups,normalizedValue,triggerLabel,triggerLabelPrefix:triggerPrefix,triggerLabelValue:triggerModel,showManageModelsAction:true,lockReasonMessage:``,isItemLocked:()=>false,manageModelsLabel:intl.formatMessage({id:`chat.toolbar.model.manageModels`}),onManageModels:handleOpenModelSettings,onValueChange:handleModelValueChange,disabled,tooltipTitle:triggerLabel,contentSide:`top`,contentAlign:`end`,labelVisibilityClassName:`inline-flex`,triggerClassName:`h-7 px-2.5 rounded-xl border border-white/60 dark:border-white/15 bg-white/50 dark:bg-white/[0.08] backdrop-blur-xl shadow-[0_2px_8px_rgba(0,0,0,0.03),inset_0_1px_1px_0_rgba(255,255,255,0.85)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.25),inset_0_1px_1px_0_rgba(255,255,255,0.18)] text-ui-xs font-medium text-foreground hover:bg-white/70 dark:hover:bg-white/[0.12] active:scale-[0.985] transition-all cursor-pointer`})});function isWorkspaceTab(tab){return Boolean(tab&&(tab.workspacePath||tab.type===`workspace`))}function getPathBaseName(pathStr){if(!pathStr)return``;const normalized=pathStr.replace(/\\/g,`/`).replace(/\/+$/,``);const parts=normalized.split(`/`);return parts[parts.length-1]||normalized}function isHomePath(pathStr){const normalized=pathStr.replace(/\\/g,`/`).replace(/\/+$/,``);return/^(\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:\/Users\/[^/]+)$/.test(normalized)}const SocialPublisherWorkspacePicker=(0,react.memo)(function SocialPublisherWorkspacePicker({currentWorkspacePath,onSelectWorkspacePath,disabled=false}){const{intl}=useWinCodeIntl();const[open,setOpen]=(0,react.useState)(false);const[searchQuery,setSearchQuery]=(0,react.useState)(``);const containerRef=(0,react.useRef)(null);const selectDirectory=useSelectDirectory();(0,react.useEffect)(()=>{if(!open)return;const onMouseDown=e=>{if(containerRef.current&&!containerRef.current.contains(e.target))setOpen(false)};document.addEventListener(`mousedown`,onMouseDown);return()=>document.removeEventListener(`mousedown`,onMouseDown)},[open]);(0,react.useEffect)(()=>{if(!open)return;const onKeyDown=e=>{if(e.key===`Escape`)setOpen(false)};document.addEventListener(`keydown`,onKeyDown);return()=>document.removeEventListener(`keydown`,onKeyDown)},[open]);const rawTabs=useTabStore(state=>state?.tabs);const tabs=Array.isArray(rawTabs)?rawTabs:[];const openWorkspaceTabs=(0,react.useMemo)(()=>{const list=[];const seen=new Set;for(const tab of tabs)if(isWorkspaceTab(tab)&&tab.workspacePath){const key=tab.workspaceIdentity?.trim()||tab.workspacePath;if(!seen.has(key)){seen.add(key);list.push(tab)}}if(list.length===0&&currentWorkspacePath)list.push({id:`current-workspace`,workspacePath:currentWorkspacePath,workspaceIdentity:currentWorkspacePath});return list},[tabs,currentWorkspacePath]);const filteredTabs=(0,react.useMemo)(()=>{const q=searchQuery.trim().toLowerCase();if(!q)return openWorkspaceTabs;return openWorkspaceTabs.filter(tab=>{return getPathBaseName(tab.workspacePath).toLowerCase().includes(q)||tab.workspacePath.toLowerCase().includes(q)})},[openWorkspaceTabs,searchQuery]);const currentWorkspaceName=(0,react.useMemo)(()=>{if(!currentWorkspacePath)return``;return getPathBaseName(currentWorkspacePath)},[currentWorkspacePath]);const TriggerIcon=(currentWorkspacePath?isHomePath(currentWorkspacePath):false)?House:Folder;const handleOpenFolder=async()=>{try{const selected=await selectDirectory();if(selected&&typeof selected===`string`)onSelectWorkspacePath(selected)}catch{}};return(0,react_jsx_runtime.jsxs)(`div`,{ref:containerRef,style:{position:`relative`,display:`inline-block`},children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,disabled,onClick:()=>setOpen(prev=>!prev),className:SocialPublisherComposerCard_module_css_default.workspacePickerBtn,title:currentWorkspacePath?`当前项目工作区: ${currentWorkspacePath}`:`选择工作区`,children:[(0,react_jsx_runtime.jsx)(TriggerIcon,{size:13,style:{color:`var(--dsw-alias-label-secondary, #6b7280)`,flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{style:{maxWidth:`140px`,overflow:`hidden`,textOverflow:`ellipsis`,whiteSpace:`nowrap`},children:currentWorkspaceName||`选择工作区`}),(0,react_jsx_runtime.jsx)(ChevronDown,{size:12,style:{color:`var(--dsw-alias-label-tertiary, #9ca3af)`,flexShrink:0,transform:open?`rotate(180deg)`:`none`,transition:`transform 0.15s ease`}})]}),open&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.workspacePopover,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.workspaceSearchRow,children:[(0,react_jsx_runtime.jsx)(Search,{size:13,style:{color:`var(--dsw-alias-label-caption, #9ca3af)`,flexShrink:0}}),(0,react_jsx_runtime.jsx)(`input`,{type:`text`,value:searchQuery,onChange:e=>setSearchQuery(e.target.value),placeholder:intl.formatMessage({id:`chat.empty.workspaceSearchPlaceholder`,defaultMessage:`搜索工作区...`}),className:SocialPublisherComposerCard_module_css_default.workspaceSearchInput,autoFocus:true,onKeyDown:e=>e.stopPropagation()})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.workspaceList,children:[filteredTabs.map((tab,idx)=>{const isSelected=tab.workspacePath===currentWorkspacePath;const tabName=getPathBaseName(tab.workspacePath);const isHome=isHomePath(tab.workspacePath);const ItemIcon=Boolean(tab.remoteSessionId||tab.workspaceIdentity?.startsWith(`remote:`))?Cloud:isHome?House:Folder;return(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,"data-active":isSelected?`true`:void 0,onClick:()=>{onSelectWorkspacePath(tab.workspacePath);setOpen(false)},className:`${SocialPublisherComposerCard_module_css_default.workspaceItem} ${isSelected?SocialPublisherComposerCard_module_css_default.workspaceItemActive:``}`,children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:`8px`,minWidth:0,overflow:`hidden`},children:[(0,react_jsx_runtime.jsx)(ItemIcon,{size:13,style:{color:`var(--dsw-alias-label-secondary, #6b7280)`,flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{style:{overflow:`hidden`,textOverflow:`ellipsis`,whiteSpace:`nowrap`},children:tabName})]}),isSelected&&(0,react_jsx_runtime.jsx)(Check,{size:13,style:{flexShrink:0,color:`#059669`}})]},tab.id||tab.workspacePath||idx)}),filteredTabs.length===0&&(0,react_jsx_runtime.jsx)(`div`,{style:{padding:`8px`,textAlign:`center`,fontSize:`11px`,color:`var(--dsw-alias-label-caption, #9ca3af)`},children:intl.formatMessage({id:`chat.empty.workspaceSearchEmpty`,defaultMessage:`暂无可选工作区`})})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>{setOpen(false);handleOpenFolder()},className:SocialPublisherComposerCard_module_css_default.workspaceActionItem,children:[(0,react_jsx_runtime.jsx)(FolderPlus,{size:13,style:{color:`var(--dsw-alias-label-secondary, #6b7280)`,flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{children:intl.formatMessage({id:`workspace.openFolder`,defaultMessage:`选择其他目录...`})})]})]})]})});function SocialPublisherComposerCard$1({onClose,onSubmit,disabled=false,modelSelectionView,defaultModelSelection,sessionId,workspacePath}){const socialPublisherRpc=useOptionalServices()?.socialPublisherService??null;const[selectedPlatforms,setSelectedPlatforms]=(0,react.useState)([`gzh`]);const[selectedAccountIds,setSelectedAccountIds]=(0,react.useState)([]);const[selectAllAccounts,setSelectAllAccounts]=(0,react.useState)(true);const[showAccountDrawer,setShowAccountDrawer]=(0,react.useState)(false);const[isDryRun,setIsDryRun]=(0,react.useState)(true);const[notes,setNotes]=(0,react.useState)(``);const[accounts,setAccounts]=(0,react.useState)([]);const[loadingAccounts,setLoadingAccounts]=(0,react.useState)(false);const[errorMessage,setErrorMessage]=(0,react.useState)(null);const[loginModalState,setLoginModalState]=(0,react.useState)({open:false,platform:`gzh`,accountId:``,accountName:``});const[preflightGateOpen,setPreflightGateOpen]=(0,react.useState)(false);const[featureGateOpen,setFeatureGateOpen]=(0,react.useState)(false);const{checkFeature,profile}=useMembership();const[unreadyAccountsList,setUnreadyAccountsList]=(0,react.useState)([]);const[currentWorkspacePath,setCurrentWorkspacePath]=(0,react.useState)(workspacePath||``);(0,react.useEffect)(()=>{if(workspacePath&&!currentWorkspacePath)setCurrentWorkspacePath(workspacePath)},[workspacePath,currentWorkspacePath]);const[selectedUnifiedModel,setSelectedUnifiedModel]=(0,react.useState)(defaultModelSelection?{provider:defaultModelSelection.provider,model:defaultModelSelection.model}:null);(0,react.useEffect)(()=>{if(defaultModelSelection&&!selectedUnifiedModel)setSelectedUnifiedModel({provider:defaultModelSelection.provider,model:defaultModelSelection.model})},[defaultModelSelection,selectedUnifiedModel]);const fetchAccounts=(0,react.useCallback)(async()=>{setLoadingAccounts(true);try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/config/export?include_secrets=true&download=false`,{},socialPublisherRpc));if(parsed.ok){const rawConfig=parsed.data.config||parsed.data;setAccounts(normalizeAccountsList$1(rawConfig.accounts));if(rawConfig.runtime?.dry_run!==void 0)setIsDryRun(Boolean(rawConfig.runtime.dry_run))}}catch(error){console.warn(`[SocialPublisherComposerCard] 加载账号失败:`,error)}finally{setLoadingAccounts(false)}},[socialPublisherRpc]);(0,react.useEffect)(()=>{fetchAccounts()},[fetchAccounts]);const{filteredAccounts,effectiveAccounts,effectivePlatforms,accountHealthMap,checkSingleAccount}=useSocialComposerAccounts({accounts,socialAccountsLimit:profile?.privileges.socialAccountsLimit,selectedPlatforms,selectedAccountIds,selectAllAccounts,socialPublisherRpc});const togglePlatform=platformKey=>{setSelectedPlatforms(prev=>prev.includes(platformKey)?prev.length===1?prev:prev.filter(k=>k!==platformKey):[...prev,platformKey])};const toggleAccount=accountId=>{setSelectAllAccounts(false);setSelectedAccountIds(prev=>prev.includes(accountId)?prev.filter(id=>id!==accountId):[...prev,accountId])};const doSubmit=(0,react.useCallback)((platformsToSubmit=effectivePlatforms,notesToSubmit=notes,selectAll=selectAllAccounts,accountsToUse=effectiveAccounts)=>{if(!selectAll&&accountsToUse.length===0){setErrorMessage(`请至少选择一个执行账号，或点击切换为「全部账号」`);return}if(platformsToSubmit.length===0){setErrorMessage(`当前所选账号无对应生效发布平台，请重新选择`);return}setErrorMessage(null);const effectiveWorkspace=currentWorkspacePath||workspacePath;const{formattedPrompt,accountsPlan}=buildSocialComposerPrompts({platformsToSubmit,accountsToUse,selectAll,notesToSubmit,isDryRun,platformsMeta:PLATFORMS,sessionId,workspacePath:effectiveWorkspace});onSubmit({platforms:platformsToSubmit,accountIds:accountsToUse.map(a=>String(a.id||``)).filter(Boolean),selectAllAccounts:selectAll,topic:``,notes:notesToSubmit.trim(),formattedPrompt,accountsPlan,unifiedModel:selectedUnifiedModel||void 0,workspacePath:effectiveWorkspace})},[currentWorkspacePath,effectiveAccounts,effectivePlatforms,isDryRun,notes,onSubmit,selectAllAccounts,selectedUnifiedModel,sessionId,workspacePath]);const handleSubmit=async e=>{if(effectiveAccounts.length>1){if(!(await checkFeature(`social_matrix_concurrency`)).allowed){setFeatureGateOpen(true);return}}if(e)e.preventDefault();if(!isDryRun){const unready=effectiveAccounts.filter(a=>a.id&&accountHealthMap[a.id]?.valid===false);if(unready.length>0){setUnreadyAccountsList(unready);setPreflightGateOpen(true);return}}doSubmit()};return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.card,"data-testid":`social-publisher-composer-card`,children:[(0,react_jsx_runtime.jsx)(SocialComposerHeader,{isDryRun,selectedPlatformsCount:selectedPlatforms.length,onClose}),(0,react_jsx_runtime.jsx)(SocialPlatformGridPicker,{selectedPlatforms,onTogglePlatform:togglePlatform}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.accountBar,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.accountBarTop,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.accountBarTitle,children:[effectiveAccounts.some(a=>a.id&&accountHealthMap[a.id]?.valid===false)?(0,react_jsx_runtime.jsx)(ShieldExclamationPoint,{size:12,style:{color:`#f59e0b`,flexShrink:0}}):(0,react_jsx_runtime.jsx)(ShieldCheck,{size:12,style:{color:`#10b981`,flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{style:{overflow:`hidden`,textOverflow:`ellipsis`,whiteSpace:`nowrap`},children:selectAllAccounts?`全自动免密发布 (${effectiveAccounts.length} 个账号)`:`指定账号 (${effectiveAccounts.length} 个)`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>setShowAccountDrawer(v=>!v),className:SocialPublisherComposerCard_module_css_default.accountSettingsToggle,title:`选择特定发布账号`,children:[(0,react_jsx_runtime.jsx)(SlidersHorizontal,{size:11}),(0,react_jsx_runtime.jsx)(`span`,{children:`账号设置`}),showAccountDrawer?(0,react_jsx_runtime.jsx)(ChevronUp,{size:11}):(0,react_jsx_runtime.jsx)(ChevronDown,{size:11})]})]}),(0,react_jsx_runtime.jsx)(SocialAccountPickerDrawer,{show:showAccountDrawer,selectedPlatforms,platformsMeta:PLATFORMS,filteredAccounts,effectiveAccounts,selectedAccountIds,selectAllAccounts,loadingAccounts,accountHealthMap,onSelectAll:()=>{setSelectAllAccounts(true);setSelectedAccountIds([])},onToggleAccount:toggleAccount,onOpenLoginModal:acc=>{setLoginModalState({open:true,platform:acc.platform===`xhs`?`xiaohongshu`:acc.platform||`gzh`,accountId:acc.id,accountName:acc.name||acc.id})}})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.composerInputArea,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.inputAreaHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{className:SocialPublisherComposerCard_module_css_default.inputAreaTitle,children:`定制要求 / 选题灵感`}),(0,react_jsx_runtime.jsx)(`span`,{className:SocialPublisherComposerCard_module_css_default.inputAreaHint,children:`留空则全自动热点巡航`})]}),(0,react_jsx_runtime.jsx)(`textarea`,{rows:3,value:notes,onChange:e=>{setNotes(e.target.value);if(errorMessage)setErrorMessage(null)},disabled,placeholder:`例如：围绕本周最新行业前沿热点写一篇深度综述，要求逻辑严密，并针对小红书生成 4 张 3:4 竖版图文...`,className:SocialPublisherComposerCard_module_css_default.textarea}),(0,react_jsx_runtime.jsx)(SocialViralSparksBar,{onSelectPrompt:prompt=>{setNotes(prompt);if(errorMessage)setErrorMessage(null)}})]}),errorMessage&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.errorMessage,children:[(0,react_jsx_runtime.jsx)(CircleExclamationPoint,{size:12,style:{flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{children:errorMessage})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.footer,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.footerLeft,children:[(0,react_jsx_runtime.jsx)(SocialPublisherWorkspacePicker,{currentWorkspacePath,onSelectWorkspacePath:setCurrentWorkspacePath,disabled}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.modeHint,children:[(0,react_jsx_runtime.jsx)(ShieldCheck,{size:13,style:{flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{children:isDryRun?`演练模式（不耗额度·不发布）`:`实盘模式 · 选题查重 · 真实排版 · 一键多发`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherComposerCard_module_css_default.footerRight,children:[(0,react_jsx_runtime.jsx)(SocialPublisherModelPicker,{modelSelectionView,value:selectedUnifiedModel,onChange:setSelectedUnifiedModel,disabled}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,disabled:disabled||!selectAllAccounts&&effectiveAccounts.length===0||effectivePlatforms.length===0,onClick:()=>handleSubmit(),className:SocialPublisherComposerCard_module_css_default.submitBtn,children:[(0,react_jsx_runtime.jsx)(`span`,{children:effectiveAccounts.length>1?`启动矩阵并行 (${effectiveAccounts.length}账号)`:`开始执行`}),(0,react_jsx_runtime.jsx)(Send,{size:12,style:{flexShrink:0}})]})]})]}),(0,react_jsx_runtime.jsx)(SocialPublisherComposerModals,{loginModalState,setLoginModalState,checkSingleAccount,preflightGateOpen,setPreflightGateOpen,unreadyAccountsList,doSubmit,effectivePlatforms,notes,selectAllAccounts,effectiveAccounts,setErrorMessage,featureGateOpen,setFeatureGateOpen})]})}function SocialPublisherComposerCard(props){return(0,react_jsx_runtime.jsx)(ScopedErrorBoundary,{scope:`social-publisher-composer-card`,variant:`compact`,children:(0,react_jsx_runtime.jsx)(SocialPublisherComposerCard$1,{...props})})}const STORAGE_KEY=`dsh.app_work_mode`;let currentMode=(()=>{if(typeof window!==`undefined`&&window.localStorage)try{const saved=window.localStorage.getItem(STORAGE_KEY);if(saved===`social`||saved===`general`)return saved}catch{}return`social`})();function syncBodyAttribute(mode){if(typeof document!==`undefined`)if(document.body)document.body.setAttribute(`data-app-work-mode`,mode);else window.addEventListener(`DOMContentLoaded`,()=>{document.body?.setAttribute(`data-app-work-mode`,mode)},{once:true})}syncBodyAttribute(currentMode);const listeners=new Set;function setAppWorkMode(mode){if(currentMode===mode)return;currentMode=mode;syncBodyAttribute(mode);if(typeof window!==`undefined`&&window.localStorage)try{window.localStorage.setItem(STORAGE_KEY,mode)}catch{}listeners.forEach(fn=>fn(mode))}function useAppWorkMode(){const[mode,setMode]=(0,react.useState)(currentMode);(0,react.useEffect)(()=>{syncBodyAttribute(currentMode);const handler=newMode=>{setMode(newMode);syncBodyAttribute(newMode)};listeners.add(handler);return()=>{listeners.delete(handler)}},[]);return mode}function safeExtractText(val){if(val===null||val===void 0)return``;if(typeof val===`string`)return val.trim();if(typeof val===`number`||typeof val===`boolean`)return String(val);if(Array.isArray(val))return val.map(item=>safeExtractText(item)).filter(Boolean).join(` `).trim();if(typeof val===`object`){const obj=val;const title=typeof obj.title===`string`?obj.title.trim():``;const bodyCandidate=obj.content??obj.desc??obj.description??obj.text;const body=bodyCandidate?safeExtractText(bodyCandidate):``;if(title&&body&&title!==body)return`${title}: ${body}`;const candidates=[obj.text,obj.content,obj.title,obj.desc,obj.description,obj.value,obj.item,obj.label,obj.message,obj.note];for(const c of candidates){const extracted=safeExtractText(c);if(extracted)return extracted}const values=Object.values(obj).map(v=>typeof v===`string`?v.trim():``).filter(s=>s.length>0&&!s.includes(`[object`));if(values.length>0)return values.join(` `).trim()}return``}function cleanAndUnescapeHtmlContent(raw){if(!raw||typeof raw!==`string`)return``;let text=raw.trim();if(/^\s*\{\s*["'](?:account_id|file|fileName|theme|task_id|index)["']/i.test(text)){const htmlMatch=text.match(/["'](?:html|content)["']\s*:\s*["'](<[\s\S]+?)["']\s*(?:,\s*["']|\})/i);if(htmlMatch&&htmlMatch[1])text=htmlMatch[1];else return``}if(text.startsWith(`"`)&&text.endsWith(`"`)||text.startsWith(`'`)&&text.endsWith(`'`))try{const parsed=JSON.parse(text);if(typeof parsed===`string`)text=parsed}catch{text=text.slice(1,-1)}if(text.startsWith(`{`)&&text.endsWith(`}`))try{const parsedObj=JSON.parse(text);if(parsedObj&&typeof parsedObj===`object`){if(typeof parsedObj.html===`string`&&parsedObj.html.includes(`<`))return cleanAndUnescapeHtmlContent(parsedObj.html);if(typeof parsedObj.content===`string`)return cleanAndUnescapeHtmlContent(parsedObj.content);if(typeof parsedObj.markdown===`string`)return cleanAndUnescapeHtmlContent(parsedObj.markdown);if(typeof parsedObj.text===`string`)return cleanAndUnescapeHtmlContent(parsedObj.text);if(Array.isArray(parsedObj.articles)&&parsedObj.articles[0]?.content)return cleanAndUnescapeHtmlContent(parsedObj.articles[0].content)}}catch{}if(/(?:",\s*"html"\s*:\s*"|',\s*'html'\s*:\s*'|",\s*"content"\s*:\s*")/i.test(text)){const htmlFieldMatch=text.match(/["']html["']\s*:\s*["'](<[\s\S]+?)["']\s*(?:,\s*["']|\})/i);if(htmlFieldMatch&&htmlFieldMatch[1])text=htmlFieldMatch[1];else text=text.replace(/(?:",\s*"html"\s*:\s*[\s\S]*|',\s*'html'\s*:\s*[\s\S]*|",\s*"content"\s*:\s*[\s\S]*)$/i,``)}if(/^\s*\{[\s\S]*?["'](?:content|html|markdown|text)["']\s*:\s*["']?/i.test(text)){text=text.replace(/^\s*\{[\s\S]*?["'](?:content|html|markdown|text)["']\s*:\s*["']?/i,``);text=text.replace(/["']?\s*\}?\s*$/i,``)}text=text.replace(/["']?,\s*["'](?:task_id|content_hash|manifest_fingerprint|_social_event|cards|img_count|plain_chars|problems|html|content)["']\s*:\s*[\s\S]*$/i,``).replace(/["']?(?:task_id|content_hash|manifest_fingerprint|_social_event)\s*:\s*["'][^"']*["']/gi,``).replace(/,\s*"(?:task_id|content_hash|plain_chars|img_count|problems)"[\s\S]*$/i,``).replace(/,\s*"task_id"\s*:\s*[\s\S]*$/i,``).replace(/,\s*"_social_event"[\s\S]*$/i,``);if(text.includes(`\\"`)||text.includes(`\\n`)||text.includes(`\\/`)||text.includes(`\\t`))text=text.replace(/\\"/g,`"`).replace(/\\'/g,`'`).replace(/\\\//g,`/`).replace(/\\r\\n/g,`
+`).replace(/\\n/g,`
+`).replace(/\\t(?![a-zA-Z0-9_.-])/g,`	`);text=text.replace(/^[ \t]*(?:【(?:配图建议与提示词|生图提示词|图片描述|配图建议)】[：:]?[^\n\r]*|(?:生图提示词|配图提示词|配图建议|Image Prompt|image_prompt|Prompt)[：:][^\n\r]*)[ \t]*$/gim,``).replace(/(?:生图提示词|配图提示词|Image Prompt|image_prompt)[：:][^\n\r<]+/gi,``).replace(/```(?:json)?\s*\{[\s\S]*?"cards"[\s\S]*?\}\s*```/gi,``).replace(/```(?:json)?\s*\[[\s\S]*?"role"[\s\S]*?\]\s*```/gi,``).replace(/(?:["']cards["']|cards)\s*:\s*\[[\s\S]*$/gi,``).replace(/\{[\s\r\n]*"(?:cards|img_count|plain_chars|problems)"[\s\S]*\}$/gi,``).replace(/^[ \t]*(?:python(?:\.exe)?|python3|node(?:\.exe)?)\s+[\w./\\-]+\.(?:py|js|sh)[^\n\r]*$/gim,``).replace(/gzh_(?:generate_images|build_article|publish_draft|validate_html|check_topics)\([^)]*\)/gi,``).replace(/<script[\s\S]*?<\/script>/gi,``).replace(/\[object\s*Object\]/gi,``).replace(/\bobject\s*Object\b/gi,``).replace(/\n{3,}/g,`
+
+`);return text}function extractContentFromDocSpec(doc){if(!doc||typeof doc!==`object`)return``;if(typeof doc.content===`string`&&doc.content.trim())return doc.content;if(typeof doc.html===`string`&&doc.html.trim())return doc.html;if(typeof doc.markdown===`string`&&doc.markdown.trim())return doc.markdown;if(typeof doc.text===`string`&&doc.text.trim())return doc.text;const parts=[];if(doc.intro&&typeof doc.intro===`object`){const introObj=doc.intro;const pre=safeExtractText(introObj.pre);const hl=safeExtractText(introObj.hl);const post=safeExtractText(introObj.post);const fullIntro=`${pre}${hl?`**${hl}**`:``}${post}`.trim();if(fullIntro)parts.push(`> 💡 ${fullIntro}\n`)}if(Array.isArray(doc.toc)&&doc.toc.length>0){const tocItems=doc.toc.map(t=>safeExtractText(t)).filter(Boolean).map(t=>`- ${t}`).join(`
+`);if(tocItems)parts.push(`**本文核心导读：**\n${tocItems}\n`)}if(Array.isArray(doc.sections))for(const sec of doc.sections){if(!sec||typeof sec!==`object`)continue;const sObj=sec;const h2=safeExtractText(sObj.h2);const sTitle=safeExtractText(sObj.text||sObj.title);if(h2||sTitle)parts.push(`\n## ${h2?`${h2} `:``}${sTitle}\n`);if(Array.isArray(sObj.blocks))for(const block of sObj.blocks){if(!block||typeof block!==`object`)continue;const b=block;if(b.lead){const leadTxt=safeExtractText(b.lead);if(leadTxt)parts.push(`> **重点提示**：${leadTxt}\n`)}if(b.p){if(typeof b.p===`string`){const pTxt=b.p.trim();if(pTxt)parts.push(`${pTxt}\n`)}else if(Array.isArray(b.p)){const pStr=b.p.map(seg=>{if(typeof seg===`string`)return seg;if(Array.isArray(seg)&&seg.length>=2){const tag=String(seg[0]);const txt=safeExtractText(seg[1]);if(tag===`b`||tag===`kw`)return`**${txt}**`;if(tag===`hl`)return`\`${txt}\``;return txt}return safeExtractText(seg)}).join(``);if(pStr.trim())parts.push(`${pStr}\n`)}else if(typeof b.p===`object`){const pTxt=safeExtractText(b.p);if(pTxt)parts.push(`${pTxt}\n`)}}if(b.versus&&typeof b.versus===`object`){const v=b.versus;const vTitle=v.title?`### ⚖️ ${safeExtractText(v.title)}\n`:``;const wrongTxt=safeExtractText(v.wrong);const rightTxt=safeExtractText(v.right);if(wrongTxt||rightTxt)parts.push(`${vTitle}❌ **常见误区**：${wrongTxt}\n\n✅ **规范正解**：${rightTxt}\n`)}if(b.checklist&&typeof b.checklist===`object`){const c=b.checklist;const cTitle=c.title?`### 📋 ${safeExtractText(c.title)}\n`:``;const items=Array.isArray(c.items)?c.items.map(it=>`- [ ] ${safeExtractText(it)}`).filter(it=>it!==`- [ ] `).join(`
+`):``;if(items)parts.push(`${cTitle}${items}\n`)}if(b.warning){const wText=safeExtractText(typeof b.warning===`string`?b.warning:b.warning.text||b.warning.title||b.warning);if(wText)parts.push(`> ⚠️ **避坑提醒**：${wText}\n`)}if(b.qa&&typeof b.qa===`object`){const qa=b.qa;const qTxt=safeExtractText(qa.q);const aTxt=safeExtractText(qa.a);if(qTxt||aTxt)parts.push(`**Q: ${qTxt}**\n\n**A:** ${aTxt}\n`)}if(b.stat&&typeof b.stat===`object`){const st=b.stat;const m=safeExtractText(st.metric);const l=safeExtractText(st.label);const d=safeExtractText(st.desc);if(m||d)parts.push(`📊 **${m}**${l?` (${l})`:``}：${d}\n`)}if(b.quote){const qText=safeExtractText(typeof b.quote===`string`?b.quote:b.quote?.text||b.quote);const author=safeExtractText(b.quote?.author);if(qText)parts.push(`> “${qText}”${author?` —— ${author}`:``}\n`)}if(b.card){const cardTxt=safeExtractText(b.card);if(cardTxt)parts.push(`📌 **提示**：${cardTxt}\n`)}if(b.card_ul&&typeof b.card_ul===`object`){const cul=b.card_ul;const culTitle=cul.title?`**${safeExtractText(cul.title)}：**\n`:``;const items=Array.isArray(cul.items)?cul.items.map(it=>`- ${safeExtractText(it)}`).filter(it=>it!==`- `).join(`
+`):``;if(items)parts.push(`${culTitle}${items}\n`)}if(b.img){const imgSrc=safeExtractText(typeof b.img===`string`?b.img:b.img?.src);const caption=safeExtractText(b.img?.caption);if(imgSrc)parts.push(`\n\n![${caption||`插图`}](${imgSrc})\n\n`)}if(b.hr)parts.push(`
+
+---
+
+`)}}if(doc.sign_off){const signOff=safeExtractText(doc.sign_off);if(signOff)parts.push(`\n---\n*${signOff}*\n`)}return parts.join(`
+`).trim()}function isAssistantConversationOrExplanation(text){if(!text||typeof text!==`string`)return false;const trimmed=text.trim();if(!trimmed)return false;for(const pattern of[/^(?:插图[一二三四0-9]|配图|图片)不是\s*(?:AI\s*生成|真正)/i,/^(?:\*\*|\*|#|\s)*(?:是的|对的|没错)[，,]\s*(?:完全是用|是使用|这是|采用|由)/i,/(?:给您看下|看一下|查看一下|展示一下)(?:底层|实际|真实)的?(?:代码|实现|逻辑)/i,/(?:实际长成这样|长成这样|长这样|代码片段如下|代码如下|如下所示)[：:\s]/i,/(?:目前|它只是|这只是|仅仅是)一个[“"']?代码占位符[”"']?/i,/(?:纯代码轻量化组件|代码占位符)/i,/(?:不是真正的图片|不是真正的位图)/i,/(?:纯\s*(?:HTML|CSS|代码)\s*拼接渲染)/i,/(?:为什么会这样|原因分析|为什么出现|排查发现)[？?：:]/i,/(?:原本的设计|实际发生的情况|最终呈现的结果)[：:]/i,/(?:回答您的问题|为您解答|答[：:])/i,/(?:接口报错中断|导致真实的\s*AI\s*图片没有生成成功|底层生图环节遇到异常)/i,/(?:您在预览中看到的类似|如果您在网页或微信草稿箱里看到它)/i])if(pattern.test(trimmed))return true;if(trimmed.includes(`为什么会这样`)&&(trimmed.includes(`原本的设计`)||trimmed.includes(`实际发生的情况`)||trimmed.includes(`呈现的结果`)))return true;if((trimmed.includes(`占位符`)||trimmed.includes(`代码拼接`))&&(trimmed.includes(`不是`)||trimmed.includes(`真实代码`)||trimmed.includes(`排版技法`)))return true;return false}function parseTopicsFromMarkdownText(text,options){const topics=[];const lines=text.split(`
+`);let inTable=false;let numColIdx=-1;let topicColIdx=-1;let angleColIdx=-1;let riskColIdx=-1;let activePlatform=options?.platform;let activeAccountId=options?.accountId;let activeAccountName;let activeFormat;for(const rawLine of lines){const line=rawLine.trim();if(!inTable){if(line.includes(`小红书`)||line.includes(`xhs`))activePlatform=`xiaohongshu`;else if(line.includes(`微信`)||line.includes(`公众号`)||line.includes(`gzh`))activePlatform=`gzh`;else if(line.includes(`知乎`)||line.includes(`zhihu`))activePlatform=`zhihu`;else if(line.includes(`头条`)||line.includes(`toutiao`))activePlatform=`toutiao`;else if(line.includes(`百家`)||line.includes(`baijiahao`))activePlatform=`baijiahao`;if(line.includes(`小绿书`)||line.includes(`图片消息`)||line.includes(`newspic`)||line.includes(`图文卡片`)||line.includes(`3:4`)){if(!line.includes(`长文`)&&!line.includes(`深度图文`)&&!line.includes(`普通文章`))activeFormat=`newspic`}else if(line.includes(`长文`)||line.includes(`深度图文`)||line.includes(`普通文章`)||line.includes(`深度研报`))activeFormat=`article`;const accountMatch=line.match(/账号[：:]\s*(?:(?:微信公众号|微信|公众号|小红书|知乎|百家号|今日头条)?【([^】]+)】|([^\s|（(]+))(?:[（(]([a-zA-Z0-9_-]+)[)）])?/i)||line.match(/@([a-zA-Z0-9_\u4e00-\u9fa5-]+)/)||line.match(/【(?:[^】]*[·\s])?([^】]+?账号|[^】]+?)(?:[（(]([a-zA-Z0-9_-]+)[)）])?】/);if(accountMatch){const rawName=(accountMatch[1]||accountMatch[2])?.trim();const rawId=accountMatch[3]?.trim();if(rawName&&!rawName.includes(`平台`)&&!rawName.includes(`选题`)&&!rawName.includes(`矩阵`)){const cleanName=rawName.replace(/^(?:微信公众号|微信|公众号|小红书|知乎|百家号|今日头条)[·\s]*/i,``).replace(/[【】]/g,``).trim();if(cleanName){activeAccountName=cleanName;activeAccountId=rawId||cleanName}}}}if(!line.startsWith(`|`)||!line.endsWith(`|`)){inTable=false;continue}const cells=line.slice(1,-1).split(`|`).map(c=>c.trim());if(!inTable){numColIdx=cells.findIndex(c=>c===`#`||c.includes(`序号`)||c.includes(`编号`)||c.includes(`篇序`)||c.includes(`次序`)||c.includes(`顺位`)||c.includes(`位置`));topicColIdx=cells.findIndex(c=>c.includes(`选题`)||c.includes(`标题`));angleColIdx=cells.findIndex(c=>c.includes(`切角`)||c.includes(`体裁`)||c.includes(`角度`)||c.includes(`功能`)||c.includes(`主题`));riskColIdx=cells.findIndex(c=>c.includes(`风险`)||c.includes(`查重`)||c.includes(`相似`)||c.includes(`字数`));if(topicColIdx!==-1)inTable=true;continue}if(cells.some(c=>/^[-:\s]+$/.test(c)))continue;const numRaw=numColIdx!==-1?cells[numColIdx]||``:/头条|次条|第\d+篇|^\d+$/.test(cells[0]||``)?cells[0]||``:``;const titleRaw=cells[topicColIdx]||``;if(!titleRaw)continue;const isStar=numRaw.includes(`⭐`)||numRaw.includes(`★`)||numRaw.includes(`推荐`)||titleRaw.includes(`⭐`)||titleRaw.includes(`★`)||titleRaw.includes(`推荐`);const cleanTitle=titleRaw.replace(/^[0-9]+[.\s、]+/,``).replace(/[\u{1F7E2}\u{1F7E1}\u{1F534}\u{2B50}\u{2605}]/gu,``).replace(/\uFE0F/gu,``).trim();if(!cleanTitle)continue;const angleRaw=angleColIdx!==-1?cells[angleColIdx]||``:``;const riskRaw=riskColIdx!==-1?cells[riskColIdx]||``:``;const scoreMatch=riskRaw.match(/([0-9]{1,3})%/);const similarityScore=scoreMatch?Number.parseInt(scoreMatch[1],10):0;const viralScore=isStar?95:Math.max(65,95-similarityScore);const isExcluded=numRaw.includes(`—`)||numRaw.includes(`-`)||numRaw.includes(`排除`)||numRaw.includes(`淘汰`)||numRaw.includes(`否定`)||riskRaw.includes(`medium`)||riskRaw.includes(`high`)||riskRaw.includes(`排除`)||riskRaw.includes(`淘汰`)||similarityScore>15;const excludeReason=isExcluded?similarityScore>15?`历史发布查重相似度过高 (${similarityScore}%)`:`历史重合度高，已由算法拦截排除`:void 0;const plat=activePlatform||options?.platform||`gzh`;const platName=plat===`xiaohongshu`?`小红书`:plat===`gzh`?`微信公众号`:plat===`zhihu`?`知乎专栏`:plat===`toutiao`?`今日头条`:plat===`baijiahao`?`百家号`:`社媒专栏`;let genreBadge=`精选体裁`;let articleType=`article`;let suggestedFormat=`长文`;if(plat===`xiaohongshu`){articleType=`newspic`;suggestedFormat=`小绿书`;genreBadge=angleRaw.includes(`避坑`)?`新手避坑卡片`:angleRaw.includes(`清单`)?`干货清单卡片`:`3:4九宫格卡片`}else if(plat===`gzh`){const hasArticleKeyword=angleRaw.includes(`长文`)||angleRaw.includes(`深度研报`)||angleRaw.includes(`研报`)||angleRaw.includes(`深度分析`)||cleanTitle.includes(`万字`);if(angleRaw.includes(`小绿书`)||angleRaw.includes(`卡片`)||angleRaw.includes(`多图`)||angleRaw.includes(`九宫格`)||angleRaw.includes(`3:4`)||angleRaw.includes(`图片消息`)||cleanTitle.includes(`一图`)||cleanTitle.includes(`小绿书`)||!hasArticleKeyword&&activeFormat===`newspic`){articleType=`newspic`;suggestedFormat=`小绿书`;genreBadge=`小绿书 · 3:4图文卡片`}else{articleType=`article`;suggestedFormat=`长文`;genreBadge=angleRaw.includes(`研报`)?`万字深度研报`:angleRaw.includes(`反常识`)?`认知破局长文`:`深度图文长文`}}else if(plat===`zhihu`){articleType=`article`;suggestedFormat=`长文`;genreBadge=`硬核原理探讨`}const finalAccountId=activeAccountId||options?.accountId;const finalAccountName=activeAccountName;const uniqueId=`${options?.idPrefix||`topic`}_${finalAccountId?`${finalAccountId}_`:``}${topics.length+1}`;topics.push({id:uniqueId,platform:plat,platformName:platName,accountId:finalAccountId,accountName:finalAccountName,title:cleanTitle,hookAngle:angleRaw||`精选爆款切角`,genreBadge,articleType,suggestedFormat,similarityScore,viralScore,selected:false,isStar,isExcluded,excludeReason})}const groupMap=new Map;for(const t of topics){const k=`${t.platform||`default`}_${t.accountId||`default`}`;const list=groupMap.get(k)??[];list.push(t);groupMap.set(k,list)}for(const groupTopics of groupMap.values()){const starIndex=groupTopics.findIndex(t=>t.isStar&&!t.isExcluded);if(starIndex!==-1)groupTopics[starIndex].selected=true;else{const firstValidIndex=groupTopics.findIndex(t=>!t.isExcluded);if(firstValidIndex!==-1)groupTopics[firstValidIndex].selected=true;else if(groupTopics[0])groupTopics[0].selected=true}}return topics}function pruneAndEnsureGroupTopics(group,themeTitle=`热点与专业趋势透视`){const list=[...group.topics];const isXhs=group.platform===`xiaohongshu`;const isZhihu=group.platform===`zhihu`;const isGzh=group.platform===`gzh`;const hasNewspicGoal=isXhs||isGzh&&(Boolean(group.hasNewspic)||group.newspicQuota!==void 0&&group.newspicQuota>0);const hasArticleGoal=!isXhs&&(isZhihu||(group.articleQuota!==void 0?group.articleQuota>0:true));const articleGoal=isXhs?0:group.articleQuota??(hasNewspicGoal?Math.max(1,group.targetArticleCount-1):group.targetArticleCount);const newspicGoal=isXhs?group.targetArticleCount:group.newspicQuota??(hasNewspicGoal?1:0);const existingArticles=list.filter(t=>t.articleType!==`newspic`);const existingNewspics=list.filter(t=>t.articleType===`newspic`);if(hasNewspicGoal&&existingNewspics.length===0){const needCount=newspicGoal+3;for(let i=1;i<=needCount;i++)existingNewspics.push({id:`auto_${group.groupKey}_newspic_${i}`,title:`${themeTitle}：${i===1?`7个核心洞察精粹速览`:i===2?`新手避坑与实操清单`:`图文解析系列#${i}`}（收藏备用）`,hookAngle:i===1?`3:4知识卡片速览`:`干货清单卡片`,isStar:i<=newspicGoal,isExcluded:false,viralScore:92-i,similarityScore:0,platform:group.platform,platformName:group.platformName,accountId:group.accountId,accountName:group.accountName,articleType:`newspic`,suggestedFormat:`小绿书`,genreBadge:`小绿书 · 3:4图文卡片`})}if(hasArticleGoal&&articleGoal>0&&existingArticles.length===0){const needCount=articleGoal+3;for(let i=1;i<=needCount;i++)existingArticles.push({id:`auto_${group.groupKey}_article_${i}`,title:`${themeTitle}：${i===1?`从底层逻辑到实操落地深度透视`:i===2?`演进趋势与未来机遇研报`:`专题研究深度观察#${i}`}`,hookAngle:i===1?`万字深度透视`:`深度研报`,isStar:i<=articleGoal,isExcluded:false,viralScore:95-i,similarityScore:0,platform:group.platform,platformName:group.platformName,accountId:group.accountId,accountName:group.accountName,articleType:`article`,suggestedFormat:`长文`,genreBadge:`深度图文长文`})}const sortCandidates=items=>{return[...items].sort((a,b)=>{if(a.isStar!==b.isStar)return a.isStar?-1:1;return(b.viralScore||0)-(a.viralScore||0)})};if(hasNewspicGoal&&hasArticleGoal){const maxArticles=articleGoal+3;const maxNewspics=newspicGoal+3;const prunedArticles=sortCandidates(existingArticles).slice(0,maxArticles);const prunedNewspics=sortCandidates(existingNewspics).slice(0,maxNewspics);return[...prunedArticles,...prunedNewspics]}if(hasNewspicGoal&&!hasArticleGoal){const maxNewspics=newspicGoal+3;return sortCandidates(existingNewspics.length>0?existingNewspics:list).slice(0,maxNewspics)}const maxTotal=(group.articleQuota||group.targetArticleCount)+3;return sortCandidates(existingArticles.length>0?existingArticles:list).slice(0,maxTotal)}function isRenderableImageUrl(url){if(!url)return false;const trimmed=url.trim();return trimmed.startsWith(`data:`)||trimmed.startsWith(`http://`)||trimmed.startsWith(`https://`)||trimmed.startsWith(`blob:`)}function normalizeLocalImageUrl(pathOrUrl){if(!pathOrUrl)return``;const trimmed=pathOrUrl.trim().replace(/[`"']/g,``);if(trimmed.startsWith(`http://`)||trimmed.startsWith(`https://`)||trimmed.startsWith(`data:`)||trimmed.startsWith(`wincode-media://`))return trimmed;return buildLocalMediaPreviewUrl(trimmed)}function extractLocalDiskPathFromUrl(pathOrUrl){if(!pathOrUrl)return``;let trimmed=pathOrUrl.trim().replace(/[`"']/g,``);if(trimmed.startsWith(`file:///`)){trimmed=decodeURIComponent(trimmed.slice(8));if(/^[a-zA-Z]:\//.test(trimmed))return trimmed.replace(/\//g,`\\`);return trimmed}if(trimmed.startsWith(`file://`)){trimmed=decodeURIComponent(trimmed.slice(7));return trimmed}if(trimmed.startsWith(`wincode-media://`))try{const diskPath=new URL(trimmed).searchParams.get(`path`);if(diskPath)return decodeURIComponent(diskPath)}catch{}return trimmed}function extractFileName(pathOrUrl){if(!pathOrUrl)return``;return extractLocalDiskPathFromUrl(pathOrUrl).replace(/\\/g,`/`).split(`/`).pop()||``}function parseToolOutputPayload(output){if(!output||typeof output!==`object`)return{};const rec=output;if(typeof rec.text===`string`&&rec.text.trim())try{const parsed=JSON.parse(rec.text);if(parsed&&typeof parsed===`object`&&!Array.isArray(parsed))return{...rec,...parsed}}catch{try{const healed=rec.text.replace(/\\(?!["\\/bfnrtu]|u[0-9a-fA-F]{4})/g,`\\\\`);const parsedHealed=JSON.parse(healed);if(parsedHealed&&typeof parsedHealed===`object`&&!Array.isArray(parsedHealed))return{...rec,...parsedHealed}}catch{const fileMatch=rec.text.match(/["']file["']\s*:\s*["']([^"']+)["']/i);const accMatch=rec.text.match(/["']account_id["']\s*:\s*["']([^"']+)["']/i);const idxMatch=rec.text.match(/["']index["']\s*:\s*(\d+)/i);const contentMatch=rec.text.match(/["']content["']\s*:\s*["'](<[\s\S]+?)["']\s*(?:,\s*["']|\})/i);if(fileMatch||accMatch||contentMatch||idxMatch)return{...rec,...fileMatch?{file:fileMatch[1]?.replace(/\\\\/g,`\\`)}:{},...accMatch&&accMatch[1]?{account_id:accMatch[1]}:{},...idxMatch&&idxMatch[1]?{index:Number.parseInt(idxMatch[1],10)}:{},...contentMatch&&contentMatch[1]?{content:contentMatch[1]}:{}}}}return rec}function isToolMetadataJson(str){if(!str||typeof str!==`string`)return false;const trimmed=str.trim();if(/^\s*\{\s*["'](?:account_id|file|fileName|theme|task_id|index)["']/i.test(trimmed))return true;if(trimmed.startsWith(`{`)&&trimmed.endsWith(`}`))try{const parsed=JSON.parse(trimmed);if(parsed&&typeof parsed===`object`&&!Array.isArray(parsed)&&(parsed.account_id!==void 0||parsed.file!==void 0||parsed.file_name!==void 0||parsed.fileName!==void 0||parsed.path!==void 0||parsed.filePath!==void 0||parsed.contentHash!==void 0||parsed.plain_chars!==void 0||parsed.img_count!==void 0||parsed.media_id!==void 0||parsed.draft_id!==void 0||parsed.theme!==void 0))return true}catch{}return false}function isArticleContentPending(content,filePath,isStreaming){if(!content||!content.trim())return!isStreaming;if(isToolMetadataJson(content)||isToolErrorOrCrashContent(content))return true;if(isStreaming)return false;const lower=content.toLowerCase();if(lower.includes(`检测到标题使用前缀开头`))return true;if(lower.includes(`正文排版落盘产物生成中`)||lower.includes(`文章正在快马加鞭赶来`)||lower.includes(`文章排版与规范校验已就绪`)||lower.includes(`笔记正文与 3:4 竖版配图已生成就绪`)||lower.includes(`微信公众号深度图文排版长文`)||lower.includes(`小绿书 3:4 竖版专属图文卡片`)){if(filePath&&content.length>200)return false;return true}if(!filePath&&content.length<150&&/选题|大纲|切角|初稿|规划/.test(content))return true;return false}function isToolErrorOrCrashContent(str){if(!str||typeof str!==`string`)return false;const trimmed=str.trim();if(!trimmed)return false;if(trimmed.startsWith(`MCP tool returned an error:`)||trimmed.startsWith(`Error:`)||trimmed.startsWith(`Exception:`)||trimmed.includes(`Traceback (most recent call last):`)||/执行工具\s*([a-zA-Z0-9_-]+)\s*出错/i.test(trimmed)||/不是合法\s*JSON/i.test(trimmed)||/JSONDecodeError/i.test(trimmed)||/SyntaxError/i.test(trimmed))return true;if(trimmed.startsWith(`[`)&&trimmed.endsWith(`]`)&&(trimmed.includes(`"doc_json"`)||trimmed.includes(`"index":`)))return true;return false}function parsePublishedSequenceFromAssistantText(text,options){const articles=[];if(!text||typeof text!==`string`)return articles;const effPlat=options?.platform||`gzh`;const effAcc=options?.accountId;const effAccName=options?.accountName;const scriptsDir=options?.scriptsDir;const lines=text.split(`
+`);let inSeqTable=false;let declaredSeqCount;const maxCap=options?.maxArticles;let numCol=-1;let titleCol=-1;let wordsCol=-1;let visualCol=-1;let valueCol=-1;for(let i=0;i<lines.length;i++){const line=lines[i].trim();if(/多图文(?:拟发布序列|排版清单|发布序列|规划|合辑)/i.test(line)){inSeqTable=true;numCol=-1;titleCol=-1;declaredSeqCount=void 0;const countMatch=line.match(/(?:共\s*|[（(])\s*([0-9]+)\s*篇/i);if(countMatch&&countMatch[1])declaredSeqCount=Number.parseInt(countMatch[1],10);continue}if(inSeqTable){if(!line.startsWith(`|`)||!line.endsWith(`|`)){if(line.startsWith(`#`))inSeqTable=false;continue}const cells=line.slice(1,-1).split(`|`).map(c=>c.trim());if(titleCol===-1){numCol=cells.findIndex(c=>c===`#`||c.includes(`篇序`)||c.includes(`序号`)||c.includes(`次序`)||c.includes(`顺位`));titleCol=cells.findIndex(c=>c.includes(`标题`)||c.includes(`选题`));wordsCol=cells.findIndex(c=>c.includes(`字数`)||c.includes(`篇幅`)||c.includes(`长度`));visualCol=cells.findIndex(c=>c.includes(`视觉`)||c.includes(`配图`)||c.includes(`主题`));valueCol=cells.findIndex(c=>c.includes(`功能`)||c.includes(`价值`)||c.includes(`切角`)||c.includes(`表达`));continue}if(cells.some(c=>/^[-:\s]+$/.test(c)))continue;const titleRaw=titleCol!==-1?cells[titleCol]:``;if(!titleRaw)continue;const cleanTitle=titleRaw.replace(/^[*#\s]+|[*#\s]+$/g,``).replace(/^[0-9]+[.\s、]+/,``).replace(/[\u{1F7E2}\u{1F7E1}\u{1F534}\u{2B50}\u{2605}]/gu,``).replace(/^[*#\s]+|[*#\s]+$/g,``).trim();if(!cleanTitle)continue;const effectiveSeqCap=declaredSeqCount!==void 0?declaredSeqCount:maxCap;if(typeof effectiveSeqCap===`number`&&effectiveSeqCap>0&&articles.length>=effectiveSeqCap)continue;let idx=articles.length+1;const numRaw=numCol!==-1?cells[numCol]||``:cells[0]||``;if(/头条|第一篇|^1$/i.test(numRaw))idx=1;else if(/次条|第二篇|^2$/i.test(numRaw))idx=2;else{const m=numRaw.match(/(?:第)?([0-9]+)\s*篇?/);if(m&&m[1])idx=Number.parseInt(m[1],10)}const digest=[wordsCol!==-1&&cells[wordsCol]?cells[wordsCol]:``,visualCol!==-1&&cells[visualCol]?cells[visualCol]:``,valueCol!==-1&&cells[valueCol]?cells[valueCol]:``].filter(Boolean).join(` · `)||(idx===1?`微信公众号头条深度长文`:`微信公众号多图文次条 #${idx}`);const normScripts=scriptsDir?scriptsDir.replace(/\\/g,`/`):void 0;articles.push({id:`art_seq_${effPlat}_${effAcc||`default`}_news_${idx}`,index:idx,platform:effPlat,accountId:effAcc,accountName:effAccName,title:cleanTitle,digest,content:`<section style="margin:20px 0;background:#ffffff;border-radius:12px;padding:24px;border-left:4px solid #059669;box-shadow:0 2px 12px rgba(0,0,0,0.04);"><p style="font-size:16px;font-weight:bold;color:#111827;line-height:1.5;">${cleanTitle}</p><p style="font-size:13px;color:#4B5563;margin-top:10px;line-height:1.6;">${digest}</p></section><p style="font-size:14px;line-height:1.8;color:#374151;text-indent:2em;">本文由架构师深度解析，覆盖全链路实战心法与核心设计规约。正文排版已完成微信官方 13px 单行规格校验与段落美化，可就地审阅编辑或直接一键同步至微信草稿箱。</p>`,articleType:`news`,filePath:normScripts?`${normScripts}/article_v2_${idx}.html`:void 0,coverUrl:void 0,images:[],contentImages:[],scriptsDir:normScripts})}}const newspicSection=text.match(/(?:###|\*\*|【)\s*(?:同步)?小绿书(?:卡片图文)?\s*(?:[（(](?:共\s*)?([0-9]+)\s*篇[)）])?[\s\S]*?(?=(?:\n###|\n\*\*【|\n---|$))/i);if(newspicSection){const secText=newspicSection[0];const nTitleMatch=secText.match(/(?:[*#\s]*标题[*#\s]*[：:]\s*|【标题】\s*)([^\r\n]+)/i);const nSpecMatch=secText.match(/(?:[*#\s]*规格[*#\s]*[：:]\s*|【规格】\s*)([^\r\n]+)/i);const nFocusMatch=secText.match(/(?:[*#\s]*核心定位[*#\s]*[：:]\s*|【核心定位】\s*)([^\r\n]+)/i);const newspicTitle=nTitleMatch?nTitleMatch[1]?.replace(/^[*#\s]*标题[*#\s]*[：:]\s*/i,``).replace(/[*#]/g,``).trim():`代码重构实战：一键告别屎山代码`;const newspicDigest=[nSpecMatch?.[1]?.replace(/[*#]/g,``).trim(),nFocusMatch?.[1]?.replace(/[*#]/g,``).trim()].filter(Boolean).join(` · `)||`4张 3:4 竖版多图画廊 + 精炼痛点文案`;const normScripts=scriptsDir?scriptsDir.replace(/\\/g,`/`):void 0;articles.push({id:`art_seq_${effPlat}_${effAcc||`default`}_newspic_1`,index:1,platform:effPlat,accountId:effAcc,accountName:effAccName,title:newspicTitle||`小绿书精选卡片图文`,digest:newspicDigest,content:`${newspicTitle}\n\n${newspicDigest}\n\n1️⃣ 核心痛点直击：告别低效重构\n2️⃣ 自动化工程落地：边界防线守卫\n3️⃣ 团队高效协同：规范即战力`,articleType:`newspic`,filePath:normScripts?`${normScripts}/article_v2_pic_1.html`:void 0,coverUrl:void 0,images:[],contentImages:[],scriptsDir:normScripts})}return articles}function parseArticleFromAssistantText(text,options){if(!text||typeof text!==`string`)return null;const trimmed=text.trim();if(isToolErrorOrCrashContent(trimmed))return null;if(isAssistantConversationOrExplanation(trimmed))return null;const titleMatch=trimmed.match(/(?:[*#\s]*标题[*#\s]*[：:]\s*|【标题】\s*)([^\r\n]+)/i)||trimmed.match(/###\s*(?:笔记|长文|文章)文案预览[\r\n]+([^\r\n]+)/i);const contentMatch=trimmed.match(/(?:[*#\s]*正文[*#\s]*[：:]\s*|【正文】\s*)([\s\S]+?)(?=(?:\n###|\n\*\*|\n【|\n---|$))/i);if(titleMatch||contentMatch){const rawTitle=(titleMatch?.[1]?titleMatch[1]:``).replace(/^[*#\s]*标题[*#\s]*[：:]\s*/i,``).replace(/^【标题】\s*/i,``).replace(/^[0-9]+[.\s、]+/,``).replace(/^[*#.\s、]+|[*#.\s、]+$/g,``).trim();const rawContent=contentMatch?contentMatch[1]?.trim():``;if(/[？?]$/.test(rawTitle)||/是用.*吗|为什么|怎么做|代码拼接/i.test(rawTitle))return null;if(rawTitle||rawContent){if(rawContent&&isAssistantConversationOrExplanation(rawContent))return null;return{title:rawTitle,content:rawContent,platform:options?.platform||`gzh`,accountId:options?.accountId}}}return null}function parseStreamingArticlesFromAssistantText(text,options){if(!text||typeof text!==`string`)return[];const trimmed=text.trim();if(isToolErrorOrCrashContent(trimmed))return[];if(isAssistantConversationOrExplanation(trimmed))return[];if(trimmed.startsWith(`|`)&&(trimmed.includes(`查重`)||trimmed.includes(`爆款切角`)))return[];const results=[];const effPlat=options?.platform||`gzh`;const effAcc=options?.accountId;const matches=Array.from(trimmed.matchAll(/(?:^|\n)(?:###|##)\s*(?:(?:第\s*([0-9]+)\s*篇|【(?:第\s*)?([0-9]+)\s*篇】|([0-9]+)\s*篇|【?(头条|次条|尾条)篇?】?|篇目\s*([0-9]+)|(?:微信公众号(?:长文|多图文))?\s*#([0-9]+))[：:.\s、]*([^\n\r]+)|(?:(?:文章|长文|笔记)文案预览[：:.\s、]*([^\n\r]*)))/gi));if(matches.length>0)for(let i=0;i<matches.length;i++){const match=matches[i];const matchIndex=match.index??0;const nextMatchIndex=i+1<matches.length?matches[i+1].index:trimmed.length;const sectionText=trimmed.slice(matchIndex,nextMatchIndex).trim();const numStr=match[1]||match[2]||match[3]||match[5]||match[6];const slotWord=match[4];let artIdx=i+1;if(numStr)artIdx=Number.parseInt(numStr,10);else if(slotWord===`头条`)artIdx=1;else if(slotWord===`次条`)artIdx=2;else if(slotWord===`尾条`)artIdx=3;let rawTitle=(match[7]||match[8]||``).replace(/^[*#.\s、]+|[*#.\s、]+$/g,``).replace(/^[0-9]+[.\s、]+/,``).replace(/^[*#.\s、]+|[*#.\s、]+$/g,``).trim();const titleInBody=sectionText.match(/(?:[*#\s]*标题[*#\s]*[：:]\s*|【标题】\s*)([^\r\n]+)/i);if(titleInBody&&titleInBody[1])rawTitle=titleInBody[1].replace(/[*#]/g,``).replace(/^[0-9]+[.\s、]+/,``).replace(/^[*#.\s、]+|[*#.\s、]+$/g,``).trim();if(/[？?]$/.test(rawTitle)||/是用.*吗|为什么|怎么做|代码拼接/i.test(rawTitle))continue;let content=``;const contentMatch=sectionText.match(/(?:[*#\s]*正文[*#\s]*[：:]\s*|【正文】\s*)([\s\S]+)$/i);if(contentMatch&&contentMatch[1])content=contentMatch[1].trim();else content=sectionText.split(`
+`).slice(1).join(`
+`).trim();if(isToolMetadataJson(content)||isAssistantConversationOrExplanation(content))content=``;const isLastSection=i===matches.length-1;const isStreaming=Boolean(options?.isLastRow&&isLastSection&&!sectionText.includes(`### 汇总`)&&!sectionText.includes(`---`));if(rawTitle||content.length>=10)results.push({index:artIdx,title:rawTitle||(artIdx===1?`头条精选图文`:`次条精选图文 #${artIdx}`),content:cleanAndUnescapeHtmlContent(content),isStreaming,platform:effPlat,accountId:effAcc,articleType:effPlat===`xiaohongshu`?`newspic`:`news`})}if(results.length===0){const single=parseArticleFromAssistantText(trimmed,options);if(single&&(single.title||single.content&&single.content.length>=10))results.push({index:1,title:single.title||`社媒精选图文`,content:cleanAndUnescapeHtmlContent(single.content||``),isStreaming:Boolean(options?.isLastRow),platform:single.platform||effPlat,accountId:single.accountId||effAcc,articleType:(single.platform||effPlat)===`xiaohongshu`?`newspic`:`news`})}return results}function parseImagesFromMarkdownText(text,options){const images=[];const prefixMatch=text.match(/路径前缀[：:]\s*([^\r\n]+)/);let prefix=prefixMatch?prefixMatch[1].trim().replace(/[`"']/g,``).replace(/[\\/]+$/,``):options?.scriptsDir||``;if(!prefix&&options?.accountId)prefix=`apps/wincode-cli/packages/social-publisher-plugin/tasks/default/accounts/${options.accountId}/scripts`;const lines=text.split(/\r?\n/);for(const line of lines){const trimmedLine=line.trim();if(trimmedLine.startsWith(`|`)||trimmedLine.includes(` | `)||trimmedLine.includes(`提示词`)||trimmedLine.includes(`配图方案`)||trimmedLine.includes(`方案设计`))continue;const fileMatches=trimmedLine.matchAll(/([a-zA-Z0-9_\-./\\:]+\.(?:png|jpg|jpeg|webp))/gi);for(const m of fileMatches){const rawPath=m[1]?.trim().replace(/[`"']/g,``);if(!rawPath)continue;let fullPath=rawPath;if(prefix&&!rawPath.includes(`:`)&&!rawPath.startsWith(`/`)){const sep=prefix.includes(`\\`)?`\\`:`/`;fullPath=`${prefix}${sep}${rawPath.replace(/^[\\/]+/,``)}`}const normalized=normalizeLocalImageUrl(fullPath);if(normalized&&!images.includes(normalized))images.push(normalized)}}const mdImgMatches=text.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g);for(const m of mdImgMatches){const url=m[1]?.trim().replace(/[`"']/g,``);if(url){const normalized=normalizeLocalImageUrl(url);if(normalized&&!images.includes(normalized))images.push(normalized)}}return images}function normalizePlatformName(raw){if(!raw||typeof raw!==`string`)return null;const s=raw.toLowerCase().trim();if(s===`gzh`||s===`wechat`||s.includes(`公众号`)||s.includes(`微信`))return`gzh`;if(s===`xiaohongshu`||s===`xhs`||s.includes(`小红书`))return`xiaohongshu`;if(s===`zhihu`||s.includes(`知乎`))return`zhihu`;if(s===`baijiahao`||s===`bjh`||s.includes(`百家号`)||s.includes(`百家`))return`baijiahao`;if(s===`toutiao`||s.includes(`头条`)||s.includes(`今日头条`))return`toutiao`;return null}function isSocialPublisherSession(rows){if(!rows||rows.length===0)return false;for(const row of rows){if(row.kind===`toolCall`){const toolName=(row.toolName||``).toLowerCase();if(toolName.includes(`social_publisher`)||toolName.includes(`gzh_`)||toolName.includes(`xhs_`)||toolName.includes(`wechat_`)||toolName.includes(`social_`)||toolName.includes(`publish_draft`))return true}if(row.kind===`userInput`){const text=row.text||``;if(/^\/(publish|gzh|wechat|xhs|xiaohongshu|zhihu|toutiao|baijiahao|publisher)\b/i.test(text)||text.includes(`【发布平台】`)||text.includes(`【社媒发布任务】`)||text.includes(`【社媒发布】`)||text.includes(`【执行账号】`)||/(?:一键|确认)?(?:发布|推送|发表|同步)到(?:微信公众号|公众号|小红书|知乎|今日头条|百家号)/i.test(text)||/(?:推送到|存入)(?:官方)?草稿箱/i.test(text)||/(?:生成|写|撰写|规划|生产|排版|发布|发表|推送).{0,20}?(?:微信公众号|公众号|小红书|小绿书|知乎专栏|今日头条|百家号).{0,20}?(?:笔记|图文|推文|卡片|长文|便签)/i.test(text)||/(?:微信公众号|公众号|小红书|小绿书|知乎专栏|今日头条|百家号).{0,20}?(?:生成|写|撰写|规划|生产|排版|发布|发表|推送).{0,20}?(?:笔记|图文|推文|卡片|长文|便签)/i.test(text))return true}if(row.kind===`assistantText`){const text=row.text||``;if(text.includes(`已为您规划多图文拟发布序列`)||text.includes(`【社媒发布任务】`)||text.includes(`多图文拟发布序列`)||text.includes(`【发布平台】`)&&text.includes(`【执行账号】`))return true}}return false}function detectPlatformFromRows(rows){for(const row of rows)if(row.kind===`toolCall`){const input=row.input??{};const outputPayload=parseToolOutputPayload(row.output);const pFromInput=normalizePlatformName(typeof input.platform===`string`?input.platform:void 0);if(pFromInput)return pFromInput;const pFromOutput=normalizePlatformName(typeof outputPayload.platform===`string`?outputPayload.platform:void 0);if(pFromOutput)return pFromOutput;const fileCandidate=String(outputPayload.file||outputPayload.path||outputPayload.filePath||outputPayload.target_file||input.file||input.Path||input.path||input.filePath||input.TargetFile||``);if(fileCandidate){if(fileCandidate.includes(`xiaohongshu`)||fileCandidate.includes(`_xhs.`)||fileCandidate.includes(`xhs_`)||fileCandidate.includes(`xhs/`))return`xiaohongshu`;if(fileCandidate.includes(`zhihu`))return`zhihu`;if(fileCandidate.includes(`baijiahao`))return`baijiahao`;if(fileCandidate.includes(`toutiao`))return`toutiao`;if(fileCandidate.includes(`gzh`)||fileCandidate.includes(`wechat`)||fileCandidate.endsWith(`.html`))return`gzh`}}for(const row of rows)if(row.kind===`userInput`){const text=row.text.trim();const publishCmdMatch=text.match(/^\/publish\s+(gzh|wechat|zhihu|xiaohongshu|xhs|baijiahao|bjh|toutiao)\b/i);if(publishCmdMatch&&publishCmdMatch[1]){const fromPublish=normalizePlatformName(publishCmdMatch[1]);if(fromPublish)return fromPublish}const cmdMatch=text.match(/^\/(gzh|wechat|zhihu|xiaohongshu|xhs|baijiahao|bjh|toutiao)\b/i);if(cmdMatch&&cmdMatch[1]){const fromCmd=normalizePlatformName(cmdMatch[1]);if(fromCmd)return fromCmd}const explicitMatch=text.match(/【发布平台】([^\n]+)/)||text.match(/(?:发布)?平台[：:]\s*([^\s\n]+)/);if(explicitMatch&&explicitMatch[1]){const fromExplicit=normalizePlatformName(explicitMatch[1]);if(fromExplicit)return fromExplicit}if(text.includes(`小红书`))return`xiaohongshu`;if(text.includes(`知乎`))return`zhihu`;if(text.includes(`百家号`)||text.includes(`百家`))return`baijiahao`;if(text.includes(`头条`)||text.includes(`今日头条`))return`toutiao`;if(text.includes(`公众号`)||text.includes(`微信`))return`gzh`}for(const row of rows)if(row.kind===`assistantText`){const text=row.text;if(text.includes(`【小红书`)||text.includes(`小红书笔记`)||text.includes(`小红书爆款`))return`xiaohongshu`;if(text.includes(`【知乎`)||text.includes(`知乎专栏`))return`zhihu`;if(text.includes(`【今日头条`)||text.includes(`头条号`))return`toutiao`;if(text.includes(`【百家号`)||text.includes(`百家号草稿`))return`baijiahao`;if(text.includes(`【微信公众号`)||text.includes(`公众号长文`)||text.includes(`13px 单行 HTML`))return`gzh`}for(const row of rows)if(row.kind===`toolCall`){const input=row.input??{};const acc=String(input.account_id||``);if(acc.includes(`xhs`))return`xiaohongshu`;if(acc.includes(`zhihu`))return`zhihu`;if(acc.includes(`toutiao`))return`toutiao`;if(acc.includes(`baijiahao`))return`baijiahao`}return`gzh`}function inlineInjectImagesIntoContent(content,images,coverUrl){if(!content)return``;let result=cleanAndUnescapeHtmlContent(content);result=result.replace(/^.*!\[.*?\]\(__?BRAND_(?:TOP|BOT)__?\).*$/gm,``).replace(/<!--\s*__?BRAND_(?:TOP|BOT)__?\s*-->/gi,``).replace(/__?BRAND_(?:TOP|BOT)__?/gi,``);result=result.replace(/^.*!\[.*?封面.*?\]\(.*?\).*$/gm,``).replace(/^.*!\[.*?\]\(.*?(?:IMG_COVER|COVER_IMG|_COVER_|cover_\d+|cover\.).*?\).*$/gm,``).replace(/<img[^>]+src=["'][^"']*(?:cover_\d+|cover\.|IMG_COVER)[^"']*["'][^>]*>/gi,``).replace(/<!--\s*IMG_COVER(?:_\d+)?\s*-->|IMG_COVER_\d+|IMG_COVER|COVER_IMG|_COVER_/gi,``);const bodyImages=coverUrl?images.filter(img=>img!==coverUrl):images;const targetImages=bodyImages.length>0?bodyImages:images;const isHtml=/<\/?(?:p|div|section|span|h[1-6]|img)[^>]*>/i.test(result);result=result.replace(/!\[(.*?)\]\((IMG_A\d+_(\d+)|IMG_\d+_(\d+)|IMG_(\d+))\)/gi,(_fullMatch,alt,_rawPlaceholder,sub1,sub2,sub3)=>{const rawSub=sub1||sub2||sub3;const subIdx=rawSub?Number.parseInt(rawSub,10):1;const imgUrl=targetImages[subIdx-1];if(imgUrl){if(isHtml)return`<div style="text-align:center;margin:18px 0;"><img src="${imgUrl}" alt="${alt||`插图 ${subIdx}`}" style="max-width:100%;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.06);" /></div>`;return`\n\n![${alt||`插图 ${subIdx}`}](${imgUrl})\n\n`}return``});if(targetImages.length>0)targetImages.forEach((imgUrl,idx)=>{const subIdx=idx+1;const htmlImgSnippet=`<div style="text-align:center;margin:18px 0;"><img src="${imgUrl}" style="max-width:100%;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.06);" /></div>`;const mdImgSnippet=`\n\n![插图 ${subIdx}](${imgUrl})\n\n`;const inAttrPatterns=[new RegExp(`(src=["'])IMG_A\\d+_${subIdx}(["'])`,`gi`),new RegExp(`(src=["'])IMG_\\d+_${subIdx}(["'])`,`gi`),new RegExp(`(src=["'])IMG_${subIdx}(["'])`,`gi`)];for(const p of inAttrPatterns)result=result.replace(p,`$1${imgUrl}$2`);const commentPatterns=[new RegExp(`<!--\\s*IMG_A\\d+_${subIdx}\\s*-->`,`gi`),new RegExp(`<!--\\s*IMG_\\d+_${subIdx}\\s*-->`,`gi`),new RegExp(`<!--\\s*IMG_${subIdx}\\s*-->`,`gi`)];for(const p of commentPatterns)result=result.replace(p,isHtml?htmlImgSnippet:mdImgSnippet);const bracketPatterns=[new RegExp(`\\[\\s*(?:IMG_A?\\d*_${subIdx}|IMG_${subIdx}|插图\\s*${subIdx})\\s*\\]`,`gi`)];for(const p of bracketPatterns)result=result.replace(p,isHtml?htmlImgSnippet:mdImgSnippet);const wordPatterns=[new RegExp(`(?<=\\s|^)IMG_A\\d+_${subIdx}(?=\\s|$)`,`g`),new RegExp(`(?<=\\s|^)IMG_\\d+_${subIdx}(?=\\s|$)`,`g`),new RegExp(`(?<=\\s|^)IMG_${subIdx}(?=\\s|$)`,`g`)];for(const p of wordPatterns)result=result.replace(p,isHtml?htmlImgSnippet:mdImgSnippet)});result=result.replace(/^.*!\[.*?\]\((?:IMG_A?\d*_\d+|IMG_\d+)\).*$/gm,``).replace(/<img[^>]+src=["'](?:IMG_A?\d*_\d+|IMG_\d+)["'][^>]*>/gi,``).replace(/<!--\s*IMG_A?\d*_\d+\s*-->/gi,``).replace(/\[\s*(?:IMG_A?\d*_\d+|IMG_\d+|插图\s*\d+)\s*\]/gi,``).replace(/\bIMG_A\d+_\d+\b/g,``).replace(/\bIMG_\d+_\d+\b/g,``).replace(/\n{3,}/g,`
+
+`);return result.trim()}function parseImageMeta(rawUrlOrPath,hint){const normUrl=normalizeLocalImageUrl(rawUrlOrPath);const diskPath=extractLocalDiskPathFromUrl(rawUrlOrPath);const fileName=extractFileName(rawUrlOrPath);let kind=`content`;let articleIndex=typeof hint?.index===`number`&&hint.index>0?hint.index:0;let subIndex=typeof hint?.sub===`number`?hint.sub:1;const coverMatch=fileName.match(/(?:^|[_.-])cover(?:[_.-]?(\d+))?\.(?:png|jpg|jpeg|webp)/i)||fileName.match(/art(?:icle)?[_.-]?(\d+)[_.-]cover\.(?:png|jpg|jpeg|webp)/i)||fileName.match(/cover[_.-]art(?:icle)?[_.-]?(\d+)\.(?:png|jpg|jpeg|webp)/i);if(coverMatch){kind=`cover`;articleIndex=coverMatch[1]?Number.parseInt(coverMatch[1],10):hint?.index||1;subIndex=0}else{const contentMatch=fileName.match(/(?:^|[_.-])content[_.-]?(\d+)[_.-](\d+)\.(?:png|jpg|jpeg|webp)/i)||fileName.match(/art(?:icle)?[_.-]?(\d+)[_.-]content[_.-]?(\d+)\.(?:png|jpg|jpeg|webp)/i);if(contentMatch&&contentMatch[1]&&contentMatch[2]){kind=`content`;articleIndex=Number.parseInt(contentMatch[1],10);subIndex=Number.parseInt(contentMatch[2],10)}else{const picMatch=fileName.match(/(?:^|[_.-])pic[_.-]?(\d+)[_.-](\d+)\.(?:png|jpg|jpeg|webp)/i)||fileName.match(/art(?:icle)?[_.-]?(\d+)[_.-]pic[_.-]?(\d+)\.(?:png|jpg|jpeg|webp)/i)||fileName.match(/img[_.-]?(\d+)[_.-](\d+)\.(?:png|jpg|jpeg|webp)/i);if(picMatch&&picMatch[1]&&picMatch[2]){kind=`pic`;articleIndex=Number.parseInt(picMatch[1],10);subIndex=Number.parseInt(picMatch[2],10)}else{const singleMatch=fileName.match(/art(?:icle)?[_.-]?(\d+)[_.-](\d+)\.(?:png|jpg|jpeg|webp)/i);if(singleMatch&&singleMatch[1]&&singleMatch[2]){kind=`content`;articleIndex=Number.parseInt(singleMatch[1],10);subIndex=Number.parseInt(singleMatch[2],10)}else if(hint?.kind)kind=hint.kind===`cover`?`cover`:hint.kind===`pic`?`pic`:`content`}}}let accId=hint?.accountId;let plat=hint?.platform;const sandboxMatch=diskPath.match(/(?:tasks[\\/](?:active|archive|default[\\/]tasks[\\/](?:active|archive))[\\/][^\\/]+[\\/])([a-z0-9]+)_([a-z0-9_-]+)[\\/]/i);if(sandboxMatch&&sandboxMatch[1]&&sandboxMatch[2]){const rawPlat=sandboxMatch[1].toLowerCase();if(rawPlat===`xiaohongshu`||rawPlat===`xhs`)plat=`xiaohongshu`;else if(rawPlat===`gzh`)plat=`gzh`;else if(rawPlat===`zhihu`)plat=`zhihu`;else if(rawPlat===`baijiahao`)plat=`baijiahao`;else if(rawPlat===`toutiao`)plat=`toutiao`;if(!accId)accId=sandboxMatch[2]}else{const accMatch=diskPath.match(/accounts[\\/]([^\\/]+)[\\/]/);if(accMatch&&accMatch[1]&&!accId)accId=accMatch[1]}if(!plat){if(diskPath.includes(`wyxst`)||fileName.startsWith(`gzh_`)||diskPath.includes(`gzh`))plat=`gzh`;else if(diskPath.includes(`xhs`)||diskPath.includes(`xiaohongshu`)||fileName.startsWith(`xhs_`))plat=`xiaohongshu`;else if(diskPath.includes(`zhihu`)||fileName.startsWith(`zhihu_`))plat=`zhihu`;else if(diskPath.includes(`baijiahao`))plat=`baijiahao`;else if(diskPath.includes(`toutiao`))plat=`toutiao`}let taskId=hint?.taskId;if(!taskId){const taskMatch=diskPath.match(/(?:tasks[\\/](?:active|archive|default[\\/]tasks[\\/](?:active|archive))[\\/])(task_[a-z0-9_-]+)/i)||rawUrlOrPath.match(/(?:tasks[\\/](?:active|archive|default[\\/]tasks[\\/](?:active|archive))[\\/])(task_[a-z0-9_-]+)/i);if(taskMatch&&taskMatch[1])taskId=taskMatch[1]}return{url:normUrl,kind,articleIndex,subIndex,platform:plat,accountId:accId,taskId}}function extractSocialWorkflow(rows){let isExplicitSocialModeTask=false;for(const row of rows)if(row.kind===`userInput`&&(row.text?.includes(`【社媒矩阵任务`)||row.text?.includes(`【社媒发布任务】`)||row.text?.includes(`【社媒发布模式任务】`)||row.text?.trim().startsWith(`/publish`))){isExplicitSocialModeTask=true;break}let detectedPlatform=detectPlatformFromRows(rows);let detectedAccountName;let detectedAccountId;let detectedTopicTheme;let detectedTaskId;let detectedManifestFingerprint;let detectedIsDryRun=false;let checkTopicsCallFound=false;let checkTopicsCompleted=false;const checkTopicsFromTool=[];let discoverTopicsCallFound=false;const discoverTopicsFromTool=[];let extractedResearchEvidence;let buildArticleRunning=false;let buildArticleCompleted=false;const articlesMap=new Map;let genImagesRunning=false;let genImagesCompleted=false;const generatedImageUrls=[];const parsedImagesList=[];let validateHtmlRunning=false;let validateHtmlCompleted=false;let publishDraftRunning=false;let publishDraftCompleted=false;let publishedDraftId;let publishedMediaId;let publishedScheduleTime;let publishedReceiptScreenshot;let publishedQrScreenshot;let verifyDraftCompleted=false;let publishIntentIssued=false;let detectedScriptsDir=void 0;let detectedTargetCount=1;const taskPublishRunningMap=new Map;const taskPublishedMap=new Map;const taskPublishedInfoMap=new Map;const taskGeneratingMap=new Map;let latestAssistantTopics=[];const knownSpecFiles=new Map;const capturedVisualSlots=[];const knownFileContents=new Map;const accountQuotaMap=new Map;let detectedNewspicCardCount;let detectedXhsCardCount;for(const row of rows){if(row.kind===`userInput`||row.kind===`humanMessage`||row.kind===`assistantText`){const text=(`text`in row&&typeof row.text===`string`?row.text:``)||``;const taskCmdMatch=text.match(/--task-id\s+([a-z0-9_-]+)/i)||text.match(/\b(task_\d{8}_\d{6}_[a-z0-9_-]+)\b/i);if(taskCmdMatch&&taskCmdMatch[1])detectedTaskId=taskCmdMatch[1].trim();const accCmdMatch=text.match(/\/publish\s+([a-z0-9_-]+)\s+([a-z0-9_-]+)/i);if(accCmdMatch&&accCmdMatch[2]&&!accCmdMatch[2].startsWith(`-`))detectedAccountId=accCmdMatch[2].trim();const newspicCardsMatch=text.match(/小绿书(?:卡片图|图文卡片|视觉卡片|卡片)?\s*[（(](?:共\s*)?([0-9]+)\s*张[)）]/i)||text.match(/(?:共\s*)?([0-9]+)\s*张\s*3:4\s*竖版(?:高清)?(?:视觉)?(?:海报|卡片|多图|图)/i)||text.match(/卡片配图[：:]\s*(?:共\s*)?([0-9]+)\s*张/i)||text.match(/小绿书.*?[（(]?([0-9]+)\s*张/i);if(newspicCardsMatch&&newspicCardsMatch[1])detectedNewspicCardCount=Number.parseInt(newspicCardsMatch[1],10);const xhsCardsMatch=text.match(/小红书(?:卡片|图文|笔记)?\s*[（(](?:共\s*)?([0-9]+)\s*张[)）]/i)||text.match(/小红书.*?[（(]?([0-9]+)\s*张/i);if(xhsCardsMatch&&xhsCardsMatch[1])detectedXhsCardCount=Number.parseInt(xhsCardsMatch[1],10);const multiNewsHeader=text.match(/多图文(?:合辑|拟发布序列|排版清单|发布序列|规划)\s*[（(](?:共\s*)?([0-9]+)\s*篇/i)||text.match(/本次生产的\s*([0-9]+)\s*篇.*?长文/i)||text.match(/多图文合辑\s*[（(]([0-9]+)\s*篇(?:长文|文章)?/i);if(multiNewsHeader&&multiNewsHeader[1]){const count=Number.parseInt(multiNewsHeader[1],10);detectedTargetCount=Math.max(detectedTargetCount,count);const existing=accountQuotaMap.get(`default`)||{total:count,articleCount:count,newspicCount:0,hasNewspic:false};existing.articleCount=Math.max(existing.articleCount,count);existing.total=existing.articleCount+existing.newspicCount;accountQuotaMap.set(`default`,existing)}const newspicHeader=text.match(/(?:同步)?(?:双发)?小绿书(?:卡片图文)?\s*[（(](?:共\s*)?([0-9]+)\s*篇[)）]/i)||text.match(/(?:###|二[、.]|【)\s*(?:同步)?(?:双发)?小绿书(?:卡片图文)?/i);if(newspicHeader){const nCount=newspicHeader[1]?Number.parseInt(newspicHeader[1],10):1;const existing=accountQuotaMap.get(`default`)||{total:nCount,articleCount:0,newspicCount:nCount,hasNewspic:true};existing.newspicCount=Math.max(existing.newspicCount,nCount);existing.hasNewspic=true;existing.total=existing.articleCount+existing.newspicCount;accountQuotaMap.set(`default`,existing);detectedTargetCount=Math.max(detectedTargetCount,existing.total)}const textComboMatch=text.match(/([0-9]+)\s*篇(?:微信公众号)?(?:长文|文章|深度长文|图文|多图文)?(?:合辑)?[^0-9\n\r]{1,30}?([0-9]+)\s*篇(?:小绿书|图片消息|卡片)/i)||text.match(/([0-9]+)\s*篇(?:小绿书|图片消息|卡片)[^0-9\n\r]{1,30}?([0-9]+)\s*篇(?:微信公众号)?(?:长文|文章|深度长文|图文|多图文)?/i)||text.match(/([0-9]+)\s*长文\s*(?:[+＋与和、]|以及)\s*([0-9]+)\s*小绿书/i);if(textComboMatch&&textComboMatch[1]&&textComboMatch[2]){const matchedStr=textComboMatch[0];let aCount=0;let nCount=0;const num1=Number.parseInt(textComboMatch[1],10);const num2=Number.parseInt(textComboMatch[2],10);if(/小绿书|图片消息|卡片/.test(matchedStr.slice(0,matchedStr.indexOf(String(num2))))){nCount=num1;aCount=num2}else{aCount=num1;nCount=num2}const q={total:aCount+nCount,articleCount:aCount,newspicCount:nCount,hasNewspic:nCount>0};const existing=accountQuotaMap.get(`default`);if(!existing||q.total>=existing.total){accountQuotaMap.set(`default`,q);detectedTargetCount=Math.max(detectedTargetCount,q.total)}}const perAccLines=text.split(`
+`);for(const l of perAccLines){const cleanedLine=l.replace(/^.*?本轮规划[：:]\s*/i,``).replace(/^.*?规划[：:]\s*/i,``);const accHeaderMatch=cleanedLine.match(/([^\s·•#|（(]+?)(?:[（(]([a-zA-Z0-9_-]+)[)）])?\s*[·•\-:]\s*([^\n\r]+)/)||cleanedLine.match(/账号[：:]\s*([^\s|（(]+)(?:[（(]([a-zA-Z0-9_-]+)[)）])?[^\n\r]*?[·•\-:]\s*([^\n\r]+)/);if(accHeaderMatch){const accName=accHeaderMatch[1]?.trim();const accId=accHeaderMatch[2]?.trim();const detailPart=accHeaderMatch[3]?.trim()||``;const combo=detailPart.match(/([0-9]+)\s*篇(?:长文|文章|深度长文|图文)?\s*(?:[+＋与和、]|以及)\s*([0-9]+)\s*篇(?:小绿书|图片消息|卡片)/i);if(combo&&combo[1]&&combo[2]){const aCount=Number.parseInt(combo[1],10);const nCount=Number.parseInt(combo[2],10);const q={total:aCount+nCount,articleCount:aCount,newspicCount:nCount,hasNewspic:true};if(accId)accountQuotaMap.set(accId,q);if(accName)accountQuotaMap.set(accName,q);detectedTargetCount=Math.max(detectedTargetCount,q.total)}else{const singleCount=detailPart.match(/([0-9]+)\s*篇/);if(singleCount&&singleCount[1]){const count=Number.parseInt(singleCount[1],10);const isNewspic=detailPart.includes(`小绿书`)||detailPart.includes(`图片消息`);const q={total:count,articleCount:isNewspic?0:count,newspicCount:isNewspic?count:0,hasNewspic:isNewspic};if(accId)accountQuotaMap.set(accId,q);if(accName)accountQuotaMap.set(accName,q);detectedTargetCount=Math.max(detectedTargetCount,count)}}}}if(row.kind===`userInput`){const accountMatch=row.text.match(/【执行账号】\s*([^\s\n【]+)/);if(accountMatch)detectedAccountName=accountMatch[1]?.trim();const comboMatch=row.text.match(/([0-9]+)\s*篇(?:长文|文章|深度长文|图文|多图文)?(?:合辑)?[^0-9\n\r]{1,30}?([0-9]+)\s*篇(?:小绿书|图片消息|卡片)/i)||row.text.match(/([0-9]+)\s*篇(?:小绿书|图片消息|卡片)[^0-9\n\r]{1,30}?([0-9]+)\s*篇(?:长文|文章|深度长文|图文|多图文)?/i)||row.text.match(/([0-9]+)\s*长文\s*(?:[+＋与和、]|以及)\s*([0-9]+)\s*小绿书/i);if(comboMatch&&comboMatch[1]&&comboMatch[2]){const matchedStr=comboMatch[0];let aCount=0;let nCount=0;const num1=Number.parseInt(comboMatch[1],10);const num2=Number.parseInt(comboMatch[2],10);if(/小绿书|图片消息|卡片/.test(matchedStr.slice(0,matchedStr.indexOf(String(num2))))){nCount=num1;aCount=num2}else{aCount=num1;nCount=num2}const q={total:aCount+nCount,articleCount:aCount,newspicCount:nCount,hasNewspic:nCount>0};if(detectedAccountName)accountQuotaMap.set(detectedAccountName,q);accountQuotaMap.set(`default`,q);detectedTargetCount=Math.max(detectedTargetCount,aCount+nCount)}else{let detectedCount=1;let countSpecified=false;const countMatch=row.text.match(/【(?:目标)?篇数】\s*([0-9]+)/i)||row.text.match(/【(?:文章)?数量】\s*([0-9]+)/i)||row.text.match(/(?:写|生成|构建|产出|撰写|发布)\s*([0-9]+)\s*篇/i)||row.text.match(/([0-9]+)\s*篇(?:文章|长文|小绿书|笔记|图文)?/i);if(countMatch&&countMatch[1]){detectedCount=Number.parseInt(countMatch[1],10);countSpecified=true}else if(row.text.includes(`两篇`)||row.text.includes(`2篇`)||row.text.includes(`头条和次条`)||row.text.includes(`头条、次条`)){detectedCount=2;countSpecified=true}else if(row.text.includes(`三篇`)||row.text.includes(`3篇`)||row.text.includes(`头条次条尾条`)){detectedCount=3;countSpecified=true}detectedTargetCount=Math.max(detectedTargetCount,detectedCount);const isExplicitNewspic=row.text.includes(`小绿书`)||row.text.includes(`图片消息`)||row.text.includes(`图文卡片`);const isExplicitNews=row.text.includes(`长文`)||row.text.includes(`公众号文章`)||row.text.includes(`深度文章`)||row.text.includes(`深度图文`);const isXhsTask=row.text.includes(`小红书`)||row.text.includes(`笔记`);if(isExplicitNewspic&&!isExplicitNews){const q={total:detectedCount,articleCount:0,newspicCount:detectedCount,hasNewspic:true};if(detectedAccountName)accountQuotaMap.set(detectedAccountName,q);accountQuotaMap.set(`default`,q)}else if(isExplicitNews&&!isExplicitNewspic){const q={total:detectedCount,articleCount:detectedCount,newspicCount:0,hasNewspic:false};if(detectedAccountName)accountQuotaMap.set(detectedAccountName,q);accountQuotaMap.set(`default`,q)}else if(isXhsTask){const q={total:detectedCount,articleCount:0,newspicCount:detectedCount,hasNewspic:true};if(detectedAccountName)accountQuotaMap.set(detectedAccountName,q);accountQuotaMap.set(`default`,q)}else if(countSpecified){const q={total:detectedCount,articleCount:detectedCount,newspicCount:0,hasNewspic:false};if(detectedAccountName)accountQuotaMap.set(detectedAccountName,q);accountQuotaMap.set(`default`,q)}}}}if(row.kind===`assistantText`){const accMatch=row.text.match(/账号[：:]\s*([^\s|（(]+)(?:[（(]([a-zA-Z0-9_-]+)[)）])?/);if(accMatch){if(!detectedAccountName||detectedAccountName===`所选平台全部启用账号`)detectedAccountName=accMatch[1]?.trim();if(accMatch[2])detectedAccountId=accMatch[2]?.trim()}}if(row.kind===`toolCall`){const input=row.input??{};const outputPayload=parseToolOutputPayload(row.output);if(typeof input.account_id===`string`&&input.account_id)detectedAccountId=input.account_id;if(typeof outputPayload.account_id===`string`&&outputPayload.account_id)detectedAccountId=outputPayload.account_id;const candidatePaths=[input.TargetFile,input.target_file,input.Path,input.path,input.file,input.filePath,input.FilePath,outputPayload.file,outputPayload.target_file,outputPayload.filePath,outputPayload.path];for(const p of candidatePaths)if(typeof p===`string`&&p.trim()){const normP=p.trim().replace(/\\/g,`/`);if(normP.includes(`/scripts/`)){const dir=normP.replace(/\/scripts\/.*$/,`/scripts`);if(!detectedScriptsDir)detectedScriptsDir=dir;if(!detectedAccountId){const accMatch=normP.match(/\/accounts\/([^/]+)\/scripts/);if(accMatch&&accMatch[1])detectedAccountId=accMatch[1]}}const sandboxMatch=normP.match(new RegExp(`(.*\\/tasks\\/(?:active|archive)\\/[^/]+\\/([a-z0-9]+)_([^/]+))(?:\\/(?:articles|images)(?:\\/.*)?)?$`,`i`));if(sandboxMatch){const sandboxTargetDir=sandboxMatch[1];const plat=sandboxMatch[2];const acc=sandboxMatch[3];detectedScriptsDir=sandboxTargetDir;if(acc)detectedAccountId=acc;if(plat){const normPlat=normalizePlatformName(plat);if(normPlat)detectedPlatform=normPlat}}}const targetFilePath=String(input.TargetFile||input.target_file||input.Path||input.path||input.file||input.filePath||input.FilePath||``);const codeContent=typeof input.CodeContent===`string`?input.CodeContent:typeof input.code_content===`string`?input.code_content:typeof input.Content===`string`?input.Content:typeof input.content===`string`?input.content:``;if(targetFilePath&&codeContent){const cleanPath=targetFilePath.replace(/\\/g,`/`);const baseName=cleanPath.replace(/^.*[\\/]/,``);knownFileContents.set(targetFilePath,codeContent);knownFileContents.set(cleanPath,codeContent);knownFileContents.set(baseName,codeContent);if(baseName.endsWith(`.json`))try{const parsed=JSON.parse(codeContent);if(parsed&&typeof parsed===`object`){knownSpecFiles.set(targetFilePath,parsed);knownSpecFiles.set(cleanPath,parsed);knownSpecFiles.set(baseName,parsed)}}catch{}}}}const effectiveAccountId=detectedAccountId||(detectedPlatform===`xiaohongshu`?`xhs`:detectedPlatform===`gzh`?`default`:detectedPlatform);for(const row of rows){if(row.kind===`userInput`||row.kind===`humanMessage`){const text=(`text`in row&&typeof row.text===`string`?row.text:``)||``;const taskCmdMatch=text.match(/--task-id\s+([a-z0-9_-]+)/i)||text.match(/\b(task_\d{8}_\d{6}_[a-z0-9_-]+)\b/i);if(taskCmdMatch&&taskCmdMatch[1])detectedTaskId=taskCmdMatch[1].trim();const themeMatch=text.match(/【发文主题】([^\n]+)/);if(themeMatch)detectedTopicTheme=themeMatch[1]?.trim();const platformMatch=text.match(/【发布平台】([^\n]+)/);if(platformMatch){const pText=platformMatch[1]?.trim()||``;if(pText.includes(`公众号`)||pText.includes(`gzh`))detectedPlatform=`gzh`;else if(pText.includes(`知乎`)||pText.includes(`zhihu`))detectedPlatform=`zhihu`;else if(pText.includes(`小红书`)||pText.includes(`xhs`))detectedPlatform=`xiaohongshu`;else if(pText.includes(`百家`)||pText.includes(`baijiahao`))detectedPlatform=`baijiahao`;else if(pText.includes(`头条`)||pText.includes(`toutiao`))detectedPlatform=`toutiao`}if(!(text.includes(`【发文主题】`)||text.includes(`【执行账号】`)||text.includes(`【发布平台】`)||text.includes(`规划选题`)||text.includes(`查重`)||text.includes(`写两篇`)||text.includes(`写一篇`))){if(text.includes(`【发布确认】`)||text.includes(`【单篇局部发布确认】`)||text.includes(`一键推送到各平台官方草稿箱`)||text.includes(`一键全平台定时排期发布`)||text.includes(`确认执行发布`)||text.includes(`推送至官方草稿箱`)||text.includes(`推送到官方草稿箱`)||text.includes(`推送到草稿箱`)||text.includes(`发布到小红书`)||text.includes(`推送到小红书`)||text.includes(`推送到微信`)||text.includes(`发布到知乎`)||text.includes(`发表到今日头条`)||text.includes(`推送到百家号`)||text.includes(`存入官方草稿箱`)||text.includes(`提交发布`)||text.includes(`定时排期发布`)||/^(确认发布|立即发布|提交发布|开始发布|发布所有文章|确认推送|定时发布|推送到草稿箱|推送到官方草稿箱|发布|帮我发布)[!！。~]?$/i.test(text.trim()))publishIntentIssued=true}}if(row.kind===`assistantText`){if(row.text.includes(`完成排期发布`)||row.text.includes(`完成定时发表`)||row.text.includes(`定时发表已完成`)||row.text.includes(`平台收录有效`)||row.text.includes(`已成功发布`)||row.text.includes(`已完成发布`)||row.text.includes(`已存入官方草稿箱`)||row.text.includes(`已推送到官方草稿箱`)||row.text.includes(`已成功存入草稿箱`)||row.text.includes(`全链路合规核验`)&&row.text.includes(`远程核验结果`)||row.text.includes(`发布与回查`)&&(row.text.includes(`收录有效`)||row.text.includes(`可正常访问`)))publishDraftCompleted=true;const parsed=parseTopicsFromMarkdownText(row.text,{platform:detectedPlatform,accountId:effectiveAccountId,idPrefix:`topic_msg_${row.rowId||row.turnId}`});if(parsed.length>0)latestAssistantTopics=parsed;const parsedImgs=parseImagesFromMarkdownText(row.text,{accountId:effectiveAccountId,scriptsDir:detectedScriptsDir});if(parsedImgs.length>0)for(const img of parsedImgs){if(!generatedImageUrls.includes(img))generatedImageUrls.push(img);const meta=parseImageMeta(img,{platform:detectedPlatform,accountId:effectiveAccountId,taskId:detectedTaskId});if(!parsedImagesList.some(p=>p.url===meta.url))parsedImagesList.push(meta)}const seqArticles=parsePublishedSequenceFromAssistantText(row.text,{platform:detectedPlatform,accountId:effectiveAccountId,accountName:detectedAccountName,scriptsDir:detectedScriptsDir});if(seqArticles.length>0)for(const art of seqArticles){const docType=art.articleType||`news`;const artKey=`${art.platform}_${art.accountId||`default`}_${docType}_${art.index||1}`;if(!articlesMap.has(artKey))articlesMap.set(artKey,art);else{const existing=articlesMap.get(artKey);if(!existing.content||existing.content.includes(`已生成就绪`)){existing.title=art.title;existing.digest=art.digest;existing.content=art.content}}}else{const isCurrentLastRow=rows.indexOf(row)===rows.length-1;const streamingArticles=parseStreamingArticlesFromAssistantText(row.text,{platform:detectedPlatform,accountId:effectiveAccountId,accountName:detectedAccountName,isLastRow:isCurrentLastRow});if(streamingArticles.length>0)for(const sArt of streamingArticles){const docType=sArt.articleType||`news`;const artKey=`${sArt.platform||detectedPlatform}_${sArt.accountId||effectiveAccountId||`default`}_${docType}_${sArt.index||1}`;const existing=articlesMap.get(artKey);if(!existing){const currentQuota=(sArt.accountId?accountQuotaMap.get(sArt.accountId):void 0)||(effectiveAccountId?accountQuotaMap.get(effectiveAccountId):void 0)||accountQuotaMap.get(`default`);if(currentQuota&&typeof currentQuota.articleCount===`number`&&currentQuota.articleCount>0&&sArt.index>currentQuota.articleCount)continue;articlesMap.set(artKey,{id:`art_stream_${sArt.platform||detectedPlatform}_${sArt.accountId||`default`}_${docType}_${sArt.index||1}`,index:sArt.index,platform:sArt.platform||detectedPlatform,accountId:sArt.accountId||effectiveAccountId,accountName:detectedAccountName,title:sArt.title||(sArt.index===1?`头条精选图文`:`次条精选图文 #${sArt.index}`),digest:sArt.digest||`实时流式排版生成中`,content:cleanAndUnescapeHtmlContent(sArt.content||``),articleType:docType,coverUrl:``,images:[],isStreaming:sArt.isStreaming,status:sArt.isStreaming?`streaming`:`completed`})}else{if(sArt.content&&sArt.content.length>0)existing.content=cleanAndUnescapeHtmlContent(sArt.content);if(sArt.title&&(!existing.title||existing.title.startsWith(`社媒精选`)||existing.title.startsWith(`公众号精选`)||existing.title.includes(`**`)))existing.title=sArt.title;if(sArt.isStreaming!==void 0){existing.isStreaming=sArt.isStreaming;existing.status=sArt.isStreaming?`streaming`:`completed`}}}const parsedArt=parseArticleFromAssistantText(row.text,{platform:detectedPlatform,accountId:effectiveAccountId});if(parsedArt&&(parsedArt.title||parsedArt.content)){const effPlat=parsedArt.platform||detectedPlatform;const effAcc=parsedArt.accountId||effectiveAccountId;const currentQuota=(effAcc?accountQuotaMap.get(effAcc):void 0)||(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||accountQuotaMap.get(`default`);const fallbackDocType=effPlat===`xiaohongshu`||currentQuota&&currentQuota.articleCount===0&&currentQuota.newspicCount>0||row.text.includes(`小绿书`)||row.text.includes(`图片消息`)?`newspic`:`news`;const fallbackKey=`${effPlat}_${effAcc||`default`}_${fallbackDocType}_1`;const existing=articlesMap.get(fallbackKey);if(!existing)articlesMap.set(fallbackKey,{id:`art_assistant_${fallbackDocType}_1`,index:1,platform:effPlat||detectedPlatform,accountId:effAcc,accountName:detectedAccountName,title:parsedArt.title||(fallbackDocType===`newspic`?`小绿书精选图文`:`社媒精选图文长文`),digest:`基于对话回复提取的稿件内容`,content:cleanAndUnescapeHtmlContent(parsedArt.content||``),articleType:fallbackDocType,coverUrl:``,images:[]});else if((!existing.content||existing.content.includes(`已生成就绪`))&&parsedArt.content){existing.content=cleanAndUnescapeHtmlContent(parsedArt.content);if(parsedArt.title)existing.title=parsedArt.title}}}}if(row.kind===`toolCall`||row.role===`tool`){const toolRow=row;const toolName=toolRow.toolName||toolRow.name||``;const status=toolRow.status;const input=toolRow.input??{};const outputPayload=parseToolOutputPayload(toolRow.output);if(typeof outputPayload.task_id===`string`&&outputPayload.task_id.trim())detectedTaskId=outputPayload.task_id.trim();else if(typeof input.task_id===`string`&&input.task_id.trim())detectedTaskId=input.task_id.trim();if(typeof outputPayload.manifest_fingerprint===`string`&&outputPayload.manifest_fingerprint.trim()){detectedManifestFingerprint=outputPayload.manifest_fingerprint.trim();if(outputPayload.dry_run===true||outputPayload.is_dry_run===true)detectedIsDryRun=true}const socialEvent=outputPayload._social_event;if(socialEvent&&socialEvent.v===1){if(socialEvent.platform){const normP=normalizePlatformName(socialEvent.platform);if(normP)detectedPlatform=normP}if(socialEvent.accountId)detectedAccountId=socialEvent.accountId;if(socialEvent.accountName)detectedAccountName=socialEvent.accountName;if(socialEvent.publishedInfo){if(socialEvent.publishedInfo.draftId)publishedDraftId=socialEvent.publishedInfo.draftId;if(socialEvent.publishedInfo.mediaId)publishedMediaId=socialEvent.publishedInfo.mediaId;if(socialEvent.publishedInfo.scheduledTime)publishedScheduleTime=socialEvent.publishedInfo.scheduledTime;if(socialEvent.publishedInfo.isVerified)verifyDraftCompleted=true;const se=socialEvent.publishedInfo;if(typeof se.receiptScreenshot===`string`)publishedReceiptScreenshot=se.receiptScreenshot;if(typeof se.qrScreenshot===`string`)publishedQrScreenshot=se.qrScreenshot;if(status===`success`)publishDraftCompleted=true}}if(toolName===`gzh_discover_topics`||toolName.includes(`discover_topics`)){discoverTopicsCallFound=true;if(status===`success`){const toolPlat=normalizePlatformName(typeof input.platform===`string`?input.platform:void 0)||detectedPlatform;const toolPlatName=toolPlat===`xiaohongshu`?`小红书`:toolPlat===`gzh`?`微信公众号`:toolPlat===`zhihu`?`知乎专栏`:toolPlat===`toutiao`?`今日头条`:toolPlat===`baijiahao`?`百家号`:`社媒专栏`;const dataObj=outputPayload.data||outputPayload;const recTopics=Array.isArray(dataObj.recommended_topics)?dataObj.recommended_topics:[];for(let i=0;i<recTopics.length;i++){const rt=recTopics[i];const title=String(rt.title||``);if(!title)continue;const hotScore=typeof rt.hot_score===`number`?rt.hot_score:90;const sources=Array.isArray(rt.sources)?rt.sources:void 0;const crossPlatformCount=typeof rt.cross_platform_count===`number`?rt.cross_platform_count:void 0;const evidencePreview=typeof rt.evidence_preview===`string`?rt.evidence_preview:void 0;const toolAcc=typeof input.account_id===`string`?input.account_id:effectiveAccountId;discoverTopicsFromTool.push({id:`discover_${toolPlat}_${toolAcc}_${i+1}`,platform:toolPlat,platformName:toolPlatName,accountId:toolAcc,title,hookAngle:String(rt.angle_name||rt.angle||(toolPlat===`xiaohongshu`?`爆款痛点切角`:`全网爆款切角`)),genreBadge:toolPlat===`xiaohongshu`?`3:4图文卡片`:`全网共振热点`,similarityScore:10,viralScore:hotScore,selected:i===0,sources,crossPlatformCount,evidencePreview})}}}if(toolName===`gzh_research_topic`||toolName.includes(`research_topic`)){if(status===`success`)extractedResearchEvidence=outputPayload}if(toolName===`gzh_check_topics`||toolName.includes(`check_topics`)){checkTopicsCallFound=true;if(status===`success`){checkTopicsCompleted=true;const toolPlat=normalizePlatformName(typeof input.platform===`string`?input.platform:void 0)||detectedPlatform;const toolPlatName=toolPlat===`xiaohongshu`?`小红书`:toolPlat===`gzh`?`微信公众号`:toolPlat===`zhihu`?`知乎专栏`:toolPlat===`toutiao`?`今日头条`:toolPlat===`baijiahao`?`百家号`:`社媒专栏`;const items=Array.isArray(outputPayload.items)?outputPayload.items:[];for(let i=0;i<items.length;i++){const it=items[i];const title=String(it.topic||``);if(!title)continue;const topScore=typeof it.top_score===`number`?Math.round(it.top_score*100):10;const toolAcc=typeof input.account_id===`string`?input.account_id:effectiveAccountId;checkTopicsFromTool.push({id:`tool_${toolPlat}_${toolAcc}_${i+1}`,platform:toolPlat,platformName:toolPlatName,accountId:toolAcc,title,hookAngle:typeof it.warning===`string`?it.warning:`独家切角与爆款体裁`,genreBadge:toolPlat===`xiaohongshu`?`新手避坑卡片`:`深度科普长文`,similarityScore:topScore,viralScore:Math.max(65,95-topScore),selected:i===0})}}}if(toolName===`gzh_build_article`||toolName.includes(`build_article`)){if(status===`running`)buildArticleRunning=true;const isErrorOutput=status===`error`||outputPayload.isError===true||typeof outputPayload.error===`string`&&Boolean(outputPayload.error)||typeof outputPayload.text===`string`&&isToolErrorOrCrashContent(outputPayload.text);if(status===`success`&&!isErrorOutput){buildArticleCompleted=true;const file=String(outputPayload.file||``);if(file)detectedScriptsDir=file.replace(/[\\/][^\\/]+$/,``);let doc={};if(typeof input.doc_json===`object`&&input.doc_json)doc=input.doc_json;else if(typeof input.doc_json===`string`){const trimmed=input.doc_json.trim();if(trimmed.startsWith(`{`)&&trimmed.endsWith(`}`))try{doc=JSON.parse(trimmed)}catch{}else{const cleanPath=trimmed.replace(/^@/,``).replace(/\\/g,`/`);const baseName=cleanPath.replace(/^.*[\\/]/,``);if(knownSpecFiles.has(cleanPath))doc=knownSpecFiles.get(cleanPath);else if(knownSpecFiles.has(baseName))doc=knownSpecFiles.get(baseName);else if(knownSpecFiles.has(trimmed))doc=knownSpecFiles.get(trimmed)}}if(Object.keys(doc).length===0){if(typeof input.doc_spec===`object`&&input.doc_spec)doc=input.doc_spec;else if(typeof input.doc===`object`&&input.doc)doc=input.doc}let artPlatform=detectedPlatform;const pFromSingleInput=normalizePlatformName(typeof input.platform===`string`?input.platform:void 0);const pFromSingleOutput=normalizePlatformName(typeof outputPayload.platform===`string`?outputPayload.platform:void 0);const pFromSingleDoc=normalizePlatformName(typeof doc.platform===`string`?doc.platform:void 0);if(pFromSingleInput)artPlatform=pFromSingleInput;else if(pFromSingleOutput)artPlatform=pFromSingleOutput;else if(pFromSingleDoc)artPlatform=pFromSingleDoc;else if(file.includes(`_xhs.`)||file.includes(`xhs_`)||file.includes(`xhs/`))artPlatform=`xiaohongshu`;else if(file.includes(`zhihu`))artPlatform=`zhihu`;else if(file.includes(`baijiahao`))artPlatform=`baijiahao`;else if(file.includes(`toutiao`))artPlatform=`toutiao`;else if(file.endsWith(`.html`))artPlatform=`gzh`;const plainChars=Number(outputPayload.plain_chars||doc.plain_chars||0);let docType=String(doc.article_type||`news`);if(file.includes(`newspic`)||file.includes(`_pic.`)||file.includes(`pic_`)||typeof input.article_type===`string`&&input.article_type===`newspic`||typeof input.type===`string`&&input.type===`newspic`)docType=`newspic`;const quotaForBuild=(typeof input.account_id===`string`?accountQuotaMap.get(input.account_id):void 0)||(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||(detectedAccountName?accountQuotaMap.get(detectedAccountName):void 0)||accountQuotaMap.get(`default`);if(quotaForBuild&&quotaForBuild.articleCount===0&&quotaForBuild.newspicCount>0)docType=`newspic`;else if(!file.includes(`_pic_`)&&!file.includes(`_pic.`)&&!file.includes(`newspic`)&&file.endsWith(`.html`))docType=`news`;const digest=String(doc.digest||``);const hasExplicitIndex=typeof doc.index===`number`&&doc.index>0||Number(outputPayload.index)>0||typeof input.index===`number`&&input.index>0;let inferredIdx;if(file){const m=file.match(/_(\d+)(?:_[a-z0-9]+)?\.(?:html|md|txt|json)$/i)||file.match(/(?:article|newspic|note)[-_](\d+)/i);if(m&&m[1])inferredIdx=Number.parseInt(m[1],10)}let docIdx=typeof doc.index===`number`&&doc.index>0?doc.index:Number(outputPayload.index)>0?Number(outputPayload.index):typeof input.index===`number`&&input.index>0?input.index:inferredIdx&&inferredIdx>0?inferredIdx:1;if(Array.isArray(doc.visual_blueprint)){const isDocNewspic=docType===`newspic`;for(const vb of doc.visual_blueprint)capturedVisualSlots.push({slotId:vb.slot_id||vb.slotId||`slot_${docIdx}_${vb.sub||1}`,index:docIdx,sub:vb.sub,kind:vb.kind||(isDocNewspic?vb.sub===1?`cover`:`pic`:`content`),ratio:vb.ratio,contextText:vb.context_text||vb.contextText,intentDescription:vb.intent_description||vb.intentDescription||vb.desc,generationPrompt:vb.generation_prompt||vb.generationPrompt||vb.prompt,searchKeywords:vb.search_keywords||vb.searchKeywords})}let title=String(outputPayload.title||doc.title||``).trim();if(!title||title===`生成的社媒文章`){const matchedTopic=checkTopicsFromTool[docIdx-1]?.title||discoverTopicsFromTool[docIdx-1]?.title||latestAssistantTopics[docIdx-1]?.title;if(matchedTopic)title=matchedTopic;else if(detectedTopicTheme)title=`${detectedTopicTheme}深度精选图文 #${docIdx}`;else title=artPlatform===`xiaohongshu`?`小红书爆款精选笔记`:`社媒精选图文长文`}let content=``;const candidateContents=[outputPayload.content,outputPayload.html,outputPayload.markdown,outputPayload.text,doc.html,doc.markdown,doc.content,doc.text,doc.note];for(const c of candidateContents)if(typeof c===`string`&&c.trim()){if(!isToolMetadataJson(c)&&!isToolErrorOrCrashContent(c)){content=c.trim();break}}if(!content&&Object.keys(doc).length>0)content=extractContentFromDocSpec(doc);if(!content&&file){const baseFile=file.replace(/^.*[\\/]/,``);if(knownFileContents.has(file))content=knownFileContents.get(file);else if(knownFileContents.has(baseFile))content=knownFileContents.get(baseFile)}if(content.startsWith(`<!-- TITLE:`)){const titleMatch=content.match(/<!--\s*TITLE:\s*([^\r\n>]+)\s*-->/);if(titleMatch&&titleMatch[1]&&(!title||title.startsWith(`小红书`)))title=titleMatch[1].trim();content=content.replace(/<!--\s*TITLE:[^\r\n>]*-->\s*/,``).trim()}if(!content)content=artPlatform===`xiaohongshu`?`笔记正文与 3:4 竖版配图已生成就绪，可随时发布或导出。`:`文章排版与规范校验已就绪，可随时发布或导出。`;const accFromPath=file.match(/accounts[\\/]([^\\/]+)[\\/]/)?.[1];const artAccountId=typeof input.account_id===`string`&&input.account_id||typeof doc.account_id===`string`&&doc.account_id||accFromPath||effectiveAccountId;let artKey=`${artPlatform}_${artAccountId||`default`}_${docType}_${docIdx}`;if(!hasExplicitIndex&&articlesMap.has(artKey)){const existing=articlesMap.get(artKey);if(file&&existing.filePath&&file!==existing.filePath&&!file.endsWith(existing.filePath)&&!existing.filePath.endsWith(file)){const existingIndices=Array.from(articlesMap.values()).filter(a=>a.platform===artPlatform&&(a.accountId||`default`)===(artAccountId||`default`)&&a.articleType===docType).map(a=>a.index||0);docIdx=(existingIndices.length>0?Math.max(...existingIndices):docIdx)+1;artKey=`${artPlatform}_${artAccountId||`default`}_${docType}_${docIdx}`}}articlesMap.set(artKey,{id:`art_${artPlatform}_${artAccountId||`default`}_${docType}_${docIdx}`,index:docIdx,platform:artPlatform,accountId:artAccountId,accountName:detectedAccountName,title,digest:digest||`${plainChars>0?plainChars+` 字深度解析`:`爆款精选图文`}`,content:cleanAndUnescapeHtmlContent(content),articleType:docType,coverUrl:``,images:[],filePath:file||void 0,scriptsDir:detectedScriptsDir||void 0})}}if(toolName===`write_to_file`||toolName===`create_file`||toolName===`write_file`||toolName.includes(`write_file`)){const targetFilePath=String(input.TargetFile||input.target_file||input.Path||input.path||input.file||input.filePath||input.FilePath||``);const codeContent=typeof input.CodeContent===`string`?input.CodeContent:typeof input.code_content===`string`?input.code_content:typeof input.Content===`string`?input.Content:typeof input.content===`string`?input.content:``;if(targetFilePath&&/\.(?:png|jpg|jpeg|webp)$/i.test(targetFilePath)){const norm=normalizeLocalImageUrl(targetFilePath);if(norm&&!generatedImageUrls.includes(norm))generatedImageUrls.push(norm);const pathAcc=targetFilePath.match(/accounts[\\/]([^\\/]+)[\\/]/)?.[1]||targetFilePath.match(/tasks[\\/](?:active|archive)[\\/][^\\/]+[\\/][a-z0-9]+_([^\\/]+)[\\/]/)?.[1];const meta=parseImageMeta(targetFilePath,{platform:detectedPlatform,accountId:pathAcc||effectiveAccountId,taskId:detectedTaskId});if(!parsedImagesList.some(p=>p.url===meta.url))parsedImagesList.push(meta)}if(targetFilePath&&codeContent&&!isToolErrorOrCrashContent(codeContent)&&/\/(?:scripts|drafts|articles)\/(?:article|xhs_note|note|draft|newspic)_/i.test(targetFilePath.replace(/\\/g,`/`))){const baseName=targetFilePath.replace(/^.*[\\/]/,``);let isAuxiliaryMeta=baseName.includes(`_prompt`)||baseName.includes(`_config`)||baseName.includes(`_meta`)||baseName.includes(`outline`)||baseName.includes(`backup`);if(!isAuxiliaryMeta&&baseName.includes(`_pic.json`)){if(!codeContent.includes(`"content"`)&&!codeContent.includes(`"article_type"`))isAuxiliaryMeta=true}if(!isAuxiliaryMeta){const isHtml=baseName.endsWith(`.html`);const isMd=baseName.endsWith(`.md`);const isTxt=baseName.endsWith(`.txt`);const isJson=baseName.endsWith(`.json`);if(isHtml||isMd||isTxt||isJson){const accMatch=targetFilePath.match(/accounts[\\/]([^\\/]+)[\\/]/)||targetFilePath.match(/tasks[\\/](?:active|archive)[\\/][^\\/]+[\\/][a-z0-9]+_([^\\/]+)[\\/]/);const artAcc=accMatch?accMatch[1]:effectiveAccountId;let artPlat=detectedPlatform;if(targetFilePath.includes(`xiaohongshu`)||targetFilePath.includes(`xhs`)||baseName.includes(`xhs`))artPlat=`xiaohongshu`;else if(targetFilePath.includes(`zhihu`)||baseName.includes(`zhihu`))artPlat=`zhihu`;else if(targetFilePath.includes(`baijiahao`))artPlat=`baijiahao`;else if(targetFilePath.includes(`toutiao`))artPlat=`toutiao`;else if(targetFilePath.includes(`gzh`)||targetFilePath.includes(`wechat`))artPlat=`gzh`;const idxMatch=baseName.match(/_(\d+)(?:_[a-z0-9]+)?\.(?:html|md|txt|json)$/i)||baseName.match(/(?:article|newspic|note)[-_](\d+)/i);let docIdx=idxMatch&&idxMatch[1]?Number.parseInt(idxMatch[1],10):1;const isNewspic=baseName.includes(`newspic`)||baseName.includes(`_pic.`)||baseName.includes(`_pic_`)||baseName.includes(`pic_`);let fileDocType=isNewspic?`newspic`:`news`;const fileQuota=(artAcc?accountQuotaMap.get(artAcc):void 0)||(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||(detectedAccountName?accountQuotaMap.get(detectedAccountName):void 0)||accountQuotaMap.get(`default`);if(fileQuota&&fileQuota.articleCount===0&&fileQuota.newspicCount>0)fileDocType=`newspic`;else if(!isNewspic&&baseName.endsWith(`.html`))fileDocType=`news`;let artTitle=``;let effectiveTextContent=codeContent;let parsedCardCount;let parsedVisualSlots;if(isJson)try{const parsed=JSON.parse(codeContent);if(parsed&&typeof parsed===`object`&&!Array.isArray(parsed)){if(typeof parsed.title===`string`&&parsed.title.trim())artTitle=parsed.title.trim();if(parsed.article_type===`newspic`)fileDocType=`newspic`;if(Array.isArray(parsed.cards)&&parsed.cards.length>0){parsedCardCount=parsed.cards.length;const slots=parsed.cards.map((c,cIdx)=>({slotId:`newspic_${docIdx}_${c.index||cIdx+1}`,index:docIdx,sub:c.index||cIdx+1,kind:c.role===`cover`||cIdx===0?`cover`:`pic`,ratio:`3:4`,intentDescription:c.title,generationPrompt:c.prompt,articleType:`newspic`}));parsedVisualSlots=slots;for(const vs of slots)if(!capturedVisualSlots.some(s=>s.slotId===vs.slotId))capturedVisualSlots.push(vs)}else if(typeof parsed.img_count===`number`&&parsed.img_count>0)parsedCardCount=parsed.img_count;const extracted=extractContentFromDocSpec(parsed);if(extracted&&extracted.trim())effectiveTextContent=extracted.trim()}}catch{}if(!artTitle){const h1Match=effectiveTextContent.match(/<h[12][^>]*>(.*?)<\/h[12]>/i)||effectiveTextContent.match(/^#+\s*(.+)$/m);if(h1Match&&h1Match[1])artTitle=h1Match[1].replace(/<[^>]+>/g,``).trim();else artTitle=artPlat===`xiaohongshu`?`小红书精选笔记 #${docIdx}`:fileDocType===`newspic`?`微信小绿书图文 #${docIdx}`:`精选深度长文 #${docIdx}`}artTitle=artTitle.replace(/^[*#\s]+|[*#\s]+$/g,``).replace(/^[0-9]+[.\s、]+/,``).replace(/[\u{1F7E2}\u{1F7E1}\u{1F534}\u{2B50}\u{2605}]/gu,``).replace(/^[*#\s]+|[*#\s]+$/g,``).trim();let fileArtKey=`${artPlat}_${artAcc||`default`}_${fileDocType}_${docIdx}`;buildArticleCompleted=true;if(articlesMap.has(fileArtKey)){const existing=articlesMap.get(fileArtKey);if(existing.filePath&&(targetFilePath===existing.filePath||targetFilePath.endsWith(existing.filePath)||existing.filePath.endsWith(targetFilePath))){if(!existing.content||existing.content.includes(`已生成就绪`)||existing.content.length<effectiveTextContent.length){existing.content=cleanAndUnescapeHtmlContent(effectiveTextContent);if(artTitle&&(!existing.title||existing.title.startsWith(`社媒精选`)||existing.title.startsWith(`小红书精选`)||existing.title.startsWith(`微信小绿书图文`)))existing.title=artTitle}}else{const existingIndices=Array.from(articlesMap.values()).filter(a=>a.platform===artPlat&&(a.accountId||`default`)===(artAcc||`default`)&&a.articleType===fileDocType).map(a=>a.index||0);docIdx=(existingIndices.length>0?Math.max(...existingIndices):docIdx)+1;fileArtKey=`${artPlat}_${artAcc||`default`}_${fileDocType}_${docIdx}`;const isSandboxPath=targetFilePath.includes(`/tasks/active/`)||targetFilePath.includes(`/tasks/archive/`)||targetFilePath.includes(`\\tasks\\active\\`)||targetFilePath.includes(`\\tasks\\archive\\`);let fileScriptsDir=targetFilePath.replace(/[/\\][^/\\]+$/,``);if(isSandboxPath&&(fileScriptsDir.endsWith(`/articles`)||fileScriptsDir.endsWith(`\\articles`)))fileScriptsDir=fileScriptsDir.replace(/[/\\]articles$/,``);articlesMap.set(fileArtKey,{id:`art_file_${artPlat}_${artAcc||`default`}_${fileDocType}_${docIdx}`,index:docIdx,platform:artPlat,accountId:artAcc,accountName:detectedAccountName,title:artTitle,digest:`落盘稿件 (${effectiveTextContent.length} 字符)`,content:cleanAndUnescapeHtmlContent(effectiveTextContent),articleType:fileDocType,coverUrl:void 0,images:[],contentImages:[],filePath:targetFilePath,scriptsDir:fileScriptsDir,targetCardImageCount:parsedCardCount,visualSlots:parsedVisualSlots})}}else{const isSandboxPath=targetFilePath.includes(`/tasks/active/`)||targetFilePath.includes(`/tasks/archive/`)||targetFilePath.includes(`\\tasks\\active\\`)||targetFilePath.includes(`\\tasks\\archive\\`);let fileScriptsDir=targetFilePath.replace(/[/\\][^/\\]+$/,``);if(isSandboxPath&&(fileScriptsDir.endsWith(`/articles`)||fileScriptsDir.endsWith(`\\articles`)))fileScriptsDir=fileScriptsDir.replace(/[/\\]articles$/,``);articlesMap.set(fileArtKey,{id:`art_file_${artPlat}_${artAcc||`default`}_${fileDocType}_${docIdx}`,index:docIdx,platform:artPlat,accountId:artAcc,accountName:detectedAccountName,title:artTitle,digest:`落盘稿件 (${effectiveTextContent.length} 字符)`,content:cleanAndUnescapeHtmlContent(effectiveTextContent),articleType:fileDocType,coverUrl:void 0,images:[],contentImages:[],filePath:targetFilePath,scriptsDir:fileScriptsDir,targetCardImageCount:parsedCardCount,visualSlots:parsedVisualSlots})}}}}}if(toolName===`gzh_generate_images`||toolName.includes(`generate_images`)||toolName===`generate_image`||toolName===`social_publisher`||toolName.includes(`social_publisher`)){if(status===`running`){if(!(input.action===`publish`||input.action===`publish_draft`||input.action===`publish_now`||input.action===`schedule`))genImagesRunning=true}const rawIncomingList=Array.isArray(input.articles)&&input.articles.length>0?input.articles:typeof input.content===`string`&&input.content.trim()?[{title:input.title,content:input.content,visual_slots:input.visual_slots}]:[];if((input.action===`produce`||toolName.includes(`produce`))&&rawIncomingList.length>0){const isRunning=status===`running`;rawIncomingList.forEach((rawArt,artIdx)=>{const artNum=typeof rawArt.index===`number`?rawArt.index:artIdx+1;const toolPlat=normalizePlatformName(typeof input.platform===`string`?input.platform:void 0)||detectedPlatform||`xiaohongshu`;const toolAcc=typeof input.account_id===`string`&&input.account_id||effectiveAccountId||`default`;const artType=toolPlat===`xiaohongshu`?`newspic`:`news`;const artKey=`${toolPlat}_${toolAcc}_${artType}_${artNum}`;let runningSlots=[];const artSlots=Array.isArray(rawArt.visual_slots)?rawArt.visual_slots:artIdx===0&&Array.isArray(input.visual_slots)?input.visual_slots:[];if(artSlots.length>0)runningSlots=artSlots.map((vs,idx)=>{const kind=toolPlat===`xiaohongshu`?`pic`:idx===0?`cover`:`content`;const slotObj={slotId:`slot_${artNum}_${idx+1}`,index:artNum,sub:idx+1,kind,ratio:vs.aspect_ratio,intentDescription:vs.description,generationPrompt:vs.prompt};if(!capturedVisualSlots.some(s=>s.slotId===slotObj.slotId))capturedVisualSlots.push(slotObj);return slotObj});const rawContent=typeof rawArt.content===`string`?rawArt.content:``;const artTitle=typeof rawArt.title===`string`&&rawArt.title.trim()||(toolPlat===`xiaohongshu`?`小红书精选笔记 #${artNum}`:`社媒精选图文 #${artNum}`);if(!articlesMap.has(artKey))articlesMap.set(artKey,{id:`art_${toolPlat}_${toolAcc}_${artNum}`,index:artNum,platform:toolPlat,accountId:toolAcc,accountName:detectedAccountName,title:artTitle,digest:rawContent.slice(0,120).replace(/\n/g,` `),content:cleanAndUnescapeHtmlContent(rawContent),articleType:artType,status:isRunning?`streaming`:`completed`,isStreaming:isRunning,visualSlots:runningSlots,images:[],coverUrl:void 0});else{const existing=articlesMap.get(artKey);if(!isRunning){existing.status=`completed`;existing.isStreaming=false}if(!existing.content||existing.content.length<rawContent.length)existing.content=cleanAndUnescapeHtmlContent(rawContent);if(artTitle&&(!existing.title||existing.title.startsWith(`社媒精选`)||existing.title.startsWith(`小红书精选`)))existing.title=artTitle;if(runningSlots.length>0&&(!existing.visualSlots||existing.visualSlots.length===0))existing.visualSlots=runningSlots}})}if(status===`success`){genImagesCompleted=true;genImagesRunning=false;let imageHints=[];try{if(Array.isArray(input.items))imageHints=input.items;else if(typeof input.items_json===`string`)imageHints=JSON.parse(input.items_json);else if(Array.isArray(input.visual_slots))imageHints=input.visual_slots.map((vs,idx)=>{const roleStr=String(vs.role||vs.kind||``).toLowerCase();const slotIdStr=String(vs.slot_id||vs.slotId||``).toLowerCase();const isCover=roleStr===`cover`||slotIdStr.startsWith(`cover_`);const isPic=roleStr===`pic`||slotIdStr.startsWith(`pic_`)||slotIdStr.startsWith(`newspic_`);const kind=isCover?`cover`:isPic?`pic`:`content`;let aIdx=typeof vs.index===`number`&&vs.index>0?vs.index:void 0;let sIdx=typeof vs.sub===`number`&&vs.sub>0?vs.sub:idx+1;if(!aIdx&&slotIdStr){const m=slotIdStr.match(/(?:cover|content|pic|newspic)_(\d+)(?:_(\d+))?/i);if(m&&m[1]){aIdx=Number.parseInt(m[1],10);if(m[2])sIdx=Number.parseInt(m[2],10)}}return{kind,index:aIdx||(isPic?1:idx+1),sub:sIdx,prompt:vs.prompt}})}catch{}for(const hint of imageHints)if(hint&&typeof hint===`object`&&hint.prompt)capturedVisualSlots.push({slotId:`img_${hint.index||1}_${hint.kind||`content`}_${hint.sub||1}`,index:hint.index||1,sub:hint.sub||1,kind:hint.kind||`content`,generationPrompt:hint.prompt,articleType:hint.kind===`pic`?`newspic`:`news`});const toolPlat=normalizePlatformName(typeof input.platform===`string`?input.platform:typeof outputPayload.platform===`string`?outputPayload.platform:void 0);const toolAcc=typeof input.account_id===`string`&&input.account_id||typeof outputPayload.accountId===`string`&&outputPayload.accountId||typeof outputPayload.account_id===`string`&&outputPayload.account_id||void 0;const rawImgs=[];if(typeof outputPayload.path===`string`&&outputPayload.path)rawImgs.push(outputPayload.path);if(typeof outputPayload.url===`string`&&outputPayload.url)rawImgs.push(outputPayload.url);if(typeof outputPayload.file===`string`&&outputPayload.file)rawImgs.push(outputPayload.file);if(typeof outputPayload.filePath===`string`&&outputPayload.filePath)rawImgs.push(outputPayload.filePath);if(typeof outputPayload.outputPath===`string`&&outputPayload.outputPath)rawImgs.push(outputPayload.outputPath);if(typeof input.output_path===`string`&&input.output_path)rawImgs.push(input.output_path);if(Array.isArray(outputPayload.images)){for(const img of outputPayload.images)if(typeof img===`string`)rawImgs.push(img);else if(img&&typeof img.path===`string`)rawImgs.push(img.path)}if(Array.isArray(outputPayload.generated))for(let gIdx=0;gIdx<outputPayload.generated.length;gIdx++){const g=outputPayload.generated[gIdx];let outPath=``;let gItem=void 0;if(typeof g===`string`)outPath=g;else if(g&&typeof g.out===`string`){outPath=g.out;gItem=g.item}if(outPath){rawImgs.push(outPath);if(gItem&&typeof gItem===`object`)imageHints[rawImgs.length-1]={kind:gItem.kind,index:typeof gItem.index===`number`?gItem.index:void 0,sub:typeof gItem.sub===`number`?gItem.sub:void 0}}}const rawOutArticles=Array.isArray(outputPayload.articles)&&outputPayload.articles.length>0?outputPayload.articles:outputPayload.article&&typeof outputPayload.article===`object`?[outputPayload.article]:[];if(rawOutArticles.length>0)rawOutArticles.forEach((artObj,artIdx)=>{const artNum=typeof artObj.index===`number`?artObj.index:artIdx+1;const artPlat=toolPlat||detectedPlatform||`xiaohongshu`;const artAcc=toolAcc||effectiveAccountId||`default`;const artType=artPlat===`xiaohongshu`?`newspic`:`news`;const artKey=`${artPlat}_${artAcc}_${artType}_${artNum}`;const rawInputArt=Array.isArray(input.articles)?input.articles[artIdx]:input;const rawContent=typeof rawInputArt?.content===`string`?rawInputArt.content:typeof input.content===`string`?input.content:``;const artTitle=(typeof artObj.title===`string`?artObj.title:``)||(typeof rawInputArt?.title===`string`?rawInputArt.title:typeof input.title===`string`?input.title:artPlat===`xiaohongshu`?`小红书精选笔记 #${artNum}`:`社媒精选图文 #${artNum}`);const filePath=typeof artObj.path===`string`?artObj.path:void 0;if(!articlesMap.has(artKey))articlesMap.set(artKey,{id:`art_${artPlat}_${artAcc}_${artNum}`,index:artNum,platform:artPlat,accountId:artAcc,accountName:detectedAccountName,title:artTitle,digest:rawContent.slice(0,120).replace(/\n/g,` `),content:cleanAndUnescapeHtmlContent(rawContent),articleType:artType,filePath,scriptsDir:detectedScriptsDir,status:`completed`,isStreaming:false});else{const existing=articlesMap.get(artKey);existing.status=`completed`;existing.isStreaming=false;if(filePath)existing.filePath=filePath;if(artTitle&&(!existing.title||existing.title.startsWith(`社媒精选`)||existing.title.startsWith(`小红书精选`)))existing.title=artTitle;if(rawContent&&(!existing.content||existing.content.length<rawContent.length))existing.content=cleanAndUnescapeHtmlContent(rawContent);if(detectedScriptsDir&&!existing.scriptsDir)existing.scriptsDir=detectedScriptsDir}});const imgNameHint=typeof input.ImageName===`string`?input.ImageName:``;if(imgNameHint&&imageHints.length===0){let imgKind=`content`;if(imgNameHint.includes(`cover`))imgKind=`cover`;else if(imgNameHint.includes(`pic`))imgKind=`pic`;const idxMatch=imgNameHint.match(/_(\d+)(?:_(\d+))?$/);const aIdx=typeof outputPayload.articleIndex===`number`?outputPayload.articleIndex:idxMatch&&idxMatch[1]?Number.parseInt(idxMatch[1],10):0;const sIdx=idxMatch&&idxMatch[2]?Number.parseInt(idxMatch[2],10):1;imageHints.push({kind:imgKind,index:aIdx,sub:sIdx})}for(let i=0;i<rawImgs.length;i++){const raw=rawImgs[i];let fullImgPath=raw;if(detectedScriptsDir&&!raw.includes(`:`)&&!raw.startsWith(`/`)&&!raw.startsWith(`http://`)&&!raw.startsWith(`https://`)&&!raw.startsWith(`data:`)&&!raw.startsWith(`wincode-media://`)){const sep=detectedScriptsDir.includes(`\\`)?`\\`:`/`;const cleanName=raw.replace(/^[\\/]+/,``);if((detectedScriptsDir.includes(`/tasks/active/`)||detectedScriptsDir.includes(`/tasks/archive/`)||detectedScriptsDir.includes(`\\tasks\\active\\`)||detectedScriptsDir.includes(`\\tasks\\archive\\`))&&!cleanName.startsWith(`images/`)&&!cleanName.startsWith(`images\\`)&&!detectedScriptsDir.endsWith(`/images`)&&!detectedScriptsDir.endsWith(`\\images`))fullImgPath=`${detectedScriptsDir}${sep}images${sep}${cleanName}`;else fullImgPath=`${detectedScriptsDir}${sep}${cleanName}`}const norm=normalizeLocalImageUrl(fullImgPath);if(norm&&!generatedImageUrls.includes(norm))generatedImageUrls.push(norm);const pathAcc=fullImgPath.match(/accounts[\\/]([^\\/]+)[\\/]/)?.[1]||fullImgPath.match(/tasks[\\/](?:active|archive)[\\/][^\\/]+[\\/][a-z0-9]+_([^\\/]+)[\\/]/)?.[1];const hint=imageHints[i]||{};const meta=parseImageMeta(fullImgPath,{kind:hint.kind,index:hint.index,sub:hint.sub,platform:toolPlat||detectedPlatform,accountId:pathAcc||toolAcc||effectiveAccountId,taskId:detectedTaskId});if(!parsedImagesList.some(p=>p.url===meta.url))parsedImagesList.push(meta)}const hasPicInHints=imageHints.some(h=>h.kind===`pic`);for(const h of imageHints)if(h&&(h.kind===`cover`||h.kind===`content`)&&typeof h.index===`number`&&h.index>0){const accKey=toolAcc||effectiveAccountId||`default`;const curQ=accountQuotaMap.get(accKey)||accountQuotaMap.get(`default`)||{total:h.index+(hasPicInHints?1:0),articleCount:h.index,newspicCount:hasPicInHints?1:0,hasNewspic:hasPicInHints};if(h.index>curQ.articleCount){curQ.articleCount=h.index;curQ.total=curQ.articleCount+curQ.newspicCount;accountQuotaMap.set(accKey,curQ);accountQuotaMap.set(`default`,curQ);detectedTargetCount=Math.max(detectedTargetCount,curQ.total)}}}}if(toolName===`gzh_validate_html`||toolName.includes(`validate_html`)){if(status===`running`)validateHtmlRunning=true;if(status===`success`)validateHtmlCompleted=true}if(toolName===`gzh_publish_draft`||toolName.includes(`publish_draft`)){const pubKey=`${normalizePlatformName(typeof input.platform===`string`?input.platform:void 0)||detectedPlatform}_${typeof input.account_id===`string`&&input.account_id||effectiveAccountId||`default`}`;if(status===`running`||status===`inputStreaming`||status===`pendingApproval`){publishDraftRunning=true;taskPublishRunningMap.set(pubKey,true)}if(status===`success`){publishDraftCompleted=true;publishDraftRunning=false;publishedDraftId=String(outputPayload.draft_id||outputPayload.id||``);publishedMediaId=String(outputPayload.media_id||``);publishedScheduleTime=String(input.schedule_time||``);if(typeof outputPayload.receipt_screenshot===`string`)publishedReceiptScreenshot=outputPayload.receipt_screenshot;if(typeof outputPayload.qr_screenshot===`string`)publishedQrScreenshot=outputPayload.qr_screenshot;taskPublishedMap.set(pubKey,true);taskPublishRunningMap.set(pubKey,false);taskPublishedInfoMap.set(pubKey,{mediaId:publishedMediaId,draftId:publishedDraftId,scheduledTime:publishedScheduleTime,receiptScreenshot:publishedReceiptScreenshot,qrScreenshot:publishedQrScreenshot})}if(Array.isArray(input.titles)&&input.titles.length>0){const draftPlat=normalizePlatformName(typeof input.platform===`string`?input.platform:void 0)||detectedPlatform;const draftAcc=typeof input.account_id===`string`&&input.account_id||effectiveAccountId||`default`;const draftType=String(input.article_type||`news`);const titlesList=input.titles;const digestsList=Array.isArray(input.digests)?input.digests:[];const filesList=Array.isArray(input.article_files)?input.article_files:[];for(let tIdx=0;tIdx<titlesList.length;tIdx++){const tTitle=String(titlesList[tIdx]||``).trim();if(!tTitle)continue;const tDigest=String(digestsList[tIdx]||``);const customFile=String(filesList[tIdx]||``);let singleType=draftType;if(customFile.includes(`newspic`)||customFile.includes(`_pic.`)||tTitle.includes(`小绿书`)||tTitle.includes(`图片消息`))singleType=`newspic`;else if(customFile.endsWith(`.html`)||!customFile&&tIdx<titlesList.length-1)singleType=`news`;const docIdx=titlesList.slice(0,tIdx).filter((_,pIdx)=>{const pFile=String(filesList[pIdx]||``);const pT=String(titlesList[pIdx]||``);const isNp=pFile.includes(`newspic`)||pFile.includes(`_pic.`)||pT.includes(`小绿书`)||pT.includes(`图片消息`);return singleType===`newspic`?isNp:!isNp}).length+1;const artKey=`${draftPlat}_${draftAcc}_${singleType}_${docIdx}`;let inferredPath=``;if(customFile)inferredPath=detectedScriptsDir?`${detectedScriptsDir}/${customFile}`:customFile;else if(detectedScriptsDir){const defaultName=draftType===`newspic`?`article_v2_${docIdx}_pic.json`:`article_v2_${docIdx}.html`;inferredPath=`${detectedScriptsDir}/${defaultName}`}let existing=articlesMap.get(artKey);if(!existing){for(const art of articlesMap.values())if(art.platform===draftPlat&&(art.accountId||`default`)===(draftAcc||`default`)&&art.articleType===singleType&&art.index===docIdx){existing=art;break}}if(!existing){for(const art of articlesMap.values())if(art.platform===draftPlat&&art.articleType===singleType&&art.index===docIdx){existing=art;break}}if(existing){if(tTitle&&(!existing.title||existing.title.startsWith(`社媒精选`)||existing.title.startsWith(`小红书精选`)||existing.title===`生成的社媒文章`))existing.title=tTitle;if(tDigest&&!existing.digest)existing.digest=tDigest;if(inferredPath&&!existing.filePath)existing.filePath=inferredPath;if(detectedScriptsDir&&!existing.scriptsDir)existing.scriptsDir=detectedScriptsDir}else{let recoveredContent=``;for(const[fName,fContent]of knownFileContents.entries())if((fName.includes(`article_v2_${docIdx}`)||fName.includes(`article_${docIdx}`))&&fContent.includes(`<`)){recoveredContent=fContent;break}if(!recoveredContent){for(const[sName,sObj]of knownSpecFiles.entries())if(sObj.index===docIdx||sName.includes(`spec_${docIdx}`)){recoveredContent=extractContentFromDocSpec(sObj);break}}if(!recoveredContent)recoveredContent=``;articlesMap.set(artKey,{id:`art_draft_${draftPlat}_${draftAcc}_${singleType}_${docIdx}`,index:docIdx,platform:draftPlat,accountId:draftAcc,accountName:detectedAccountName,title:tTitle,digest:tDigest||(singleType===`newspic`?`小绿书图文卡片`:`公众号排版长文`),content:cleanAndUnescapeHtmlContent(recoveredContent),articleType:singleType,coverUrl:``,images:[],filePath:inferredPath||void 0,scriptsDir:detectedScriptsDir||void 0})}}}}if(toolName===`gzh_verify_draft`||toolName.includes(`verify_draft`)){if(status===`success`)verifyDraftCompleted=true}}}if((articlesMap.size>0||buildArticleCompleted||genImagesCompleted||validateHtmlCompleted||knownSpecFiles.size>0||knownFileContents.size>0)&&detectedPlatform===`gzh`){const canonicalAccounts=new Set;for(const art of articlesMap.values())if(art.accountId)canonicalAccounts.add(art.accountId);if(canonicalAccounts.size===0)if(effectiveAccountId)canonicalAccounts.add(effectiveAccountId);else canonicalAccounts.add(`default`);for(const accKey of canonicalAccounts){const targetNewsCount=(accountQuotaMap.get(accKey)||(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||(detectedAccountName?accountQuotaMap.get(detectedAccountName):void 0)||accountQuotaMap.get(`default`))?.articleCount||0;if(targetNewsCount<=1)continue;const existingNews=Array.from(articlesMap.values()).filter(a=>(a.platform===detectedPlatform||a.platform===`gzh`)&&(a.accountId||`default`)===(accKey||`default`)&&a.articleType!==`newspic`);const existingNewsIndices=new Set(existingNews.map(a=>a.index||1));for(let missingIdx=1;missingIdx<=targetNewsCount;missingIdx++){if(existingNewsIndices.has(missingIdx))continue;const artKey=`${detectedPlatform}_${accKey||`default`}_news_${missingIdx}`;if(articlesMap.has(artKey))continue;let foundSpec;for(const[sName,sObj]of knownSpecFiles.entries()){const specIdx=typeof sObj.index===`number`?sObj.index:void 0;if(sObj.article_type!==`newspic`&&(specIdx===missingIdx||sName.includes(`_spec_${missingIdx}.json`)||sName.includes(`spec_${missingIdx}.json`))){foundSpec=sObj;break}}let foundHtmlContent=``;for(const[fName,fContent]of knownFileContents.entries())if((fName.includes(`article_v2_${missingIdx}.html`)||fName.includes(`article_${missingIdx}.html`))&&fContent.includes(`<`)){foundHtmlContent=fContent;break}const matchedTopic=latestAssistantTopics.filter(t=>t.articleType!==`newspic`)[missingIdx-1]||checkTopicsFromTool.filter(t=>t.articleType!==`newspic`)[missingIdx-1]||discoverTopicsFromTool.filter(t=>t.articleType!==`newspic`)[missingIdx-1];let artTitle=``;if(foundSpec&&typeof foundSpec.title===`string`&&foundSpec.title.trim())artTitle=foundSpec.title.trim();else if(foundHtmlContent){const hMatch=foundHtmlContent.match(/<h[12][^>]*>(.*?)<\/h[12]>/i)||foundHtmlContent.match(/<title[^>]*>(.*?)<\/title>/i)||foundHtmlContent.match(/<!--\s*TITLE:\s*([^\r\n>]+)\s*-->/);if(hMatch&&hMatch[1])artTitle=hMatch[1].replace(/<[^>]+>/g,``).trim()}if(!artTitle&&matchedTopic?.title)artTitle=matchedTopic.title;if(!artTitle)artTitle=detectedTopicTheme?`${detectedTopicTheme}深度精选次篇 #${missingIdx}`:`公众号精选排版长文 #${missingIdx}`;let artContent=``;if(foundSpec)artContent=extractContentFromDocSpec(foundSpec);else if(foundHtmlContent)artContent=foundHtmlContent;else artContent=`正文排版落盘产物生成中，文章正在快马加鞭赶来的路上...`;const inferredPath=detectedScriptsDir?`${detectedScriptsDir}/article_v2_${missingIdx}.html`:void 0;articlesMap.set(artKey,{id:`art_auto_${detectedPlatform}_${accKey||`default`}_news_${missingIdx}`,index:missingIdx,platform:detectedPlatform,accountId:accKey!=="default"?accKey:effectiveAccountId,accountName:detectedAccountName,title:artTitle,digest:matchedTopic?.hookAngle||`公众号多图文合辑次条 #${missingIdx}`,content:cleanAndUnescapeHtmlContent(artContent),articleType:`news`,coverUrl:``,images:[],filePath:inferredPath,scriptsDir:detectedScriptsDir||void 0});existingNewsIndices.add(missingIdx)}}}const reconciledArticles=[];const articlesByGroup=new Map;for(const art of articlesMap.values()){const gKey=`${art.platform}_${art.accountId||`default`}`;const list=articlesByGroup.get(gKey)??[];list.push(art);articlesByGroup.set(gKey,list)}for(const[_gKey,gArts]of articlesByGroup.entries()){const firstArt=gArts[0];if(!(firstArt?.platform===`gzh`)){const cleanArts=gArts.filter(a=>!a.id.startsWith(`art_auto_`));const fileArts=cleanArts.filter(a=>a.id.startsWith(`art_file_`)||Boolean(a.filePath));const targetList=fileArts.length>0?fileArts:cleanArts;targetList.sort((a,b)=>(a.index||0)-(b.index||0));reconciledArticles.push(...targetList);continue}const accId=firstArt?.accountId;const quota=(accId?accountQuotaMap.get(accId):void 0)||(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||(detectedAccountName?accountQuotaMap.get(detectedAccountName):void 0)||accountQuotaMap.get(`default`);if(quota){const newsArticles=gArts.filter(a=>a.articleType!==`newspic`);let newspics=gArts.filter(a=>a.articleType===`newspic`);const newsTitleSet=new Set(newsArticles.map(a=>a.title.replace(/^[《<]|[》>]$/g,``).replace(/\s+/g,``).trim()).filter(Boolean));const hasIndependentPicFile=np=>{return Boolean(np.filePath&&(np.filePath.includes(`_pic.json`)||np.filePath.includes(`newspic`)||np.filePath.includes(`_pic.`)))};const hasIndependentNewsFile=art=>{if(art.id.startsWith(`art_file_`))return true;if(!art.filePath)return false;const normPath=art.filePath.replace(/\\/g,`/`);const fName=normPath.split(`/`).pop()||``;if(knownFileContents.has(fName)||knownFileContents.has(normPath))return true;const isSandboxPath=normPath.includes(`/tasks/active/`)||normPath.includes(`/tasks/archive/`)||normPath.includes(`/articles/`);const hasSubstantialContent=art.content&&art.content.length>500&&!art.content.includes(`快马加鞭赶来的路上`)&&!art.content.includes(`正文排版落盘产物生成中`);return Boolean(isSandboxPath&&hasSubstantialContent)};newspics=newspics.filter(np=>{if(hasIndependentPicFile(np))return true;const cleanNpTitle=np.title.replace(/^[《<]|[》>]$/g,``).replace(/\s+/g,``).trim();if(cleanNpTitle&&newsTitleSet.has(cleanNpTitle))return false;return true});if(quota.articleCount===0&&quota.newspicCount>0&&newsArticles.length===0){const physicalNewspics=newspics.filter(hasIndependentPicFile);const otherNewspics=newspics.filter(np=>!hasIndependentPicFile(np));const sortedNewspics=[...physicalNewspics,...otherNewspics];sortedNewspics.sort((a,b)=>(a.index||0)-(b.index||0));const keepCount=Math.max(quota.newspicCount,physicalNewspics.length);reconciledArticles.push(...sortedNewspics.slice(0,keepCount));continue}if(quota.newspicCount===0&&quota.articleCount>0&&newspics.length===0){const physicalNews=newsArticles.filter(hasIndependentNewsFile);const otherNews=newsArticles.filter(na=>!hasIndependentNewsFile(na));let sortedNews;if(physicalNews.length>0)if(physicalNews.length>=quota.articleCount)sortedNews=physicalNews;else{const existingIndices=new Set(physicalNews.map(p=>p.index||1));const supplemental=otherNews.filter(o=>!existingIndices.has(o.index||1));sortedNews=[...physicalNews,...supplemental]}else sortedNews=newsArticles;sortedNews.sort((a,b)=>(a.index||0)-(b.index||0));const keepCount=Math.max(quota.articleCount,physicalNews.length);reconciledArticles.push(...sortedNews.slice(0,keepCount));continue}const physicalNewspics=newspics.filter(hasIndependentPicFile);const otherNewspics=newspics.filter(np=>!hasIndependentPicFile(np));const sortedNewspics=[...physicalNewspics,...otherNewspics];const targetNewspicQuota=typeof quota.newspicCount===`number`&&quota.newspicCount>0?quota.newspicCount:quota.hasNewspic||newspics.length>0&&quota.newspicCount!==0?1:0;const maxAllowedNewspics=Math.max(targetNewspicQuota,physicalNewspics.length);const effectiveNewspics=sortedNewspics.slice(0,maxAllowedNewspics);const physicalNews=newsArticles.filter(hasIndependentNewsFile);const otherNews=newsArticles.filter(na=>!hasIndependentNewsFile(na));let sortedNews;if(physicalNews.length>0)if(physicalNews.length>=(quota.articleCount||1))sortedNews=physicalNews;else{const existingIndices=new Set(physicalNews.map(p=>p.index||1));const supplemental=otherNews.filter(o=>!existingIndices.has(o.index||1));sortedNews=[...physicalNews,...supplemental]}else sortedNews=newsArticles;sortedNews.sort((a,b)=>(a.index||0)-(b.index||0));effectiveNewspics.sort((a,b)=>(a.index||0)-(b.index||0));const maxAllowedNews=Math.max(quota.articleCount||1,physicalNews.length);const effectiveNews=sortedNews.slice(0,maxAllowedNews);reconciledArticles.push(...effectiveNews,...effectiveNewspics);continue}const physicalNews=gArts.filter(a=>a.articleType!==`newspic`&&(a.id.startsWith(`art_file_`)||Boolean(a.filePath&&knownFileContents.has(a.filePath.replace(/\\/g,`/`).split(`/`).pop()||``))));if(physicalNews.length>0){const maxPhysicalIdx=Math.max(...physicalNews.map(p=>p.index||1));const cleanArts=gArts.filter(a=>{if(a.articleType===`newspic`)return true;if(a.id.startsWith(`art_file_`))return true;return(a.index||1)<=maxPhysicalIdx});reconciledArticles.push(...cleanArts);continue}reconciledArticles.push(...gArts)}const builtArticles=(reconciledArticles.length>0?reconciledArticles:Array.from(articlesMap.values())).map(art=>{const isNewspic=art.articleType===`newspic`;const isXhs=art.platform===`xiaohongshu`;const assignedSlots=art.visualSlots&&art.visualSlots.length>0?art.visualSlots:capturedVisualSlots.filter(vs=>{if(isNewspic)return(vs.articleType===`newspic`||vs.slotId.includes(`newspic`)||vs.slotId.startsWith(`pic_`)||vs.slotId.startsWith(`newspic_`))&&(vs.index||1)===(art.index||1);return(vs.index||1)===(art.index||1)&&vs.articleType!==`newspic`&&!vs.slotId.includes(`newspic`)});let targetCount=art.targetCardImageCount;if(!targetCount&&(isNewspic||isXhs)){if(isNewspic&&detectedNewspicCardCount)targetCount=detectedNewspicCardCount;else if(isXhs&&detectedXhsCardCount)targetCount=detectedXhsCardCount;else if(assignedSlots.length>0){const picSlots=assignedSlots.filter(s=>s.kind===`pic`||s.kind===`cover`);if(picSlots.length>0)targetCount=Math.min(picSlots.length,12)}if(!targetCount)targetCount=4}return{...art,visualSlots:assignedSlots,targetCardImageCount:targetCount}}).sort((a,b)=>{if(a.platform===b.platform&&(a.accountId||``)===(b.accountId||``)){if(a.articleType!==b.articleType)return a.articleType===`news`?-1:1;return(a.index||0)-(b.index||0)}const idxDiff=(a.index||0)-(b.index||0);if(idxDiff!==0)return idxDiff;return a.platform.localeCompare(b.platform)});for(const art of builtArticles){if(isToolErrorOrCrashContent(art.content))art.content=art.platform===`xiaohongshu`?`笔记正文生成就绪，可随时编辑修改。`:`文章正文生成就绪，可随时编辑修改。`;if(!art.content||art.content.includes(`已生成就绪`)||art.content.includes(`文章排版与规范校验已就绪`)||art.content.includes(`微信公众号深度图文排版长文`)||art.content.includes(`小绿书 3:4 竖版专属图文卡片`)||art.content.includes(`正文排版已完成微信官方`)||art.content.includes(`本文由架构师深度解析`)||art.content.includes(`全链路实战心法`)||art.content.includes(`落盘稿件`)||art.content.includes(`本文围绕当前主题展开全景剖析`)||art.content.length<1500){const artIdx=art.index||1;let matchedHtml;for(const[k,v]of knownFileContents.entries()){if(!v||v.length<100||!v.includes(`<`))continue;const normK=k.replace(/\\/g,`/`);if(normK.endsWith(`/article_v2_${artIdx}.html`)||normK===`article_v2_${artIdx}.html`||normK.endsWith(`/article_${artIdx}.html`)||normK===`article_${artIdx}.html`||art.filePath&&(normK===art.filePath.replace(/\\/g,`/`)||normK.endsWith(art.filePath.replace(/^.*[\\/]/,``)))){matchedHtml=v;break}}if(matchedHtml){art.content=cleanAndUnescapeHtmlContent(matchedHtml);const hMatch=matchedHtml.match(/<h[12][^>]*>(.*?)<\/h[12]>/i)||matchedHtml.match(/<title[^>]*>(.*?)<\/title>/i)||matchedHtml.match(/<!--\s*TITLE:\s*([^\r\n>]+)\s*-->/);if(hMatch&&hMatch[1]){const tFromH=hMatch[1].replace(/<[^>]+>/g,``).trim();if(tFromH&&(!art.title||art.title.startsWith(`社媒精选`)||art.title.startsWith(`公众号精选`)||art.title.includes(`**`)))art.title=tFromH}}else if(art.filePath&&(art.content.includes(`微信公众号深度图文排版长文`)||art.content.includes(`小绿书 3:4 竖版专属图文卡片`)||art.content.includes(`已就绪`)))art.content=``}if(art.title)art.title=art.title.replace(/^[*#\s]+|[*#\s]+$/g,``).replace(/^[0-9]+[.\s、]+/,``).replace(/[\u{1F7E2}\u{1F7E1}\u{1F534}\u{2B50}\u{2605}]/gu,``).replace(/^[*#\s]+|[*#\s]+$/g,``).trim();const isPendingPlaceholderText=!art.content||art.content.includes(`正文排版落盘产物生成中`)||art.content.includes(`文章正在快马加鞭赶来`)||art.content.includes(`正在从规范任务沙箱异步载入真实长文`);if(art.isStreaming)art.status=`streaming`;else if(isPendingPlaceholderText&&!art.filePath)art.status=`pending`;else{art.status=`completed`;art.isStreaming=false}}let activeStreamingIndex;for(const art of builtArticles)if(art.status===`streaming`||art.isStreaming){activeStreamingIndex=art.index||1;break}if(builtArticles.length>0){const newspicsByAccount=new Map;for(const a of builtArticles)if(a.articleType===`newspic`){const acc=a.accountId?.trim()||`default`;if(!newspicsByAccount.has(acc))newspicsByAccount.set(acc,[]);newspicsByAccount.get(acc).push(a)}for(const art of builtArticles){const artAcc=art.accountId?.trim()||`default`;const isNewspic=art.articleType===`newspic`;const accountNewspics=newspicsByAccount.get(artAcc)||[];const newspicIndexInAccount=accountNewspics.findIndex(n=>n.id===art.id)+1;const matched=parsedImagesList.filter(img=>{if(detectedTaskId&&img.taskId&&img.taskId!==detectedTaskId)return false;if(img.accountId&&art.accountId&&img.accountId.trim()!==art.accountId.trim())return false;if(img.platform&&normalizePlatformName(img.platform)!==art.platform)return false;const isXhs=art.platform===`xiaohongshu`;if(isNewspic){if(img.kind!==`pic`&&!img.url.includes(`pic_`)&&!img.url.includes(`newspic`))return false;if(typeof img.articleIndex===`number`&&img.articleIndex>0)return img.articleIndex===newspicIndexInAccount||img.articleIndex===art.index;if(builtArticles.length>1)return Boolean(img.kind===`pic`&&img.platform===art.platform&&(!img.accountId||img.accountId===art.accountId));return true}else if(isXhs){if(typeof art.index===`number`&&art.index>0){if(typeof img.articleIndex===`number`&&img.articleIndex>0){if(img.articleIndex!==art.index)return false}}return true}else{if(accountNewspics.length>0&&(img.kind===`pic`||img.url.includes(`pic_`)))return false;if(img.platform&&art.platform&&img.platform!==art.platform)return false;if(img.accountId&&art.accountId&&img.accountId!==art.accountId)return false;if(typeof art.index===`number`&&art.index>0){if(typeof img.articleIndex===`number`&&img.articleIndex>0){if(img.articleIndex!==art.index)return false}else if(builtArticles.length>1)return false}return true}});matched.sort((a,b)=>{if(a.kind===`cover`&&b.kind!==`cover`)return-1;if(a.kind!==`cover`&&b.kind===`cover`)return 1;return a.subIndex-b.subIndex});const isXhs=art.platform===`xiaohongshu`;const dedupedMatched=[];for(const m of matched){const rawUrl=m.url.replace(/\\/g,`/`);const fileName=(rawUrl.split(`/`).pop()||``).toLowerCase();const baseWithoutExt=fileName.replace(/\.[^.]+$/,``);const slotKey=isXhs||isNewspic?`card_${m.subIndex||baseWithoutExt}`:m.kind===`cover`?`cover_${m.articleIndex||1}`:`content_${m.articleIndex||1}_${m.subIndex||baseWithoutExt}`;const existingIdx=dedupedMatched.findIndex(item=>{const itemFileName=(item.url.replace(/\\/g,`/`).split(`/`).pop()||``).toLowerCase();const itemBaseWithoutExt=itemFileName.replace(/\.[^.]+$/,``);return(isXhs||isNewspic?`card_${item.subIndex||itemBaseWithoutExt}`:item.kind===`cover`?`cover_${item.articleIndex||1}`:`content_${item.articleIndex||1}_${item.subIndex||itemBaseWithoutExt}`)===slotKey||itemFileName===fileName});if(existingIdx===-1)dedupedMatched.push(m);else{const existingItem=dedupedMatched[existingIdx];const currentIsCanonical=rawUrl.includes(`/images/`);const existingIsCanonical=existingItem.url.replace(/\\/g,`/`).includes(`/images/`);if(currentIsCanonical&&!existingIsCanonical)dedupedMatched[existingIdx]=m}}let finalImgs=[];if(dedupedMatched.length>0)finalImgs=dedupedMatched.map(m=>m.url);else if(builtArticles.length===1&&!isNewspic&&!isXhs&&(genImagesCompleted||genImagesRunning)&&(parsedImagesList.length>0||generatedImageUrls.length>0))finalImgs=parsedImagesList.length>0?parsedImagesList.map(m=>m.url):generatedImageUrls;else finalImgs=[];const maxCards=isXhs?4:isNewspic?art.targetCardImageCount||4:void 0;if(maxCards&&finalImgs.length>maxCards)finalImgs=finalImgs.slice(0,maxCards);art.images=[...new Set(finalImgs)];const coverItem=dedupedMatched.find(m=>m.kind===`cover`)||(isXhs||isNewspic?dedupedMatched[0]:dedupedMatched.find(m=>/(?:^|[\\/])cover[._]/i.test(m.url)));if(coverItem)art.coverUrl=coverItem.url;else if((isXhs||isNewspic)&&art.images[0])art.coverUrl=art.images[0];else art.coverUrl=void 0;art.contentImages=art.images.filter(img=>img!==art.coverUrl);if(!art.scriptsDir&&detectedScriptsDir)art.scriptsDir=detectedScriptsDir;if(!art.filePath&&detectedScriptsDir&&!isNewspic)if((detectedScriptsDir.includes(`/tasks/active/`)||detectedScriptsDir.includes(`/tasks/archive/`)||detectedScriptsDir.includes(`\\tasks\\active\\`)||detectedScriptsDir.includes(`\\tasks\\archive\\`))&&!detectedScriptsDir.endsWith(`/articles`)&&!detectedScriptsDir.endsWith(`\\articles`))art.filePath=`${detectedScriptsDir}/articles/article_v2_${art.index||1}.html`;else art.filePath=`${detectedScriptsDir}/article_v2_${art.index||1}.html`;if(art.content&&(art.images.length>0||art.coverUrl))art.content=inlineInjectImagesIntoContent(art.content,art.images,art.coverUrl);if(publishIntentIssued||publishDraftRunning||publishDraftCompleted||verifyDraftCompleted)art.locked=true}}const allTopicGroupKeys=new Set;for(const t of[...latestAssistantTopics,...checkTopicsFromTool,...discoverTopicsFromTool]){const k=`${t.platform||detectedPlatform}_${t.accountId||effectiveAccountId}`;allTopicGroupKeys.add(k)}const topics=[];if(allTopicGroupKeys.size===0){if(latestAssistantTopics.length>0)topics.push(...latestAssistantTopics);else if(checkTopicsFromTool.length>0)topics.push(...checkTopicsFromTool);else if(discoverTopicsFromTool.length>0)topics.push(...discoverTopicsFromTool)}else for(const grpKey of allTopicGroupKeys){const assistantForGrp=latestAssistantTopics.filter(t=>`${t.platform||detectedPlatform}_${t.accountId||effectiveAccountId}`===grpKey);if(assistantForGrp.length>0){topics.push(...assistantForGrp);continue}const checkForGrp=checkTopicsFromTool.filter(t=>`${t.platform||detectedPlatform}_${t.accountId||effectiveAccountId}`===grpKey);if(checkForGrp.length>0){topics.push(...checkForGrp);continue}const discoverForGrp=discoverTopicsFromTool.filter(t=>`${t.platform||detectedPlatform}_${t.accountId||effectiveAccountId}`===grpKey);if(discoverForGrp.length>0)topics.push(...discoverForGrp)}const taskKeys=[];const taskGroups=new Map;for(const art of builtArticles){const key=`${art.platform}_${art.accountId||effectiveAccountId||`default`}`;if(!taskGroups.has(key)){taskKeys.push(key);taskGroups.set(key,{platform:art.platform,accountId:art.accountId,accountName:art.accountName})}}for(const t of topics)if(t.platform){const key=`${t.platform}_${t.accountId||effectiveAccountId||`default`}`;if(!taskGroups.has(key)){taskKeys.push(key);taskGroups.set(key,{platform:t.platform,accountId:t.accountId,accountName:t.accountName})}}const hasActiveWorkflowSignals=discoverTopicsCallFound||checkTopicsCallFound||buildArticleRunning||genImagesRunning||validateHtmlRunning||publishDraftRunning||publishDraftCompleted||publishIntentIssued;if(taskKeys.length===0&&hasActiveWorkflowSignals){const key=`${detectedPlatform}_${effectiveAccountId}`;taskKeys.push(key);taskGroups.set(key,{platform:detectedPlatform,accountId:effectiveAccountId,accountName:detectedAccountName})}const tasks=[];for(const key of taskKeys){const grp=taskGroups.get(key);const taskArticles=builtArticles.filter(a=>a.platform===grp.platform&&(!grp.accountId||!a.accountId||a.accountId===grp.accountId));const taskTopics=topics.filter(t=>(!t.platform||t.platform===grp.platform)&&(!t.accountId||!grp.accountId||t.accountId===grp.accountId));const isThisTaskPublishRunning=taskPublishRunningMap.get(key)||taskKeys.length===1&&publishDraftRunning;const isThisTaskPublished=taskPublishedMap.get(key)||taskKeys.length===1&&publishDraftCompleted;const isThisTaskGenerating=taskGeneratingMap.get(key)||buildArticleRunning||genImagesRunning||validateHtmlRunning;let taskStage=`idle`;if(isThisTaskPublishRunning)taskStage=`publishing`;else if(isThisTaskPublished)taskStage=`published`;else if(isThisTaskGenerating&&taskArticles.length===0)taskStage=`generating`;else if(taskArticles.length>0)taskStage=`review`;else if(discoverTopicsCallFound||checkTopicsCallFound||taskTopics.length>0)taskStage=`topics`;const taskSteps=[{id:`step_topic_${key}`,name:`1. ${grp.platform===`xiaohongshu`?`小红书爆款切角`:`热点雷达`}与查重`,desc:`热点雷达嗅探与历史标题查重比对`,status:taskTopics.length>0?`completed`:checkTopicsCallFound?`running`:`pending`,detail:taskTopics.length>0?`已匹配 ${taskTopics.length} 个${grp.platform===`xiaohongshu`?`图文卡片`:`专属`}候选选题`:checkTopicsCallFound?`正在雷达嗅探与查重...`:`等待选题调度`},{id:`step_content_${key}`,name:`2. ${grp.platform===`xiaohongshu`?`小红书笔记撰写`:grp.platform===`gzh`?`微信长文排版`:`专栏正文撰写`}`,desc:`依据目标平台排版规范生成合规产物`,status:taskArticles.length>0?`completed`:buildArticleRunning?`running`:`pending`,detail:taskArticles.length>0?`已构建 ${taskArticles.length} 篇正文稿件`:buildArticleRunning?`排版中...`:`等待执行`},{id:`step_images_${key}`,name:`3. ${grp.platform===`xiaohongshu`?`3:4 竖版多图生成`:grp.platform===`gzh`?`2.35:1 封面与正文插图`:`专栏题图生成`}`,desc:`根据平台规范比例生成封面图与正文插图`,status:taskArticles.some(a=>(a.images?.length??0)>0||a.coverUrl)?`completed`:genImagesRunning?`running`:`pending`,detail:taskArticles.some(a=>(a.images?.length??0)>0)?`配图就绪 (${taskArticles[0]?.images?.length??0} 张)`:`排队中`},{id:`step_validate_${key}`,name:`4. 平台规范硬校验`,desc:`执行字数、敏感词过滤与排版合规断言`,status:taskArticles.length>0?`completed`:validateHtmlRunning?`running`:`pending`,detail:taskArticles.length>0?`机器合规校验通过`:`排队中`},{id:`step_review_${key}`,name:`5. 人工审核与发布决策`,desc:`人工在线预览、微调保存并执行草稿/排期发布`,status:taskStage===`published`?`completed`:taskStage===`publishing`||taskStage===`review`?`running`:`pending`,detail:taskStage===`published`?`已提交发布`:taskStage===`review`?`稿件就绪，可独立发布`:`等待内容生成`}];const platformName=grp.platform===`gzh`?`微信公众号`:grp.platform===`xiaohongshu`?`小红书`:grp.platform===`zhihu`?`知乎专栏`:grp.platform===`toutiao`?`今日头条`:grp.platform===`baijiahao`?`百家号`:grp.platform;const isGeneratingToolsRunning=Boolean(buildArticleRunning||genImagesRunning||validateHtmlRunning);const grpQuota=(grp.accountId?accountQuotaMap.get(grp.accountId):void 0)||(grp.accountName?accountQuotaMap.get(grp.accountName):void 0)||accountQuotaMap.get(`default`);const grpTargetCount=grpQuota?.total||grpQuota?.articleCount||taskArticles.length||1;const realTaskArticles=taskArticles.filter(a=>{if(!a.content||a.content.trim().length===0)return false;const minLen=a.platform===`xiaohongshu`||a.articleType===`newspic`?20:60;if(a.content.length<minLen)return false;return!a.content.includes(`正文排版落盘产物生成中`)&&!a.content.includes(`文章正在快马加鞭赶来`)&&!a.content.includes(`正在从规范任务沙箱异步载入真实长文`)});const isTaskArticlesReady=isGeneratingToolsRunning?realTaskArticles.length>=grpTargetCount:realTaskArticles.length>0;tasks.push({id:`task_${grp.platform}_${grp.accountId||`default`}`,platform:grp.platform,platformName,accountId:grp.accountId,accountName:grp.accountName||detectedAccountName,stage:taskStage,topics:taskTopics,articles:taskArticles,pipelineSteps:taskSteps,allPrePublishTasksCompleted:!buildArticleRunning&&!genImagesRunning&&!validateHtmlRunning&&isTaskArticlesReady&&(taskStage===`review`||taskStage===`publishing`||taskStage===`published`),publishedInfo:publishDraftCompleted?{draftId:taskPublishedInfoMap.get(key)?.draftId||publishedDraftId,mediaId:taskPublishedInfoMap.get(key)?.mediaId||publishedMediaId,scheduledTime:taskPublishedInfoMap.get(key)?.scheduledTime||publishedScheduleTime,isVerified:verifyDraftCompleted,receiptScreenshot:taskPublishedInfoMap.get(key)?.receiptScreenshot||publishedReceiptScreenshot,qrScreenshot:taskPublishedInfoMap.get(key)?.qrScreenshot||publishedQrScreenshot}:void 0})}const isGeneratingToolsRunning=Boolean(buildArticleRunning||genImagesRunning||validateHtmlRunning);const realGeneratedArticles=builtArticles.filter(art=>{if(!art.content||art.content.trim().length===0)return false;const minLen=art.platform===`xiaohongshu`||art.articleType===`newspic`?20:60;if(art.content.length<minLen)return false;const lower=art.content.toLowerCase();if(lower.includes(`正文排版落盘产物生成中`)||lower.includes(`文章正在快马加鞭赶来`)||lower.includes(`正在从规范任务沙箱异步载入真实长文`))return false;return true});const hasPendingPlaceholder=builtArticles.some(art=>{if(!art.content||art.content.trim().length===0)return true;const lower=art.content.toLowerCase();return lower.includes(`正文排版落盘产物生成中`)||lower.includes(`文章正在快马加鞭赶来`)||lower.includes(`正在从规范任务沙箱异步载入真实长文`)});const targetTotalArticles=tasks.reduce((acc,t)=>{const qObj=(t.accountId?accountQuotaMap.get(t.accountId):void 0)||(t.accountName?accountQuotaMap.get(t.accountName):void 0)||accountQuotaMap.get(`default`);return acc+(qObj?.total||qObj?.articleCount||t.articles.length||1)},0)||builtArticles.length||1;const isContentFullyProduced=realGeneratedArticles.length>0&&realGeneratedArticles.length>=targetTotalArticles&&!buildArticleRunning;let currentImagesCount=0;for(const art of builtArticles){if(art.coverUrl)currentImagesCount+=1;if(art.images&&art.images.length>0)currentImagesCount+=art.images.length}let totalTargetImages=0;for(const t of tasks){const qObj=(t.accountId?accountQuotaMap.get(t.accountId):void 0)||(t.accountName?accountQuotaMap.get(t.accountName):void 0)||accountQuotaMap.get(`default`);const count=qObj?.total||qObj?.articleCount||t.articles.length||1;const imgsPerArt=t.platform===`xiaohongshu`?4:3;totalTargetImages+=count*imgsPerArt}if(totalTargetImages===0)totalTargetImages=Math.max(1,builtArticles.length*3);const imagePercentage=Math.min(100,Math.round(currentImagesCount/Math.max(1,totalTargetImages)*100));const currentImageArticleIndex=Math.min(builtArticles.length||1,Math.floor(currentImagesCount/3)+1);const imageProgress={current:currentImagesCount,total:Math.max(totalTargetImages,currentImagesCount),percentage:imagePercentage,currentArticleIndex:currentImageArticleIndex,isGenerating:Boolean(genImagesRunning&&(imagePercentage<100||currentImagesCount<totalTargetImages))};const areAllArticlesFullyGenerated=realGeneratedArticles.length>0&&!hasPendingPlaceholder&&realGeneratedArticles.length>=targetTotalArticles&&!isGeneratingToolsRunning;let stage=`idle`;if(publishDraftRunning||publishIntentIssued&&builtArticles.length>0&&!publishDraftCompleted&&!verifyDraftCompleted)stage=`publishing`;else if(publishDraftCompleted||verifyDraftCompleted)stage=`published`;else if(isGeneratingToolsRunning||builtArticles.length>0&&!areAllArticlesFullyGenerated)stage=`generating`;else if(builtArticles.length>0&&areAllArticlesFullyGenerated)stage=`review`;else if(discoverTopicsCallFound||checkTopicsCallFound||topics.length>0)stage=`topics`;else stage=`idle`;const pipelineSteps=[{id:`step_topic`,name:`1. 选题雷达与查重`,desc:`热点雷达嗅探与历史标题查重比对`,status:checkTopicsCompleted?`completed`:checkTopicsCallFound?`running`:`pending`,detail:checkTopicsCompleted?`已产出 ${topics.length} 个候选选题，查重已通过`:checkTopicsCallFound?`正在比对历史库与爆款切角...`:`等待选题调度...`},{id:`step_content`,name:`2. 正文定制构建`,desc:`依据目标平台排版规范生成合规产物`,status:buildArticleCompleted?`completed`:buildArticleRunning?`running`:`pending`,detail:buildArticleCompleted?`已构建 ${builtArticles.length} 篇正文稿件`:buildArticleRunning?`正在撰写排版正文中...`:`等待选题决策后执行`},{id:`step_images`,name:`3. AI 封面与多图配图`,desc:`根据平台规范比例按篇目顺序逐篇生成封面与插图`,status:genImagesCompleted?`completed`:genImagesRunning?`running`:`pending`,detail:genImagesCompleted?`全部 ${currentImagesCount} 张配图已就绪`:genImagesRunning?`正在生成第 ${currentImageArticleIndex} 篇配图 (${currentImagesCount}/${totalTargetImages} 张 · ${imagePercentage}%)`:`等待按篇逐个生成配图`},{id:`step_validate`,name:`4. 平台规范硬校验`,desc:`执行字数、敏感词过滤与排版合规断言`,status:validateHtmlCompleted?`completed`:validateHtmlRunning?`running`:`pending`,detail:validateHtmlCompleted?`机器合规校验 100% 通过`:validateHtmlRunning?`正在执行合规断言...`:`排队中`},{id:`step_review`,name:`5. 人工审核与发布决策`,desc:`人工在线预览、微调保存并执行草稿/排期发布`,status:publishDraftCompleted?`completed`:stage===`publishing`?`running`:stage===`review`?`running`:`pending`,detail:publishDraftCompleted?`已成功提交发布`:stage===`publishing`?`正在通过浏览器自动化向平台草稿箱提交推送并核验...`:stage===`review`?`已生成文章就绪，请在工作台审核决策`:`等待内容生成完成`}];const accountTopicGroups=[];const handledGroupKeys=new Set;for(const t of tasks){const gKey=`${t.platform}_${t.accountId||`default`}`;if(handledGroupKeys.has(gKey))continue;handledGroupKeys.add(gKey);const groupTopics=topics.filter(topic=>(!topic.platform||topic.platform===t.platform)&&(!topic.accountId||!t.accountId||topic.accountId===t.accountId));const taskArticleCount=t.articles.length;const quota=(t.accountId?accountQuotaMap.get(t.accountId):void 0)||(t.accountName?accountQuotaMap.get(t.accountName):void 0)||(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||(detectedAccountName?accountQuotaMap.get(detectedAccountName):void 0);const hasNewspicTopic=groupTopics.some(gt=>gt.articleType===`newspic`)||t.platform===`xiaohongshu`;const finalTargetCount=Math.max(1,quota?quota.total:detectedTargetCount,taskArticleCount);const finalHasNewspic=quota?quota.hasNewspic:hasNewspicTopic;const finalArticleQuota=quota?quota.articleCount:finalHasNewspic?Math.max(1,finalTargetCount-1):finalTargetCount;const finalNewspicQuota=quota?quota.newspicCount:finalHasNewspic?1:0;accountTopicGroups.push({groupKey:gKey,platform:t.platform,platformName:t.platformName||`社媒专栏`,accountId:t.accountId||`default`,accountName:t.accountName||detectedAccountName||`默认账号`,targetArticleCount:finalTargetCount,articleQuota:finalArticleQuota,newspicQuota:finalNewspicQuota,hasNewspic:finalHasNewspic,topics:groupTopics.length>0?groupTopics:t.topics||[]})}for(const topic of topics){const p=topic.platform||detectedPlatform;const acc=topic.accountId||effectiveAccountId;const gKey=`${p}_${acc}`;if(handledGroupKeys.has(gKey))continue;handledGroupKeys.add(gKey);const groupTopics=topics.filter(t=>(t.platform||detectedPlatform)===p&&(t.accountId||effectiveAccountId)===acc);const quota=accountQuotaMap.get(acc)||(topic.accountName?accountQuotaMap.get(topic.accountName):void 0)||(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||(detectedAccountName?accountQuotaMap.get(detectedAccountName):void 0);const hasNewspicTopic=groupTopics.some(gt=>gt.articleType===`newspic`)||p===`xiaohongshu`;const finalTargetCount=Math.max(1,quota?quota.total:detectedTargetCount);const finalHasNewspic=quota?quota.hasNewspic:hasNewspicTopic;const finalArticleQuota=quota?quota.articleCount:finalHasNewspic?Math.max(1,finalTargetCount-1):finalTargetCount;const finalNewspicQuota=quota?quota.newspicCount:finalHasNewspic?1:0;accountTopicGroups.push({groupKey:gKey,platform:p,platformName:topic.platformName||(p===`xiaohongshu`?`小红书`:p===`gzh`?`微信公众号`:`社媒专栏`),accountId:acc,accountName:topic.accountName||detectedAccountName||`默认账号`,targetArticleCount:finalTargetCount,articleQuota:finalArticleQuota,newspicQuota:finalNewspicQuota,hasNewspic:finalHasNewspic,topics:groupTopics})}if(accountTopicGroups.length===0&&topics.length>0){const quota=(detectedAccountId?accountQuotaMap.get(detectedAccountId):void 0)||(detectedAccountName?accountQuotaMap.get(detectedAccountName):void 0);const hasNewspicTopic=topics.some(gt=>gt.articleType===`newspic`)||detectedPlatform===`xiaohongshu`;const finalTargetCount=Math.max(1,quota?quota.total:detectedTargetCount);const finalHasNewspic=quota?quota.hasNewspic:hasNewspicTopic;const finalArticleQuota=quota?quota.articleCount:finalHasNewspic?Math.max(1,finalTargetCount-1):finalTargetCount;const finalNewspicQuota=quota?quota.newspicCount:finalHasNewspic?1:0;accountTopicGroups.push({groupKey:`${detectedPlatform}_${effectiveAccountId}`,platform:detectedPlatform,platformName:detectedPlatform===`xiaohongshu`?`小红书`:detectedPlatform===`gzh`?`微信公众号`:`社媒专栏`,accountId:effectiveAccountId,accountName:detectedAccountName||`默认账号`,targetArticleCount:finalTargetCount,articleQuota:finalArticleQuota,newspicQuota:finalNewspicQuota,hasNewspic:finalHasNewspic,topics})}for(const g of accountTopicGroups)g.topics=pruneAndEnsureGroupTopics(g,detectedTopicTheme||`社媒热点与专业趋势`);return{stage,isSocialTask:isSocialPublisherSession(rows),isExplicitSocialModeTask,platform:detectedPlatform,accountName:detectedAccountName,accountId:effectiveAccountId,scriptsDir:detectedScriptsDir,topicTheme:detectedTopicTheme,topics,accountTopicGroups,pipelineSteps,articles:builtArticles,allPrePublishTasksCompleted:!buildArticleRunning&&!genImagesRunning&&!validateHtmlRunning&&areAllArticlesFullyGenerated&&(stage===`review`||stage===`publishing`||stage===`published`),researchEvidence:extractedResearchEvidence,publishedInfo:publishDraftCompleted?{draftId:publishedDraftId,mediaId:publishedMediaId,scheduledTime:publishedScheduleTime,isVerified:verifyDraftCompleted,receiptScreenshot:publishedReceiptScreenshot,qrScreenshot:publishedQrScreenshot}:void 0,publishIntentIssued,tasks,taskId:detectedTaskId||tasks[0]?.id,manifestFingerprint:detectedManifestFingerprint,activeTaskId:detectedTaskId||tasks[0]?.id,isDryRun:detectedIsDryRun,isContentFullyProduced,imageProgress,activeStreamingIndex}}function resolveTargetCardCount(article){const isXhs=article.platform===`xiaohongshu`;const isNewspic=article.articleType===`newspic`;if(!isXhs&&!isNewspic)return 1;if(typeof article.targetCardImageCount===`number`&&article.targetCardImageCount>0)return Math.min(Math.max(1,article.targetCardImageCount),12);const visualSlotCount=(article.visualSlots||[]).filter(vs=>vs.kind===`pic`||vs.kind===`cover`).length;if(visualSlotCount>0)return Math.min(Math.max(1,visualSlotCount),12);return 4}function useSocialWorkflow(sessionId){const isSocial=useAppWorkMode()===`social`;const defaultWorkflow={stage:`idle`,platform:`gzh`,topics:[],accountTopicGroups:[],pipelineSteps:[],articles:[],tasks:[]};const[workflow,setWorkflow]=(0,react.useState)(defaultWorkflow);const[refreshTrigger,setRefreshTrigger]=(0,react.useState)(0);const refresh=()=>setRefreshTrigger(n=>n+1);(0,react.useEffect)(()=>{if(!isSocial){setWorkflow(defaultWorkflow);return}let isCancelled=false;const ctx=getGlobalCtx();const updateFromEvents=()=>{if(isCancelled||!sessionId||!ctx?.sessions)return;try{const binding=ctx.sessions.binding?.(sessionId);if(binding?.eventSource){const snapshot=binding.eventSource.getSnapshot?.();if(snapshot?.entries){const rows=[];const toolCallMap=new Map;for(const entry of snapshot.entries){if(entry.type!==`event`)continue;const ev=entry.event;if(ev.type===`user/message`){const userMsg=ev.data?.message??ev.data;const text=typeof userMsg?.content===`string`?userMsg.content:typeof userMsg?.text===`string`?userMsg.text:``;rows.push({kind:`userInput`,role:`user`,text,content:text})}else if(ev.type===`assistant/message`){const asstMsg=ev.data?.message??ev.data;const text=typeof asstMsg?.content===`string`?asstMsg.content:typeof asstMsg?.text===`string`?asstMsg.text:``;rows.push({kind:`assistantText`,role:`assistant`,text,content:text})}else if(ev.type===`tool/call`){let parsedInput=void 0;const rawArgs=ev.data?.arguments;if(typeof rawArgs===`string`)try{parsedInput=JSON.parse(rawArgs)}catch{parsedInput=rawArgs}else parsedInput=ev.data?.input??rawArgs;const callId=ev.data?.callId;const toolRow={kind:`toolCall`,toolName:ev.data?.name||``,name:ev.data?.name||``,callId,status:`running`,input:parsedInput,output:void 0};if(callId)toolCallMap.set(callId,toolRow);rows.push(toolRow)}else if(ev.type===`tool/result`){const callId=ev.data?.message?.toolCallId??ev.data?.callId;let rawOutput=ev.data?.message?.content??ev.data?.result??ev.data?.meta;let parsedOutput=rawOutput;if(typeof rawOutput===`string`)try{parsedOutput=JSON.parse(rawOutput)}catch{parsedOutput=rawOutput}const existing=callId?toolCallMap.get(callId):void 0;if(existing){existing.status=`success`;existing.output=parsedOutput}else rows.push({kind:`toolCall`,callId,status:`success`,output:parsedOutput})}}if(rows.length>0){const extracted=extractSocialWorkflow(rows);if(extracted.articles.length>0||extracted.stage!==`idle`){setWorkflow(extracted);return}}}}}catch(e){console.warn(`[useSocialWorkflow] 提取事件流状态容错:`,e)}};updateFromEvents();let unsubscribeEventSource;try{const binding=sessionId&&ctx?.sessions?ctx.sessions.binding?.(sessionId):void 0;if(binding?.eventSource?.subscribe)unsubscribeEventSource=binding.eventSource.subscribe(updateFromEvents)}catch{}const handleCustomUpdate=e=>{const customEvent=e;if(customEvent.detail&&Array.isArray(customEvent.detail.articles))setWorkflow(customEvent.detail)};window.addEventListener(`wincode:social-studio-workflow-update`,handleCustomUpdate);const loadBackendDrafts=async()=>{try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/drafts/list`));if(!isCancelled&&parsed.ok&&Array.isArray(parsed.data?.drafts)&&parsed.data.drafts.length>0){const loadedArticles=[];for(const draft of parsed.data.drafts){const rawArts=draft.articles||[];for(let i=0;i<rawArts.length;i++){const a=rawArts[i];loadedArticles.push({id:draft.draft_id?`${draft.draft_id}_${i}`:String(i+1),index:i+1,title:a.title||`社媒草稿文章`,digest:a.digest||``,content:a.content||``,coverUrl:a.cover_url||``,images:a.images||[],platform:draft.platform||`gzh`,articleType:draft.article_type||`news`,status:`completed`})}}if(loadedArticles.length>0)setWorkflow(prev=>{if(prev.articles.length>0)return prev;return{...prev,stage:`review`,articles:loadedArticles}})}}catch{}};loadBackendDrafts();return()=>{isCancelled=true;unsubscribeEventSource?.();window.removeEventListener(`wincode:social-studio-workflow-update`,handleCustomUpdate)}},[sessionId,isSocial,refreshTrigger]);return{workflow,isSocial,hasArticles:workflow.articles.length>0,refresh}}function showNotice(title,opts,type=`info`){if(typeof window!==`undefined`){const msg=opts?.description?`${title}: ${opts.description}`:title;if(type===`error`)console.error(`[Toast] ${msg}`);else console.log(`[Toast] ${msg}`)}}const toast=Object.assign((title,opts)=>showNotice(title,opts,`info`),{success:(title,opts)=>showNotice(title,opts,`success`),error:(title,opts)=>showNotice(title,opts,`error`),info:(title,opts)=>showNotice(title,opts,`info`)});const SocialCompanionPublishDock=(0,react.memo)(function SocialCompanionPublishDock({workflow,workspacePath,workspaceIdentity,sessionId}){const articles=(0,react.useMemo)(()=>Array.isArray(workflow.articles)?workflow.articles:[],[workflow.articles]);const[currentIndex,setCurrentIndex]=(0,react.useState)(0);const[isOverview,setIsOverview]=(0,react.useState)(false);const scrollRef=(0,react.useRef)(null);(0,react.useEffect)(()=>{const handleArticleChange=e=>{const customEvent=e;if(customEvent.detail){if(typeof customEvent.detail.index===`number`&&customEvent.detail.index>=0)setCurrentIndex(customEvent.detail.index);if(typeof customEvent.detail.isOverview===`boolean`)setIsOverview(customEvent.detail.isOverview)}};window.addEventListener(`wincode:social-studio-current-article`,handleArticleChange);return()=>{window.removeEventListener(`wincode:social-studio-current-article`,handleArticleChange)}},[]);const totalArticlesCount=articles.length;const newsArticlesCount=articles.filter(a=>a.articleType!==`newspic`).length;const newspicArticlesCount=articles.filter(a=>a.articleType===`newspic`).length;const isMultiArticles=totalArticlesCount>1;const currentArticle=articles[currentIndex]??articles[0]??null;const capability=(0,react.useMemo)(()=>getPlatformCapability(currentArticle?.platform,currentArticle?.articleType),[currentArticle?.platform,currentArticle?.articleType]);const handlePublishCurrentOnly=(0,react.useCallback)((action,scheduleTime)=>{if(!currentArticle)return;const platformName=currentArticle.platformName??currentArticle.platform??`微信公众号`;const targetTaskId=workflow.taskId||workflow.activeTaskId||``;const signedHash=workflow.manifestFingerprint||``;const sigMeta=targetTaskId||signedHash?` (taskId: ${targetTaskId||`auto`}, articleIndex: ${currentIndex+1}${signedHash?`, signedHash: ${signedHash}`:``})`:``;let singleActionDesc;let toastDesc;if(action===`schedule`){const schedText=scheduleTime?`在 [${scheduleTime}] 定时排期发布`:`自动排期发布`;singleActionDesc=`定时排期发布至【${platformName}】（调用 gzh_publish_draft，明确传入 publish_action: "schedule", schedule_time: "${scheduleTime||`auto`}", article_index: ${currentIndex+1}）`;toastDesc=`${schedText}至【${platformName}】`}else if(action===`publish_now`){singleActionDesc=`公开发布至【${platformName}】（调用 gzh_publish_draft，明确传入 publish_action: "publish_now", article_index: ${currentIndex+1}）`;toastDesc=`公开发布至【${platformName}】`}else{singleActionDesc=`存入【${platformName}】官方草稿箱（调用 gzh_publish_draft，明确传入 publish_action: "draft", article_index: ${currentIndex+1}）`;toastDesc=`存入【${platformName}】官方草稿箱`}const promptText=`【单篇发布确认·版本已终局锁定】已审校确认第 ${currentIndex+1} 篇《${currentArticle.title}》内容无误${sigMeta}；当前稿件已锁定严禁二次修改，请立即单独执行【${singleActionDesc}】并核验状态。`;window.dispatchEvent(new CustomEvent(`wincode:social-publisher-send-prompt`,{detail:{text:promptText,workspacePath,workspaceIdentity,sessionId}}));toast(`已发送单篇发布确认：《${currentArticle.title}》→ ${toastDesc}`)},[currentArticle,currentIndex,workflow,workspacePath,workspaceIdentity,sessionId]);const handleConfirmPublishAll=(0,react.useCallback)((action,scheduleTime)=>{const totalCount=articles.length;const targetTaskId=workflow.taskId||workflow.activeTaskId||``;const signedHash=workflow.manifestFingerprint||``;const sigMeta=targetTaskId||signedHash?` (taskId: ${targetTaskId||`auto`}${signedHash?`, signedHash: ${signedHash}`:``})`:``;let actionDesc;let toastDesc;if(action===`schedule`){const schedText=scheduleTime?`在 [${scheduleTime}] 定时排期发布`:`自动排期发布`;actionDesc=`微信公众号多图文组合定时排期发布（调用 gzh_publish_draft，明确传入 publish_action: "schedule", schedule_time: "${scheduleTime||`auto`}"）`;toastDesc=`一键${schedText} (共 ${totalCount} 篇)`}else if(action===`publish_now`){actionDesc=`多图文组合公开发布（调用 gzh_publish_draft，明确传入 publish_action: "publish_now"）`;toastDesc=`一键公开发布至各平台 (共 ${totalCount} 篇)`}else{actionDesc=`多图文组合发布至微信官方草稿箱（调用 gzh_publish_draft，明确传入 publish_action: "draft"）`;toastDesc=`一键存入各平台官方草稿箱 (共 ${totalCount} 篇)`}const promptText=`【多图文组合发布·版本已终局锁定】已审校确认当前任务全部 ${totalCount} 篇图文内容无误${sigMeta}；当前稿件已锁定严禁二次修改，请立即一次性执行【${actionDesc}】，严禁拆分成单篇上传，并核验发布状态。`;window.dispatchEvent(new CustomEvent(`wincode:social-publisher-send-prompt`,{detail:{text:promptText,workspacePath,workspaceIdentity,sessionId}}));toast(`已发送发布确认指令：${toastDesc}`)},[articles.length,workflow,workspacePath,workspaceIdentity,sessionId]);const handleWheel=e=>{if(scrollRef.current&&e.deltaY!==0&&Math.abs(e.deltaX)===0){scrollRef.current.scrollLeft+=e.deltaY;e.preventDefault()}};const isGeneratingRunning=Boolean(workflow.stage===`generating`||workflow.stage===`topics`||workflow.pipelineSteps?.some(s=>s.status===`running`));if(!(articles.length>0&&!isGeneratingRunning&&(workflow.stage===`review`||workflow.stage===`publishing`||workflow.stage===`published`||Boolean(workflow.allPrePublishTasksCompleted))))return null;const currentArticleLabel=currentIndex===0?`头条`:currentArticle?.articleType===`newspic`?`小绿书`:`#${currentIndex+1} 次条`;return(0,react_jsx_runtime.jsx)(`div`,{ref:scrollRef,onWheel:handleWheel,"data-testid":`social-companion-quick-prompts`,className:`flex items-center justify-end gap-1.5 px-3 mb-1.5 overflow-x-auto scrollbar-hide no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden flex-nowrap select-none py-0.5`,children:currentArticle?.platform===`gzh`||!currentArticle?.platform&&totalArticlesCount>0?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[isMultiArticles&&!isOverview&&currentArticle&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>handlePublishCurrentOnly(capability.supportsDirectPublish?`publish_now`:`draft`),className:`h-7 shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg text-ui-2xs font-medium text-foreground-muted hover:text-foreground bg-surface/75 hover:bg-surface-hover border border-border/50 hover:border-border active:scale-[0.97] transition-all cursor-pointer shadow-2xs`,title:`仅将当前聚焦的《${currentArticle.title||currentArticleLabel}》单独存入微信草稿箱`,children:[(0,react_jsx_runtime.jsxs)(`span`,{children:[`仅存当前篇草稿 (`,currentArticleLabel,`)`]}),(0,react_jsx_runtime.jsx)(ChevronRight,{className:`size-2.5 text-foreground-subtle`})]}),capability.supportsSchedule&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>handleConfirmPublishAll(`schedule`),className:`h-7 shrink-0 inline-flex items-center gap-1.5 px-2.5 rounded-lg text-ui-2xs font-medium text-foreground-muted hover:text-foreground bg-surface/75 hover:bg-surface-hover border border-border/50 hover:border-border active:scale-[0.97] transition-all cursor-pointer shadow-2xs`,title:`唤起微信公众号定时排期发布配置`,children:[(0,react_jsx_runtime.jsx)(Calendar,{className:`size-3 text-foreground-subtle`}),(0,react_jsx_runtime.jsx)(`span`,{children:`公众号定时排期`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>handleConfirmPublishAll(`draft`),className:`h-7 shrink-0 inline-flex items-center gap-1.5 px-3 rounded-lg text-ui-2xs font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-xs active:scale-[0.97] transition-all cursor-pointer border border-emerald-400/30`,title:`将全部图文组合打包推送到微信公众号官方草稿箱`,children:[(0,react_jsx_runtime.jsx)(Send,{className:`size-3 text-white/95`}),(0,react_jsx_runtime.jsx)(`span`,{children:`推送到公众号草稿箱`}),isMultiArticles&&(0,react_jsx_runtime.jsxs)(`span`,{className:`px-1.5 py-0.2 rounded text-[10px] font-mono bg-black/20 text-white/95 leading-none`,children:[newsArticlesCount>1?`多图文 ${newsArticlesCount} 篇`:`图文 ${newsArticlesCount} 篇`,newspicArticlesCount>0?` + ${newspicArticlesCount} 小绿书`:``]}),(0,react_jsx_runtime.jsx)(ArrowRight,{className:`size-2.5 text-white/80`})]})]}):currentArticle?.platform===`xiaohongshu`?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>handleConfirmPublishAll(`draft`),className:`h-7 shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg text-ui-2xs font-medium bg-surface/75 hover:bg-surface-hover border border-border/50 active:scale-[0.97] transition-all cursor-pointer`,children:(0,react_jsx_runtime.jsx)(`span`,{children:`存草稿`})}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>handleConfirmPublishAll(`publish_now`),className:`h-7 shrink-0 inline-flex items-center gap-1.5 px-3 rounded-lg text-ui-2xs font-semibold text-white bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 shadow-xs active:scale-[0.97] transition-all cursor-pointer border border-rose-400/30`,children:[(0,react_jsx_runtime.jsx)(Send,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`发布笔记`}),(0,react_jsx_runtime.jsx)(ArrowRight,{className:`size-2.5 opacity-80`})]})]}):currentArticle?.platform===`zhihu`?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>handleConfirmPublishAll(`draft`),className:`h-7 shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg text-ui-2xs font-medium bg-surface/75 hover:bg-surface-hover border border-border/50 active:scale-[0.97] transition-all cursor-pointer`,children:(0,react_jsx_runtime.jsx)(`span`,{children:`存为草稿`})}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>handleConfirmPublishAll(`publish_now`),className:`h-7 shrink-0 inline-flex items-center gap-1.5 px-3 rounded-lg text-ui-2xs font-semibold text-white bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 shadow-xs active:scale-[0.97] transition-all cursor-pointer border border-sky-400/30`,children:[(0,react_jsx_runtime.jsx)(Send,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`发布专栏`}),(0,react_jsx_runtime.jsx)(ArrowRight,{className:`size-2.5 opacity-80`})]})]}):(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>handleConfirmPublishAll(`draft`),className:`h-7 shrink-0 inline-flex items-center gap-1.5 px-3 rounded-lg text-ui-2xs font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 active:scale-[0.97] transition-all cursor-pointer`,children:[(0,react_jsx_runtime.jsx)(Send,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`确认存入草稿箱`}),(0,react_jsx_runtime.jsx)(ArrowRight,{className:`size-2.5 opacity-80`})]})})});function SocialPublisherInputDock(props){const{sessionId,onSendPrompt,session}=props;const mode=useAppWorkMode();const isSocial=mode===`social`;const[submitted,setSubmitted]=(0,react.useState)(false);const[userDismissed,setUserDismissed]=(0,react.useState)(false);const{workflow,hasArticles}=useSocialWorkflow(sessionId);(0,react.useEffect)(()=>{setSubmitted(false);setUserDismissed(false)},[sessionId,mode]);if(!isSocial)return null;if(hasArticles)return(0,react_jsx_runtime.jsx)(`div`,{style:{padding:`0 8px 4px 8px`},children:(0,react_jsx_runtime.jsx)(SocialCompanionPublishDock,{workflow,workspacePath:``,sessionId})});if(!(session?.blank!==false&&!submitted)||userDismissed)return null;const handleComposerSubmit=async data=>{try{setSubmitted(true);if(onSendPrompt&&data.formattedPrompt)await onSendPrompt(data.formattedPrompt)}catch(err){console.error(`[SocialPublisher] 发送会话消息失败:`,err);setSubmitted(false)}};const handleClose=()=>{setUserDismissed(true);setAppWorkMode(`general`)};return(0,react_jsx_runtime.jsx)(`div`,{style:{padding:`4px 8px 6px 8px`},children:(0,react_jsx_runtime.jsx)(SocialPublisherComposerCard,{onClose:handleClose,onSubmit:handleComposerSubmit,sessionId})})}function SocialWorkflowTurnCards$1(_props){return null}function SocialWorkflowTurnCards(props){return(0,react_jsx_runtime.jsx)(ScopedErrorBoundary,{scope:`social-workflow-turn-cards`,variant:`compact`,children:(0,react_jsx_runtime.jsx)(SocialWorkflowTurnCards$1,{...props})})}function SocialWorkflowTurnTail(_props){return(0,react_jsx_runtime.jsx)(`div`,{style:{marginTop:`6px`},children:(0,react_jsx_runtime.jsx)(SocialWorkflowTurnCards,{rows:[],isLastTurn:true,workspacePath:``})})}function useWorkspaceServices(..._args){return{workspace:{getRootPath:()=>``}}}let dynamicDetectedHomeDir;function resolveCandidatePaths(inputPath,workspacePath,accountId,scriptsDir){const candidates=[];const cleanInput=inputPath.replace(/[`"']/g,``).trim();const isAbs=/^[a-zA-Z]:[\\/]/.test(cleanInput)||cleanInput.startsWith(`/`);const normClean=cleanInput.replace(/\\/g,`/`);const normWs=workspacePath?workspacePath.replace(/\\/g,`/`).replace(/\/+$/,``):void 0;const normSd=scriptsDir?scriptsDir.replace(/\\/g,`/`).replace(/\/+$/,``):void 0;let isAllowedAbs=true;if(isAbs){if(/\/(?:tasks|accounts)\//i.test(normClean)){const belongsToWs=Boolean(normWs&&(normClean===normWs||normClean.startsWith(normWs+`/`)));const belongsToSd=Boolean(normSd&&(normClean===normSd||normClean.startsWith(normSd+`/`)));if(!belongsToWs&&!belongsToSd)isAllowedAbs=false}}if(isAbs&&isAllowedAbs){candidates.push(cleanInput);candidates.push(cleanInput.replace(/\//g,`\\`));candidates.push(cleanInput.replace(/\\/g,`/`));const homeMatch=cleanInput.match(/^([a-zA-Z]:[\\/]Users[\\/][^\\/]+)/i);if(homeMatch&&homeMatch[1])dynamicDetectedHomeDir=homeMatch[1].replace(/\\/g,`/`)}if(scriptsDir){const sHomeMatch=scriptsDir.match(/^([a-zA-Z]:[\\/]Users[\\/][^\\/]+)/i);if(sHomeMatch&&sHomeMatch[1])dynamicDetectedHomeDir=sHomeMatch[1].replace(/\\/g,`/`)}const rawFileName=cleanInput.replace(/^.*[\\/]/,``);const candidateFileNames=new Set;if(rawFileName){candidateFileNames.add(rawFileName);const extMatch=rawFileName.match(/\.(png|jpg|jpeg|webp)$/i);const baseName=extMatch?rawFileName.slice(0,-extMatch[0].length):rawFileName;if(extMatch){candidateFileNames.add(`${baseName}.png`);candidateFileNames.add(`${baseName}.jpg`);candidateFileNames.add(`${baseName}.jpeg`);candidateFileNames.add(`${baseName}.webp`)}const picSingleMatch=baseName.match(/^pic_(\d+)$/i);if(picSingleMatch&&picSingleMatch[1]){if(picSingleMatch[1]===`1`){candidateFileNames.add(`pic_1_1.png`);candidateFileNames.add(`pic_1_1.jpg`);candidateFileNames.add(`xhs_pic_1_1.png`);candidateFileNames.add(`xhs_pic_1_1.jpg`)}}const picDoubleMatch=baseName.match(/^(?:pic|xhs_pic)_(\d+)_(\d+)$/i);if(picDoubleMatch&&picDoubleMatch[1]&&picDoubleMatch[2]){const artIdx=picDoubleMatch[1];const cardIdx=picDoubleMatch[2];candidateFileNames.add(`pic_${artIdx}_${cardIdx}.png`);candidateFileNames.add(`pic_${artIdx}_${cardIdx}.jpg`);candidateFileNames.add(`xhs_pic_${artIdx}_${cardIdx}.png`);candidateFileNames.add(`xhs_pic_${artIdx}_${cardIdx}.jpg`);if(artIdx===`1`){candidateFileNames.add(`pic_${cardIdx}.png`);candidateFileNames.add(`pic_${cardIdx}.jpg`)}}if(baseName.match(/^content_(\d+)_(\d+)$/i)){candidateFileNames.add(`${baseName}.png`);candidateFileNames.add(`${baseName}.jpg`)}if(baseName.match(/^cover_(\d+)$/i)){candidateFileNames.add(`${baseName}.png`);candidateFileNames.add(`${baseName}.jpg`)}}const uniqueAccs=accountId?[accountId]:[`default`];const fileNames=Array.from(candidateFileNames);const isBrandAsset=fileNames.some(fn=>/^brand_/i.test(fn));if(scriptsDir){const normScripts=scriptsDir.replace(/\\/g,`/`).replace(/\/+$/,``);const subDirs=[];if(accountId){const cleanAcc=accountId.trim();for(const p of[`gzh`,`xiaohongshu`,`zhihu`,`baijiahao`,`toutiao`])subDirs.push(`${p}_${cleanAcc}`);subDirs.push(cleanAcc)}for(const sd of subDirs)for(const fName of fileNames){candidates.push(`${normScripts}/${sd}/${fName}`);candidates.push(`${normScripts}/${sd}/images/${fName}`);candidates.push(`${normScripts}/${sd}/articles/${fName}`)}for(const fName of fileNames){candidates.push(`${normScripts}/${fName}`);candidates.push(`${normScripts}/images/${fName}`);candidates.push(`${normScripts}/articles/${fName}`);if(normScripts.endsWith(`/articles`)){const parent=normScripts.slice(0,-9);candidates.push(`${parent}/${fName}`);candidates.push(`${parent}/images/${fName}`);candidates.push(`${parent}/scripts/${fName}`)}else if(normScripts.endsWith(`/images`)){const parent=normScripts.slice(0,-7);candidates.push(`${parent}/${fName}`);candidates.push(`${parent}/articles/${fName}`);candidates.push(`${parent}/scripts/${fName}`)}else if(normScripts.endsWith(`/scripts`)){const parent=normScripts.slice(0,-8);candidates.push(`${parent}/${fName}`);candidates.push(`${parent}/images/${fName}`);candidates.push(`${parent}/articles/${fName}`)}const taskBase=normScripts.replace(/accounts[\\/][^\\/]+[\\/]scripts.*$/,``);if(taskBase&&taskBase!==normScripts){candidates.push(`${taskBase}brand_assets/${fName}`);candidates.push(`${taskBase}default-brand/${fName}`)}}}if(isBrandAsset){const homeDir=(typeof process!==`undefined`?{}.USERPROFILE||{}.HOME:void 0)||dynamicDetectedHomeDir;if(homeDir){const normHome=homeDir.replace(/\\/g,`/`).replace(/\/+$/,``);if(!isAbs&&cleanInput.includes(`/`)){candidates.push(`${normHome}/.wincode/v2/social-publisher/tasks/default/${cleanInput}`);candidates.push(`${normHome}/.wincode/v2/social-publisher/${cleanInput}`);candidates.push(`${normHome}/.wincode/social-publisher/${cleanInput}`)}for(const fName of fileNames)for(const acc of uniqueAccs){candidates.push(`${normHome}/.wincode/v2/social-publisher/tasks/default/accounts/${acc}/brand_assets/${fName}`);candidates.push(`${normHome}/.wincode/v2/social-publisher/accounts/${acc}/brand_assets/${fName}`);candidates.push(`${normHome}/.wincode/social-publisher/accounts/${acc}/brand_assets/${fName}`)}}if(workspacePath){const normW=workspacePath.replace(/\\/g,`/`).replace(/\/+$/,``);if(!isAbs&&cleanInput.includes(`/`)){candidates.push(`${normW}/.wincode/social-publisher/${cleanInput}`);candidates.push(`${normW}/.social-publisher/tasks/default/${cleanInput}`);candidates.push(`${normW}/${cleanInput}`)}for(const fName of fileNames)for(const acc of uniqueAccs){candidates.push(`${normW}/accounts/${acc}/brand_assets/${fName}`);candidates.push(`${normW}/.wincode/social-publisher/accounts/${acc}/brand_assets/${fName}`);candidates.push(`${normW}/.social-publisher/tasks/default/accounts/${acc}/brand_assets/${fName}`);candidates.push(`${normW}/.social-publisher/accounts/${acc}/brand_assets/${fName}`)}}}return[...new Set(candidates)]}const DB_NAME=`wincode_social_cache_v1`;const DB_VERSION=1;const STORE_MEDIA=`media_items`;const STORE_ARTICLES=`article_contents`;const STORE_BRANDS=`brand_assets`;const MAX_MEDIA_ITEMS=400;const memoryMediaFallback=new Map;const memoryArticleFallback=new Map;const memoryBrandFallback=new Map;function isIndexedDBAvailable(){return typeof window!==`undefined`&&typeof window.indexedDB!==`undefined`&&typeof window.indexedDB.open===`function`}let dbPromise=null;function getDb(){if(!isIndexedDBAvailable())return Promise.resolve(null);if(dbPromise)return dbPromise;dbPromise=new Promise(resolve=>{try{const request=window.indexedDB.open(DB_NAME,DB_VERSION);request.onupgradeneeded=event=>{const db=event.target.result;if(!db.objectStoreNames.contains(STORE_MEDIA))db.createObjectStore(STORE_MEDIA,{keyPath:`key`}).createIndex(`updatedAt`,`updatedAt`,{unique:false});if(!db.objectStoreNames.contains(STORE_ARTICLES))db.createObjectStore(STORE_ARTICLES,{keyPath:`key`});if(!db.objectStoreNames.contains(STORE_BRANDS))db.createObjectStore(STORE_BRANDS,{keyPath:`key`})};request.onsuccess=()=>resolve(request.result);request.onerror=()=>resolve(null)}catch{resolve(null)}});return dbPromise}async function getBatchPersistentMediaItems(keys){const result=new Map;if(!keys||keys.length===0)return result;const db=await getDb();if(!db){for(const k of keys){const hit=memoryMediaFallback.get(k);if(hit)result.set(k,hit.dataUrl)}return result}return new Promise(resolve=>{try{const store=db.transaction(STORE_MEDIA,`readonly`).objectStore(STORE_MEDIA);let pending=keys.length;for(const k of keys){const req=store.get(k);req.onsuccess=()=>{if(req.result?.dataUrl)result.set(k,req.result.dataUrl);pending-=1;if(pending===0)resolve(result)};req.onerror=()=>{pending-=1;if(pending===0)resolve(result)}}}catch{resolve(result)}})}async function putPersistentMediaItem(key,dataUrl){if(!key||!dataUrl)return;const record={key,dataUrl,updatedAt:Date.now()};const db=await getDb();if(!db){memoryMediaFallback.set(key,record);return}try{const tx=db.transaction(STORE_MEDIA,`readwrite`);tx.objectStore(STORE_MEDIA).put(record);tx.oncomplete=()=>{pruneMediaCacheIfNeeded(db).catch(()=>{})}}catch{memoryMediaFallback.set(key,record)}}async function pruneMediaCacheIfNeeded(db){try{const countReq=db.transaction(STORE_MEDIA,`readonly`).objectStore(STORE_MEDIA).count();countReq.onsuccess=()=>{if(countReq.result>MAX_MEDIA_ITEMS){const cursorReq=db.transaction(STORE_MEDIA,`readwrite`).objectStore(STORE_MEDIA).index(`updatedAt`).openCursor();let deleted=0;cursorReq.onsuccess=e=>{const cursor=e.target.result;if(cursor&&deleted<50){cursor.delete();deleted+=1;cursor.continue()}}}}}catch{}}async function removePersistentMediaItem(key){if(!key)return;memoryMediaFallback.delete(key);const db=await getDb();if(!db)return;try{db.transaction(STORE_MEDIA,`readwrite`).objectStore(STORE_MEDIA).delete(key)}catch{}}async function getPersistentArticleContent(filePathOrKey){if(!filePathOrKey)return null;const normKey=filePathOrKey.replace(/\\/g,`/`);const db=await getDb();if(!db)return memoryArticleFallback.get(normKey)?.content||null;return new Promise(resolve=>{try{const req=db.transaction(STORE_ARTICLES,`readonly`).objectStore(STORE_ARTICLES).get(normKey);req.onsuccess=()=>resolve(req.result?.content||null);req.onerror=()=>resolve(null)}catch{resolve(null)}})}async function putPersistentArticleContent(filePathOrKey,content){if(!filePathOrKey||!content)return;const normKey=filePathOrKey.replace(/\\/g,`/`);const record={key:normKey,content,updatedAt:Date.now()};const db=await getDb();if(!db){memoryArticleFallback.set(normKey,record);return}try{db.transaction(STORE_ARTICLES,`readwrite`).objectStore(STORE_ARTICLES).put(record)}catch{memoryArticleFallback.set(normKey,record)}}async function getPersistentBrandAsset(accountId){if(!accountId)return null;const db=await getDb();if(!db){const hit=memoryBrandFallback.get(accountId);return hit?{brandTopUrl:hit.brandTopUrl,brandBotUrl:hit.brandBotUrl,config:hit.config}:null}return new Promise(resolve=>{try{const req=db.transaction(STORE_BRANDS,`readonly`).objectStore(STORE_BRANDS).get(accountId);req.onsuccess=()=>{if(req.result)resolve({brandTopUrl:req.result.brandTopUrl,brandBotUrl:req.result.brandBotUrl,config:req.result.config});else resolve(null)};req.onerror=()=>resolve(null)}catch{resolve(null)}})}async function putPersistentBrandAsset(accountId,data){if(!accountId)return;const record={key:accountId,brandTopUrl:data.brandTopUrl,brandBotUrl:data.brandBotUrl,config:data.config,updatedAt:Date.now()};const db=await getDb();if(!db){memoryBrandFallback.set(accountId,record);return}try{db.transaction(STORE_BRANDS,`readwrite`).objectStore(STORE_BRANDS).put(record)}catch{memoryBrandFallback.set(accountId,record)}}const resolvedMediaCache=new Map;const resolvedCoverCache=new Map;const resolvedArticleCache=new Map;const resolvedBrandCache=new Map;const failedMediaCache=new Map;const DEFAULT_FAILED_TTL_MS=3e4;function isMediaFailed(key){if(!key)return false;const entry=failedMediaCache.get(key);if(!entry)return false;if(Date.now()-entry.failedAt>entry.ttl){failedMediaCache.delete(key);return false}return true}function recordFailedMedia(keys,customTtlMs){const now=Date.now();const ttl=typeof customTtlMs===`number`&&customTtlMs>0?customTtlMs:DEFAULT_FAILED_TTL_MS;for(const k of keys)if(k)failedMediaCache.set(k,{failedAt:now,ttl})}function clearFailedMedia(key){if(key)failedMediaCache.delete(key);else failedMediaCache.clear()}const mediaCacheListeners=new Set;function getScopedMediaCacheKey(pathOrName,scope,workspaceKey){const trimmed=pathOrName.trim();const cleanScope=(scope||`global`).replace(/\\/g,`/`).replace(/\/+$/,``);const cleanWs=(workspaceKey||``).replace(/\\/g,`/`).replace(/\/+$/,``);const wsPrefix=cleanWs?`${cleanWs}::`:``;if(/^[a-zA-Z]:[\\/]/.test(trimmed)||trimmed.startsWith(`/`))return`${wsPrefix}${trimmed.replace(/\\/g,`/`)}`;return`${wsPrefix}${cleanScope}::${trimmed}`}function cacheCoverImage(key,dataUrl){if(!key||!dataUrl)return;const normKey=key.replace(/\\/g,`/`);resolvedCoverCache.set(normKey,dataUrl)}function invalidateMediaCache(urlOrPath,directDataUrl,scope){if(urlOrPath){const trimmed=urlOrPath.trim();const diskPath=extractLocalDiskPathFromUrl(trimmed);const fileName=trimmed.replace(/^.*[\\/]/,``);const scopedKey=getScopedMediaCacheKey(trimmed,scope);const scopedDiskKey=diskPath?getScopedMediaCacheKey(diskPath,scope):``;const scopedFileKey=fileName?getScopedMediaCacheKey(fileName,scope):``;if(directDataUrl){if(/^[a-zA-Z]:[\\/]/.test(trimmed)||trimmed.startsWith(`/`)){const norm=trimmed.replace(/\\/g,`/`);resolvedMediaCache.set(norm,directDataUrl);putPersistentMediaItem(norm,directDataUrl)}if(diskPath&&(/^[a-zA-Z]:[\\/]/.test(diskPath)||diskPath.startsWith(`/`))){const normD=diskPath.replace(/\\/g,`/`);resolvedMediaCache.set(normD,directDataUrl);putPersistentMediaItem(normD,directDataUrl)}if(scopedKey){resolvedMediaCache.set(scopedKey,directDataUrl);putPersistentMediaItem(scopedKey,directDataUrl)}if(scopedDiskKey){resolvedMediaCache.set(scopedDiskKey,directDataUrl);putPersistentMediaItem(scopedDiskKey,directDataUrl)}if(scopedFileKey){resolvedMediaCache.set(scopedFileKey,directDataUrl);putPersistentMediaItem(scopedFileKey,directDataUrl)}if(fileName&&fileName.includes(`cover`)){if(scopedFileKey)cacheCoverImage(scopedFileKey,directDataUrl)}}else{const normTrimmed=trimmed.replace(/\\/g,`/`);resolvedMediaCache.delete(normTrimmed);clearFailedMedia(normTrimmed);removePersistentMediaItem(normTrimmed);if(diskPath){const normDisk=diskPath.replace(/\\/g,`/`);resolvedMediaCache.delete(normDisk);clearFailedMedia(normDisk);removePersistentMediaItem(normDisk)}if(scopedKey){resolvedMediaCache.delete(scopedKey);clearFailedMedia(scopedKey);removePersistentMediaItem(scopedKey)}if(scopedDiskKey){resolvedMediaCache.delete(scopedDiskKey);removePersistentMediaItem(scopedDiskKey)}if(scopedFileKey){resolvedMediaCache.delete(scopedFileKey);removePersistentMediaItem(scopedFileKey)}if(fileName){resolvedCoverCache.delete(fileName);if(scopedFileKey)resolvedCoverCache.delete(scopedFileKey)}if(scope){const cleanScope=scope.replace(/\\/g,`/`).replace(/\/+$/,``);for(const[k]of resolvedMediaCache.entries())if(k.startsWith(`${cleanScope}::`)){resolvedMediaCache.delete(k);removePersistentMediaItem(k)}}}}else if(scope){const cleanScope=scope.replace(/\\/g,`/`).replace(/\/+$/,``);for(const[k]of resolvedMediaCache.entries())if(k.startsWith(`${cleanScope}::`)){resolvedMediaCache.delete(k);removePersistentMediaItem(k)}}else{resolvedMediaCache.clear();resolvedCoverCache.clear();failedMediaCache.clear()}for(const listener of mediaCacheListeners)listener()}function cacheArticleContent(filePath,content){if(!filePath||!content)return;const normPath=filePath.replace(/\\/g,`/`);resolvedArticleCache.set(normPath,content);resolvedArticleCache.set(filePath,content);putPersistentArticleContent(normPath,content)}function cacheBrandAsset(accountId,data){if(!accountId)return;resolvedBrandCache.set(accountId,data);putPersistentBrandAsset(accountId,data)}const isArticleVisualName=fn=>/^(?:cover_|content_|pic_|xhs_pic_)/i.test(fn);const isSandboxScope=sc=>Boolean(sc&&(sc.includes(`tasks/active`)||sc.includes(`tasks/archive`)||sc.includes(`task_`)));function recordResolvedMedia(keys,dataUrl){for(const k of keys){if(!k)continue;resolvedMediaCache.set(k,dataUrl);if(k.includes(`cover`))cacheCoverImage(k,dataUrl);putPersistentMediaItem(k,dataUrl)}}function useResolvedMediaUrls(rawUrls,options={}){const{workspacePath,workspaceIdentity,accountId,scriptsDir,sessionId,services:explicitServices}=options;const workspaceServices=useWorkspaceServices(workspacePath,void 0,workspaceIdentity);const activeServices=explicitServices||workspaceServices;const[cacheVersion,setCacheVersion]=(0,react.useState)(0);const[retryVersion,setRetryVersion]=(0,react.useState)(0);const inFlightLoadsRef=(0,react.useRef)(new Set);const retryCountRef=(0,react.useRef)(0);const retryTimerRef=(0,react.useRef)(null);(0,react.useEffect)(()=>{const onInvalidate=()=>{retryCountRef.current=0;setCacheVersion(v=>v+1);setRetryVersion(rv=>rv+1)};mediaCacheListeners.add(onInvalidate);return()=>{mediaCacheListeners.delete(onInvalidate)}},[]);const effectiveScope=(0,react.useMemo)(()=>{const sessionPrefix=sessionId?`session_${sessionId}/`:``;if(scriptsDir)return`${sessionPrefix}${scriptsDir.replace(/\\/g,`/`).replace(/\/+$/,``)}`;if(workspacePath&&accountId)return`${sessionPrefix}${workspacePath.replace(/\\/g,`/`)}/${accountId}`;return`${sessionPrefix}${(workspacePath||`global`).replace(/\\/g,`/`).replace(/\/+$/,``)}`},[sessionId,scriptsDir,workspacePath,accountId]);const effectiveWsKey=(0,react.useMemo)(()=>{return(workspaceIdentity?.trim()||workspacePath||``).replace(/\\/g,`/`).replace(/\/+$/,``)},[workspaceIdentity,workspacePath]);(0,react.useEffect)(()=>{retryCountRef.current=0},[rawUrls.join(`,`)]);const{targetsToLoad,immediateUrls:_immediateUrls}=(0,react.useMemo)(()=>{const toLoad=[];const results=[];const normWs=workspacePath?workspacePath.replace(/\\/g,`/`).replace(/\/+$/,``):void 0;const normSd=scriptsDir?scriptsDir.replace(/\\/g,`/`).replace(/\/+$/,``):void 0;for(const raw of rawUrls){if(!raw)continue;const trimmed=raw.trim();if(trimmed.startsWith(`http://`)||trimmed.startsWith(`https://`)||trimmed.startsWith(`data:`)){results.push(trimmed);continue}const diskPath=extractLocalDiskPathFromUrl(trimmed);const normDisk=diskPath.replace(/\\/g,`/`);const fileName=normDisk.replace(/^.*[\\/]/,``);const isVisual=isArticleVisualName(fileName);const isPureFileName=normDisk===fileName||!normDisk.includes(`/`);const allowScope=!isVisual||isSandboxScope(effectiveScope);const scopedKey=allowScope&&effectiveScope?getScopedMediaCacheKey(fileName,effectiveScope,effectiveWsKey):``;const scopedRawKey=allowScope&&effectiveScope?getScopedMediaCacheKey(trimmed,effectiveScope,effectiveWsKey):``;const cached=(!isVisual||!isPureFileName?resolvedMediaCache.get(normDisk):void 0)||(scopedKey?resolvedMediaCache.get(scopedKey):void 0)||(scopedRawKey?resolvedMediaCache.get(scopedRawKey):void 0)||(scopedKey&&fileName.includes(`cover`)?resolvedCoverCache.get(scopedKey):void 0);if(cached)results.push(cached);else{results.push(trimmed);const isFailed=isMediaFailed(normDisk)||(scopedKey?isMediaFailed(scopedKey):false)||isMediaFailed(diskPath);const isAbs=/^[a-zA-Z]:[\\/]/.test(diskPath)||diskPath.startsWith(`/`);let isIllegalExternal=false;if(isAbs&&/\/(?:tasks|accounts)\//i.test(normDisk)){const belongsToWs=Boolean(normWs&&(normDisk===normWs||normDisk.startsWith(normWs+`/`)));const belongsToSd=Boolean(normSd&&(normDisk===normSd||normDisk.startsWith(normSd+`/`)));if(!belongsToWs&&!belongsToSd)isIllegalExternal=true}if(!isFailed&&!isIllegalExternal&&!toLoad.includes(diskPath))toLoad.push(diskPath)}}return{targetsToLoad:toLoad,immediateUrls:results}},[rawUrls,cacheVersion,effectiveScope,effectiveWsKey,workspacePath,scriptsDir]);(0,react.useEffect)(()=>{if(targetsToLoad.length===0||!activeServices)return;let isDisposed=false;let anyLoaded=false;let dynamicScripts=scriptsDir;for(const raw of rawUrls){if(!raw)continue;const testPath=extractLocalDiskPathFromUrl(raw)||raw;if(/^[a-zA-Z]:[\\/]/.test(testPath)||testPath.startsWith(`/`)){const norm=testPath.replace(/\\/g,`/`);if(!dynamicScripts){if(norm.includes(`/images/`)){dynamicScripts=norm.replace(/\/images\/.*$/,`/images`);break}else if(norm.includes(`/articles/`)){dynamicScripts=norm.replace(/\/articles\/.*$/,`/articles`);break}else if(norm.includes(`/scripts/`)){dynamicScripts=norm.replace(/\/scripts\/.*$/,`/scripts`);break}}}}const candidateKeysForL2=[];for(const dp of targetsToLoad){const nd=dp.replace(/\\/g,`/`);const fn=nd.replace(/^.*[\\/]/,``);const isVisual=isArticleVisualName(fn);const isPure=nd===fn||!nd.includes(`/`);if(!isVisual||!isPure)candidateKeysForL2.push(nd);if(effectiveScope){if(!isVisual||isSandboxScope(effectiveScope)){candidateKeysForL2.push(getScopedMediaCacheKey(fn,effectiveScope,effectiveWsKey));if(!isPure)candidateKeysForL2.push(getScopedMediaCacheKey(dp,effectiveScope,effectiveWsKey))}}}getBatchPersistentMediaItems(candidateKeysForL2).then(l2Hits=>{if(isDisposed)return;let hitAnyL2=false;if(l2Hits&&l2Hits.size>0){for(const[key,dataUrl]of l2Hits.entries())if(dataUrl&&!resolvedMediaCache.has(key)){resolvedMediaCache.set(key,dataUrl);if(key.includes(`cover`))cacheCoverImage(key,dataUrl);hitAnyL2=true}}if(hitAnyL2){setCacheVersion(v=>v+1);anyLoaded=true}const remainingTargets=targetsToLoad.filter(dp=>{const nd=dp.replace(/\\/g,`/`);const sk=getScopedMediaCacheKey(nd.replace(/^.*[\\/]/,``),effectiveScope,effectiveWsKey);return!resolvedMediaCache.has(nd)&&(!sk||!resolvedMediaCache.has(sk))&&!isMediaFailed(nd)&&(!sk||!isMediaFailed(sk))});if(remainingTargets.length===0)return;const prioritySorted=[...remainingTargets].sort((a,b)=>{const score=p=>{const fn=p.replace(/^.*[\\/]/,``).toLowerCase();if(fn.includes(`cover_1`)||fn===`cover.png`)return 1;if(fn.includes(`cover_`))return 2;if(fn.startsWith(`pic_`))return 3;return 4};return score(a)-score(b)});const processTarget=async diskPath=>{const normDisk=diskPath.replace(/\\/g,`/`);const diskFileName=normDisk.replace(/^.*[\\/]/,``);const scopedDiskKey=getScopedMediaCacheKey(diskFileName,effectiveScope,effectiveWsKey);if(resolvedMediaCache.has(normDisk)||scopedDiskKey&&resolvedMediaCache.has(scopedDiskKey)||inFlightLoadsRef.current.has(normDisk)||isMediaFailed(normDisk)||scopedDiskKey&&isMediaFailed(scopedDiskKey))return;inFlightLoadsRef.current.add(normDisk);let loaded=false;try{if(activeServices.fileService?.readMediaPreview){const candidates=resolveCandidatePaths(diskPath,workspacePath,accountId,dynamicScripts);for(const candPath of candidates)try{const filePreview=await activeServices.fileService.readMediaPreview({path:candPath,maxBytes:15*1024*1024});if(filePreview?.dataBase64){const dataUrl=`data:${filePreview.mediaType||`image/png`};base64,${filePreview.dataBase64}`;const normCandPath=candPath.replace(/\\/g,`/`);const candFileName=normCandPath.replace(/^.*[\\/]/,``);const keysToRecord=[normCandPath,!isArticleVisualName(candFileName)||normDisk.includes(`/`)?normDisk:``,effectiveScope&&candFileName?getScopedMediaCacheKey(candFileName,effectiveScope,effectiveWsKey):``,effectiveScope&&diskFileName?getScopedMediaCacheKey(diskFileName,effectiveScope,effectiveWsKey):``].filter(Boolean);for(const raw of rawUrls){if(!raw)continue;const normRaw=extractLocalDiskPathFromUrl(raw).replace(/\\/g,`/`);if(normRaw===normDisk){if(!isArticleVisualName(normRaw.replace(/^.*[\\/]/,``))||normRaw.includes(`/`))keysToRecord.push(raw.trim())}}recordResolvedMedia(keysToRecord,dataUrl);loaded=true;anyLoaded=true;break}}catch{}}}catch(err){logger.debug(`[useResolvedMediaUrls] 解析本地配图异常`,{path:diskPath,error:String(err)})}finally{inFlightLoadsRef.current.delete(normDisk);if(!loaded){const failTtl=isSandboxScope(effectiveScope)?2e3:3e4;recordFailedMedia([normDisk,diskPath,scopedDiskKey].filter(Boolean),failTtl)}}};const runPool=async()=>{let cursor=0;const workers=Array.from({length:Math.min(4,prioritySorted.length)},async()=>{while(cursor<prioritySorted.length&&!isDisposed){const dp=prioritySorted[cursor++];if(dp)await processTarget(dp)}});await Promise.all(workers)};runPool().then(()=>{if(isDisposed)return;if(anyLoaded)setCacheVersion(v=>v+1);if(remainingTargets.some(dp=>{const nd=dp.replace(/\\/g,`/`);return!resolvedMediaCache.has(nd)})&&retryCountRef.current<3){const delay=Math.min(2e3*Math.pow(2,retryCountRef.current),8e3);retryTimerRef.current=setTimeout(()=>{if(!isDisposed){retryCountRef.current+=1;setRetryVersion(rv=>rv+1)}},delay)}else retryCountRef.current=0})});return()=>{isDisposed=true;if(retryTimerRef.current){clearTimeout(retryTimerRef.current);retryTimerRef.current=null}}},[targetsToLoad.join(`;;`),activeServices,workspacePath,accountId,scriptsDir,effectiveScope,retryVersion]);return(0,react.useMemo)(()=>{return rawUrls.map(raw=>{if(!raw)return``;const trimmed=raw.trim();if(trimmed.startsWith(`http://`)||trimmed.startsWith(`https://`)||trimmed.startsWith(`data:`))return trimmed;const normDisk=extractLocalDiskPathFromUrl(trimmed).replace(/\\/g,`/`);const fileName=normDisk.replace(/^.*[\\/]/,``);const scopedKey=effectiveScope?getScopedMediaCacheKey(fileName,effectiveScope,effectiveWsKey):``;const scopedRawKey=effectiveScope?getScopedMediaCacheKey(trimmed,effectiveScope,effectiveWsKey):``;const scopedCover=scopedKey&&fileName.includes(`cover`)?resolvedCoverCache.get(scopedKey):void 0;return resolvedMediaCache.get(normDisk)||(scopedKey?resolvedMediaCache.get(scopedKey):void 0)||(scopedRawKey?resolvedMediaCache.get(scopedRawKey):void 0)||scopedCover||trimmed})},[rawUrls,cacheVersion,effectiveScope])}function useArticlePlatformAsset({article,workspaceServices,socialPublisherRpc}){const currentAccountId=article.accountId||`default`;const cachedBrand=resolvedBrandCache.get(currentAccountId);const[brandTopRpcUrl,setBrandTopRpcUrl]=(0,react.useState)(cachedBrand?.brandTopUrl||null);const[brandBotRpcUrl,setBrandBotRpcUrl]=(0,react.useState)(cachedBrand?.brandBotUrl||null);const[brandImagesConfig,setBrandImagesConfig]=(0,react.useState)(cachedBrand?.config||null);(0,react.useEffect)(()=>{let isMounted=true;const accountId=currentAccountId;if(!cachedBrand)getPersistentBrandAsset(accountId).then(l2Asset=>{if(!isMounted||!l2Asset)return;if(l2Asset.brandTopUrl&&!brandTopRpcUrl)setBrandTopRpcUrl(l2Asset.brandTopUrl);if(l2Asset.brandBotUrl&&!brandBotRpcUrl)setBrandBotRpcUrl(l2Asset.brandBotUrl);if(l2Asset.config&&!brandImagesConfig)setBrandImagesConfig(l2Asset.config)});if(!socialPublisherRpc)return;const p1=socialPublisherRpc.handleGenericRoute(`/api/gzh-publisher/brand-image`,`GET`,void 0,{slot:`header`,account:accountId});const p2=socialPublisherRpc.handleGenericRoute(`/api/gzh-publisher/brand-image`,`GET`,void 0,{slot:`footer`,account:accountId});const p3=socialPublisherRpc.handleGenericRoute(`/api/gzh-publisher/config/export`,`GET`,void 0,{include_secrets:`false`});Promise.allSettled([p1,p2,p3]).then(([resTop,resBot,resCfg])=>{if(!isMounted)return;let topUrl=brandTopRpcUrl;let botUrl=brandBotRpcUrl;let cfg=brandImagesConfig;if(resTop.status===`fulfilled`&&resTop.value?.data?.data_url){topUrl=resTop.value.data.data_url;setBrandTopRpcUrl(topUrl)}if(resBot.status===`fulfilled`&&resBot.value?.data?.data_url){botUrl=resBot.value.data.data_url;setBrandBotRpcUrl(botUrl)}if(resCfg.status===`fulfilled`&&resCfg.value?.data?.config?.accounts){const accs=resCfg.value.data.config.accounts;const targetAcc=Array.isArray(accs)?accs.find(a=>a?.id===accountId):accs[accountId];if(targetAcc?.brand_images){cfg=targetAcc.brand_images;setBrandImagesConfig(cfg)}}cacheBrandAsset(accountId,{brandTopUrl:topUrl||void 0,brandBotUrl:botUrl||void 0,config:cfg})});return()=>{isMounted=false}},[currentAccountId,socialPublisherRpc]);const[loadedHtml,setLoadedHtml]=(0,react.useState)((0,react.useMemo)(()=>{if(!article.filePath)return null;const norm=article.filePath.replace(/\\/g,`/`);return resolvedArticleCache.get(norm)||resolvedArticleCache.get(article.filePath)||null},[article.filePath]));const[loadingHtml,setLoadingHtml]=(0,react.useState)(false);(0,react.useEffect)(()=>{let isDisposed=false;if(Boolean(article.filePath)&&article.filePath){const normPath=article.filePath.replace(/\\/g,`/`);if(!loadedHtml)getPersistentArticleContent(normPath).then(cached=>{if(!isDisposed&&cached&&!loadedHtml){setLoadedHtml(cached);resolvedArticleCache.set(normPath,cached)}});const hasImmediateContent=Boolean(article.content&&article.content.trim().length>50&&!article.content.includes(`排版落盘产物生成中`)&&!article.content.includes(`文章正在快马加鞭赶来`));if(!loadedHtml&&!resolvedArticleCache.has(normPath)&&!hasImmediateContent)setLoadingHtml(true);if(workspaceServices?.fileService)workspaceServices.fileService.readTextFile({path:article.filePath}).then(slice=>{if(!isDisposed&&slice?.content&&slice.content.trim()){setLoadedHtml(slice.content);cacheArticleContent(article.filePath,slice.content)}}).catch(err=>{logger.debug(`[useArticlePlatformAsset] 读取落盘正文文件失败，保持当前文案`,{filePath:article.filePath,error:err instanceof Error?err.message:String(err)})}).finally(()=>{if(!isDisposed)setLoadingHtml(false)});else setLoadingHtml(false)}else{setLoadedHtml(null);setLoadingHtml(false)}return()=>{isDisposed=true}},[article.filePath,workspaceServices]);return{brandTopRpcUrl,brandBotRpcUrl,brandImagesConfig,loadedHtml,loadingHtml}}var SocialArticleImageCreatingPlaceholder_module_css_default={"headlinerPlaceholder":`xvj3kG_headlinerPlaceholder`,"placeholderBadge":`xvj3kG_placeholderBadge`,"placeholderDesc":`xvj3kG_placeholderDesc`,"placeholderIcon":`xvj3kG_placeholderIcon`,"placeholderIconWrap":`xvj3kG_placeholderIconWrap`,"placeholderInner":`xvj3kG_placeholderInner`,"placeholderTextCol":`xvj3kG_placeholderTextCol`,"placeholderTitle":`xvj3kG_placeholderTitle`,"secondaryBadge":`xvj3kG_secondaryBadge`,"secondaryIconWrap":`xvj3kG_secondaryIconWrap`,"secondaryPlaceholder":`xvj3kG_secondaryPlaceholder`};function SocialArticleImageCreatingPlaceholder({platform,isSecondary,articleIndex,className}){if(platform===`wechat-news`&&(isSecondary||articleIndex!==void 0&&articleIndex>1))return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`image-creating-placeholder-wechat-secondary`,className:cn(SocialArticleImageCreatingPlaceholder_module_css_default.secondaryPlaceholder,className),children:[(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`},children:[(0,react_jsx_runtime.jsxs)(`span`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.secondaryBadge,children:[`#`,articleIndex||2,` 次条`]}),(0,react_jsx_runtime.jsx)(`span`,{style:{fontSize:11,color:`var(--dsw-alias-label-secondary, #6b7280)`,fontFamily:`var(--ds-font-family-code, monospace)`},children:`1:1 列表封面排版中`})]}),(0,react_jsx_runtime.jsx)(`p`,{style:{fontSize:11,color:`var(--dsw-alias-label-tertiary, #9ca3af)`,margin:`4px 0 0`},children:`配图落盘后将自动高保真渲染`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.secondaryIconWrap,children:(0,react_jsx_runtime.jsx)(Image,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderIcon})})]});if(platform===`xiaohongshu`)return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`image-creating-placeholder-xiaohongshu`,className:cn(`relative aspect-[3/4] w-full overflow-hidden select-none bg-surface/40 border-b border-border/40`,`flex flex-col items-center justify-center p-6 text-center`,className),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-col items-center max-w-[260px] space-y-2.5`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`size-10 rounded-xl bg-surface-hover/60 border border-border/50 flex items-center justify-center`,children:(0,react_jsx_runtime.jsx)(Image,{className:`size-5 text-foreground-muted opacity-70`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1`,children:[(0,react_jsx_runtime.jsx)(`h4`,{className:`text-ui-xs font-semibold text-foreground`,children:`3:4 视觉卡片构建中`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-[11px] text-foreground-muted leading-relaxed font-mono`,children:`排版渲染就绪后将自动接入画廊展示`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute top-3 left-3 px-2 py-0.5 rounded text-[10px] font-mono bg-background/60 text-foreground-muted border border-border/40`,children:`小红书 3:4 画廊`})]});if(platform===`wechat-newspic`)return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`image-creating-placeholder-wechat-newspic`,className:cn(`relative aspect-[3/4] w-full overflow-hidden select-none bg-surface/40 border-b border-border/40`,`flex flex-col items-center justify-center p-6 text-center`,className),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-col items-center max-w-[260px] space-y-2.5`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`size-10 rounded-xl bg-surface-hover/60 border border-border/50 flex items-center justify-center`,children:(0,react_jsx_runtime.jsx)(Image,{className:`size-5 text-foreground-muted opacity-70`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1`,children:[(0,react_jsx_runtime.jsx)(`h4`,{className:`text-ui-xs font-semibold text-foreground`,children:`小绿书图文卡片构建中`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-[11px] text-foreground-muted leading-relaxed font-mono`,children:`3:4 竖版配图渲染完成后自动呈现`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute top-3 left-3 px-2 py-0.5 rounded text-[10px] font-mono bg-background/60 text-foreground-muted border border-border/40`,children:`微信小绿书 3:4`})]});if(platform===`wechat-news`)return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`image-creating-placeholder-wechat-news`,className:cn(SocialArticleImageCreatingPlaceholder_module_css_default.headlinerPlaceholder,className),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderInner,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderIconWrap,children:(0,react_jsx_runtime.jsx)(Image,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderIcon})}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderTextCol,children:[(0,react_jsx_runtime.jsx)(`h4`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderTitle,children:`微信公众号 2.35:1 官方主图渲染中`}),(0,react_jsx_runtime.jsx)(`p`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderDesc,children:`配图落盘后将自动无缝贴合至画纸顶部`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleImageCreatingPlaceholder_module_css_default.placeholderBadge,children:`#1 头条 2.35:1 主封面`})]});return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`image-creating-placeholder-generic`,className:cn(`relative aspect-[16/9] w-full overflow-hidden select-none rounded-xl bg-surface/40 border border-border/40`,`flex items-center justify-center p-5 text-center`,className),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-3.5 max-w-[400px] text-left`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`size-10 rounded-lg bg-surface-hover/60 border border-border/50 flex items-center justify-center shrink-0`,children:(0,react_jsx_runtime.jsx)(Image,{className:`size-5 text-foreground-muted opacity-70`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex-1 min-w-0`,children:[(0,react_jsx_runtime.jsx)(`h4`,{className:`text-ui-xs font-semibold text-foreground`,children:`专栏 16:9 封面配图构建中`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-[11px] text-foreground-muted leading-relaxed font-mono mt-0.5`,children:`落盘后将自动高保真渲染`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute bottom-2.5 right-3 px-2 py-0.5 rounded text-[10px] font-mono bg-background/60 text-foreground-muted border border-border/40`,children:`16:9 专栏封面`})]})}function SafePreviewImage({src,alt,className,imageClassName,aspectRatio=`aspect-auto`,onClick}){const[loaded,setLoaded]=(0,react.useState)(false);const[hasError,setHasError]=(0,react.useState)(false);(0,react.useEffect)(()=>{setLoaded(false);setHasError(false)},[src]);if(!src||hasError)return(0,react_jsx_runtime.jsxs)(`div`,{className:cn(`flex flex-col items-center justify-center bg-surface-hover/50 text-foreground-muted select-none p-4`,aspectRatio,className),children:[(0,react_jsx_runtime.jsx)(Image,{className:`size-8 text-foreground-subtle/40 mb-2`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-ui-2xs font-medium text-foreground-subtle`,children:alt||`AI 配图加载中...`})]});return(0,react_jsx_runtime.jsxs)(`div`,{className:cn(`relative overflow-hidden bg-surface/30`,aspectRatio,className),children:[!loaded&&(0,react_jsx_runtime.jsx)(`div`,{className:`absolute inset-0 animate-pulse bg-surface-hover/50 flex items-center justify-center`,children:(0,react_jsx_runtime.jsx)(`span`,{className:`size-2 rounded-full bg-border/80 animate-pulse`})}),(0,react_jsx_runtime.jsx)(`img`,{src,alt,onLoad:()=>setLoaded(true),onError:()=>setHasError(true),onClick,className:cn(`w-full transition-opacity duration-300`,aspectRatio===`aspect-auto`?`h-auto max-h-[520px] object-contain mx-auto`:`h-full object-cover`,imageClassName,loaded?`opacity-100`:`opacity-0`,onClick?`cursor-zoom-in`:``)})]})}function SocialImageActionOverlay({slotTitle,kind,articleIndex=1,subIndex=1,currentImageUrl:_currentImageUrl,currentPrompt=``,intentDescription,searchKeywords,scriptsDir,targetFileName,targetDiskPath,accountId,platform,workspacePath,onImageChanged,onZoom,onDelete,canDelete,className=``,alwaysVisible=false}){const socialPublisherRpc=useOptionalServices()?.socialPublisherService??null;const[dialogOpen,setDialogOpen]=(0,react.useState)(false);const[promptText,setPromptText]=(0,react.useState)(currentPrompt||(kind===`cover`?`现代科技学术风格，大气简约构图，符合文章主题意象，中文字符艺术排版`:kind===`pic`?`小红书爆款排版风格，3:4 竖版构图，信息卡片清晰，全中文排版`:`高信息密度学术图表，严谨工整，信息漏斗/流程图，浅色干净背景`));(0,react.useEffect)(()=>{if(dialogOpen){if(currentPrompt?.trim())setPromptText(currentPrompt.trim());else if(intentDescription?.trim())setPromptText(intentDescription.trim())}},[dialogOpen,currentPrompt,intentDescription]);const[generating,setGenerating]=(0,react.useState)(false);const[replacing,setReplacing]=(0,react.useState)(false);const fileInputRef=(0,react.useRef)(null);const handleSelectLocalFile=e=>{const file=e.target.files?.[0];if(!file)return;setReplacing(true);const reader=new FileReader;reader.onload=async event=>{try{const base64Data=String(event.target?.result||``);const fallbackName=targetFileName||(kind===`cover`?`cover_${articleIndex}.png`:kind===`pic`?`pic_${articleIndex}_${subIndex}.png`:`content_${articleIndex}_${subIndex}.png`);const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/replace-image`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({targetPath:targetDiskPath,fileName:fallbackName,scriptsDir,base64Data,workspace:workspacePath})},socialPublisherRpc));if(parsed.ok&&parsed.data?.ok){invalidateMediaCache(parsed.data.path||targetDiskPath||fallbackName,base64Data);if(fallbackName)invalidateMediaCache(fallbackName,base64Data);onImageChanged?.(base64Data);toast(`已成功替换【${slotTitle}】为本地图片`)}else toast(parsed.data?.error||`替换图片失败，请检查写入权限`)}catch(err){toast(`替换图片异常: ${err.message||String(err)}`)}finally{setReplacing(false);if(fileInputRef.current)fileInputRef.current.value=``}};reader.readAsDataURL(file)};const handleStartRegenerate=async()=>{if(!promptText.trim()){toast(`生图提示词不能为空`);return}setGenerating(true);try{const fallbackName=targetFileName||(kind===`cover`?`cover_${articleIndex}.png`:kind===`pic`?`pic_${articleIndex}_${subIndex}.png`:`content_${articleIndex}_${subIndex}.png`);const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/regenerate-image`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({targetPath:targetDiskPath,fileName:fallbackName,kind,index:articleIndex,sub:subIndex,prompt:promptText.trim(),accountId,platform,scriptsDir,workspace:workspacePath})},socialPublisherRpc));if(parsed.ok&&parsed.data?.ok){const dataUrl=parsed.data.data_url;invalidateMediaCache(parsed.data.path||targetDiskPath||fallbackName,dataUrl);if(fallbackName)invalidateMediaCache(fallbackName,dataUrl);if(dataUrl)onImageChanged?.(dataUrl);toast(`已成功重新生成【${slotTitle}】`);setDialogOpen(false)}else toast(parsed.data?.error||`重新生成配图失败，请检查生图接口配置`)}catch(err){toast(`生图异常: ${err.message||String(err)}`)}finally{setGenerating(false)}};return(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(`input`,{ref:fileInputRef,type:`file`,accept:`image/png,image/jpeg,image/webp,image/jpg`,className:`hidden`,onChange:handleSelectLocalFile}),(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute top-2 right-2 z-20 flex items-center gap-1 p-1 rounded-full bg-black/65 backdrop-blur-md border border-white/20 shadow-lg text-white transition-all duration-200 ${alwaysVisible?`opacity-100 scale-100`:`opacity-0 group-hover:opacity-100 hover:opacity-100 scale-95 group-hover:scale-100`} ${className}`,onClick:e=>e.stopPropagation(),children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>setDialogOpen(true),disabled:generating||replacing,className:`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary/80 hover:bg-primary text-primary-foreground shadow-xs transition-colors cursor-pointer disabled:opacity-50`,title:`微调提示词并重新生成该图`,children:[generating?(0,react_jsx_runtime.jsx)(LoaderCircle,{className:`size-3 animate-spin`}):(0,react_jsx_runtime.jsx)(RefreshCw,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`重新生成`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>fileInputRef.current?.click(),disabled:generating||replacing,className:`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-white/15 hover:bg-white/25 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50`,title:`选择本地图片文件直接替换`,children:[replacing?(0,react_jsx_runtime.jsx)(LoaderCircle,{className:`size-3 animate-spin`}):(0,react_jsx_runtime.jsx)(Upload,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`替换`})]}),onZoom&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:onZoom,className:`p-1 rounded-full hover:bg-white/20 text-white/80 hover:text-white transition-colors cursor-zoom-in`,title:`高清放大查看`,children:(0,react_jsx_runtime.jsx)(ZoomIn,{className:`size-3.5`})}),canDelete&&onDelete&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:e=>{e.stopPropagation();onDelete()},className:`p-1 rounded-full hover:bg-rose-500/30 text-rose-300 hover:text-rose-100 transition-colors cursor-pointer`,title:`删除此卡片`,children:(0,react_jsx_runtime.jsx)(Trash,{className:`size-3.5`})})]}),dialogOpen&&(0,react_jsx_runtime.jsx)(`div`,{className:`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in`,onClick:()=>!generating&&setDialogOpen(false),children:(0,react_jsx_runtime.jsxs)(`div`,{className:`w-full max-w-lg rounded-2xl bg-card border border-border p-5 shadow-2xl text-card-foreground space-y-4`,onClick:e=>e.stopPropagation(),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between border-b border-border/50 pb-3`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`p-1.5 rounded-lg bg-primary/10 text-primary`,children:(0,react_jsx_runtime.jsx)(Image,{className:`size-4`})}),(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsxs)(`h3`,{className:`text-ui-sm font-semibold text-foreground`,children:[`重新生成：`,slotTitle]}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-[11px] text-foreground-muted`,children:`微调画面 Prompt 描述，AI 将就地重绘并替换当前槽位`})]})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,disabled:generating,onClick:()=>setDialogOpen(false),className:`p-1 rounded-lg hover:bg-surface text-foreground-muted hover:text-foreground cursor-pointer disabled:opacity-50`,children:(0,react_jsx_runtime.jsx)(X,{className:`size-4`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-2`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between text-ui-xs`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-medium text-foreground`,children:`生图提示词（Prompt）`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[10px] text-foreground-subtle`,children:`支持中文描述，突出风格与主体`})]}),intentDescription&&(0,react_jsx_runtime.jsxs)(`div`,{className:`p-2.5 rounded-xl bg-primary/5 border border-primary/15 text-ui-2xs text-foreground-muted leading-relaxed`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-bold text-primary mr-1.5`,children:`💡 原配图意图:`}),(0,react_jsx_runtime.jsx)(`span`,{children:intentDescription})]}),(0,react_jsx_runtime.jsx)(`textarea`,{value:promptText,onChange:e=>setPromptText(e.target.value),disabled:generating,rows:4,className:`w-full rounded-xl border border-input bg-background p-3 text-ui-xs text-foreground placeholder:text-foreground-subtle focus:outline-hidden ring-2 ring-primary/20 focus:border-primary disabled:opacity-50 leading-relaxed`,placeholder:`描述你想要的画面，例如：深蓝色学术图表、扁平化科技折线图，极简留白...`}),Array.isArray(searchKeywords)&&searchKeywords.length>0&&(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-wrap items-center gap-1.5 pt-1`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-[10px] text-foreground-subtle`,children:`推荐关键词:`}),searchKeywords.map((kw,kwIdx)=>(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,disabled:generating,onClick:()=>{const trimmed=kw.trim();if(trimmed&&!promptText.includes(trimmed))setPromptText(prev=>prev?`${prev}，${trimmed}`:trimmed)},className:`inline-flex items-center rounded-md bg-surface px-1.5 py-0.5 text-[10px] text-foreground-muted hover:text-primary hover:bg-primary/10 border border-border/60 transition-colors cursor-pointer`,title:`点击追加到提示词`,children:[`+ `,kw]},kwIdx))]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between pt-2`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`text-[11px] text-foreground-subtle`,children:[`规格：`,kind===`cover`?`封面比例`:kind===`pic`?`3:4 竖版多图`:`正文插图`]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2`,children:[(0,react_jsx_runtime.jsx)(Button,{type:`button`,variant:`outline`,size:`sm`,disabled:generating,onClick:()=>setDialogOpen(false),children:`取消`}),(0,react_jsx_runtime.jsx)(Button,{type:`button`,size:`sm`,disabled:generating,onClick:handleStartRegenerate,className:`gap-1.5`,children:generating?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(LoaderCircle,{className:`size-3.5 animate-spin`}),(0,react_jsx_runtime.jsx)(`span`,{children:`AI 生图中...`})]}):(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(Check,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`开始重新生成`})]})})]})]})]})})]})}var WechatImageRegenerateModal_module_css_default={"backdrop":`j9sfga_backdrop`,"closeBtn":`j9sfga_closeBtn`,"footer":`j9sfga_footer`,"header":`j9sfga_header`,"headerSubtitle":`j9sfga_headerSubtitle`,"headerTitle":`j9sfga_headerTitle`,"intentBox":`j9sfga_intentBox`,"keywordPill":`j9sfga_keywordPill`,"modalContainer":`j9sfga_modalContainer`,"textarea":`j9sfga_textarea`};function WechatImageRegenerateModal({isOpen,onClose,subIndex,initialPrompt,intentDescription,searchKeywords=[],articleIndex=1,accountId,platform,scriptsDir,workspacePath,onImageRegenerated}){const socialPublisherRpc=useOptionalServices()?.socialPublisherService??null;const[promptText,setPromptText]=(0,react.useState)(initialPrompt);const[isGenerating,setIsGenerating]=(0,react.useState)(false);(0,react.useEffect)(()=>{if(isOpen)setPromptText(initialPrompt)},[isOpen,initialPrompt]);if(!isOpen)return null;const handleStartRegenerate=async()=>{if(!promptText.trim()){toast(`生图提示词不能为空`);return}setIsGenerating(true);try{const targetFileName=`content_${articleIndex}_${subIndex}.png`;const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/regenerate-image`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({fileName:targetFileName,kind:`content`,index:articleIndex,sub:subIndex,prompt:promptText.trim(),accountId,platform,scriptsDir,workspace:workspacePath})},socialPublisherRpc));if(parsed.ok&&parsed.data?.ok){const dataUrl=parsed.data.data_url;const targetPath=parsed.data.path||targetFileName;if(dataUrl){invalidateMediaCache(targetPath,dataUrl);invalidateMediaCache(targetFileName,dataUrl);onImageRegenerated(dataUrl)}toast(`已成功重新生成第 ${subIndex} 张正文插图`);onClose()}else toast(parsed.data?.error||`重新生成插图失败，请检查模型接口配置`)}catch(err){toast(`生图异常: ${err.message||String(err)}`)}finally{setIsGenerating(false)}};return(0,react_jsx_runtime.jsx)(`div`,{className:WechatImageRegenerateModal_module_css_default.backdrop,onClick:()=>!isGenerating&&onClose(),children:(0,react_jsx_runtime.jsxs)(`div`,{className:WechatImageRegenerateModal_module_css_default.modalContainer,onClick:e=>e.stopPropagation(),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatImageRegenerateModal_module_css_default.header,children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:10},children:[(0,react_jsx_runtime.jsx)(`div`,{style:{width:32,height:32,borderRadius:8,background:`rgba(16, 185, 129, 0.12)`,color:`#059669`,display:`flex`,alignItems:`center`,justifyContent:`center`},children:(0,react_jsx_runtime.jsx)(Image,{size:16})}),(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsxs)(`h3`,{className:WechatImageRegenerateModal_module_css_default.headerTitle,children:[`重新生成：正文插图 #`,subIndex]}),(0,react_jsx_runtime.jsx)(`p`,{className:WechatImageRegenerateModal_module_css_default.headerSubtitle,children:`微调画面 Prompt 描述，AI 将就地重绘并更新画纸`})]})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,disabled:isGenerating,onClick:onClose,className:WechatImageRegenerateModal_module_css_default.closeBtn,"aria-label":`关闭窗口`,children:(0,react_jsx_runtime.jsx)(X,{size:16})})]}),(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,flexDirection:`column`,gap:10},children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,justifyContent:`space-between`,fontSize:12},children:[(0,react_jsx_runtime.jsx)(`span`,{style:{fontWeight:600,color:`var(--dsw-alias-label-primary, #111827)`},children:`生图提示词（Prompt）`}),(0,react_jsx_runtime.jsx)(`span`,{style:{fontSize:10,color:`var(--dsw-alias-label-tertiary, #9ca3af)`},children:`全中文描述，突出结构与信息对比`})]}),intentDescription&&(0,react_jsx_runtime.jsxs)(`div`,{className:WechatImageRegenerateModal_module_css_default.intentBox,children:[(0,react_jsx_runtime.jsx)(`strong`,{style:{color:`#059669`,marginRight:4},children:`💡 原配图意图:`}),(0,react_jsx_runtime.jsx)(`span`,{children:intentDescription})]}),(0,react_jsx_runtime.jsx)(`textarea`,{value:promptText,onChange:e=>setPromptText(e.target.value),disabled:isGenerating,rows:4,className:WechatImageRegenerateModal_module_css_default.textarea,placeholder:`描述你想要的画面，例如：六大选刊工具横向对比看板、深蓝色模块化数据流程图...`}),Array.isArray(searchKeywords)&&searchKeywords.length>0&&(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,flexWrap:`wrap`,alignItems:`center`,gap:6,paddingTop:2},children:[(0,react_jsx_runtime.jsx)(`span`,{style:{fontSize:10,color:`var(--dsw-alias-label-tertiary, #9ca3af)`},children:`推荐关键词:`}),searchKeywords.map((kw,kwIdx)=>(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,disabled:isGenerating,onClick:()=>{const trimmed=kw.trim();if(trimmed&&!promptText.includes(trimmed))setPromptText(prev=>prev?`${prev}，${trimmed}`:trimmed)},className:WechatImageRegenerateModal_module_css_default.keywordPill,title:`点击追加到提示词`,children:[`+ `,kw]},kwIdx))]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatImageRegenerateModal_module_css_default.footer,children:[(0,react_jsx_runtime.jsx)(`div`,{style:{fontSize:11,color:`var(--dsw-alias-label-tertiary, #9ca3af)`},children:`规格：正文插图 (16:9 / 1080px 高保真)`}),(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:8},children:[(0,react_jsx_runtime.jsx)(Button,{type:`button`,variant:`outline`,size:`sm`,disabled:isGenerating,onClick:onClose,children:`取消`}),(0,react_jsx_runtime.jsx)(Button,{type:`button`,size:`sm`,disabled:isGenerating,onClick:handleStartRegenerate,style:{background:`#10b981`,color:`#ffffff`,border:`none`,display:`inline-flex`,alignItems:`center`,gap:6},children:isGenerating?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(LoaderCircle,{size:14,className:`animate-spin`}),(0,react_jsx_runtime.jsx)(`span`,{children:`AI 生图中...`})]}):(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(Check,{size:14}),(0,react_jsx_runtime.jsx)(`span`,{children:`开始重新生成`})]})})]})]})]})})}const WECHAT_THEMES={wenying:{id:`wenying`,name:`典雅深红`,main:`#991B1B`,light:`#FDF2F2`,ul:`#E7C878`,gold:`#B8860B`},olive:{id:`olive`,name:`橄榄手记`,main:`#1e1f23`,light:`#F5F5F3`,ul:`#ed7b2f`,gold:`#ed7b2f`},graphite:{id:`graphite`,name:`石墨极简`,main:`#3F3F46`,light:`#FAFAFA`,ul:`#52525B`,gold:`#D97706`},moyu:{id:`moyu`,name:`冷杉墨绿`,main:`#065F46`,light:`#F0FDF4`,ul:`#A7F3D0`,gold:`#059669`},techblue:{id:`techblue`,name:`科技幽蓝`,main:`#2563EB`,light:`#EFF6FF`,ul:`#93C5FD`,gold:`#3B82F6`},dopamine:{id:`dopamine`,name:`多巴胺黄`,main:`#84CC16`,light:`#F7FEE7`,ul:`#BEF264`,gold:`#F59E0B`},zen:{id:`zen`,name:`留白禅意`,main:`#374151`,light:`#F9FAFB`,ul:`#B5C8BC`,gold:`#4A5D52`}};function extractImagesFromHtml(html){if(!html||!html.trim())return[];const urls=[];const imgTagRegex=/<img\b[^>]*>/gi;let match;while((match=imgTagRegex.exec(html))!==null){const tag=match[0];const srcMatch=tag.match(/\bsrc=["']([^"']+)["']/i)||tag.match(/\bdata-src=["']([^"']+)["']/i);if(srcMatch&&srcMatch[1])urls.push(srcMatch[1])}return urls}function appendImagesToCardHtml(html,remainingUrls,startIndex){if(!remainingUrls.length)return html;const galleryMatches=Array.from(html.matchAll(/<div\b[^>]*style=["'][^"']*flex-shrink:\s*0[^"']*["'][^>]*>[\s\S]*?<\/div>/gi));if(galleryMatches.length>0){const lastMatch=galleryMatches[galleryMatches.length-1];const lastItemHtml=lastMatch[0];const insertPos=lastMatch.index+lastItemHtml.length;let appendedBlocks=``;remainingUrls.forEach((url,i)=>{const currentIdx=startIndex+i+1;let cloned=lastItemHtml;cloned=cloned.replace(/(\bsrc=["'])[^"']*([ "'])/i,`$1${url}$2`);cloned=cloned.replace(/(\bdata-src=["'])[^"']*([ "'])/i,`$1${url}$2`);cloned=cloned.replace(/图\s*\d+/g,`图 ${currentIdx}`);appendedBlocks+=cloned});return html.slice(0,insertPos)+appendedBlocks+html.slice(insertPos)}const imgMatches=Array.from(html.matchAll(/<img\b[^>]*>/gi));if(imgMatches.length>0){const lastImgMatch=imgMatches[imgMatches.length-1];const lastImgHtml=lastImgMatch[0];const insertPos=lastImgMatch.index+lastImgHtml.length;let appendedImgs=``;remainingUrls.forEach(url=>{let clonedImg=lastImgHtml;clonedImg=clonedImg.replace(/(\bsrc=["'])[^"']*([ "'])/i,`$1${url}$2`);clonedImg=clonedImg.replace(/(\bdata-src=["'])[^"']*([ "'])/i,`$1${url}$2`);appendedImgs+=clonedImg});return html.slice(0,insertPos)+appendedImgs+html.slice(insertPos)}const closingTagMatch=html.match(/<\/(?:section|article|div)>$/i);const fallbackImgs=remainingUrls.map(url=>`<img src="${url}" style="width:100%;display:block;margin:8px 0;border-radius:4px;object-fit:cover;" />`).join(``);if(closingTagMatch&&closingTagMatch.index!==void 0){const pos=closingTagMatch.index;return html.slice(0,pos)+fallbackImgs+html.slice(pos)}return html+fallbackImgs}function replaceImagesInHtmlByOrder(rawHtml,newImageUrls,options={appendIfMore:true}){if(!rawHtml||!newImageUrls||newImageUrls.length===0)return rawHtml;let replacedCount=0;let resultHtml=rawHtml.replace(/<img\b([^>]*)>/gi,(fullMatch,attrs)=>{if(replacedCount<newImageUrls.length){const newUrl=newImageUrls[replacedCount++];let newTag=fullMatch;if(/(\bsrc=["'])[^"']*([ "'])/i.test(newTag))newTag=newTag.replace(/(\bsrc=["'])[^"']*([ "'])/i,`$1${newUrl}$2`);else newTag=`<img src="${newUrl}" ${attrs}>`;if(/(\bdata-src=["'])[^"']*([ "'])/i.test(newTag))newTag=newTag.replace(/(\bdata-src=["'])[^"']*([ "'])/i,`$1${newUrl}$2`);return newTag}return fullMatch});if(options.appendIfMore!==false&&replacedCount<newImageUrls.length){const remainingUrls=newImageUrls.slice(replacedCount);resultHtml=appendImagesToCardHtml(resultHtml,remainingUrls,replacedCount)}return resultHtml.replace(/\r?\n/g,``).trim()}function generateNodeId(prefix){return`${prefix}_${Math.random().toString(36).slice(2,9)}_${Date.now().toString(36)}`}function isGhostEmptyNodeHtml(rawHtml){if(!rawHtml||!rawHtml.trim())return true;if(/<(?:img|svg|hr|input|table|canvas)\b/i.test(rawHtml))return false;const textOnly=rawHtml.replace(/<[^>]+>/g,``).trim();const substantive=textOnly.replace(/["'“”‘’「」『』—\s]/g,``).trim();if(/\[object\s*Object\]|object\s*Object/i.test(textOnly)){if(textOnly.replace(/\[?object\s*Object\]?/gi,``).trim().length===0)return true}if(substantive.length===0)return true;if(/Georgia,serif|line-height:\s*0\.6/i.test(rawHtml)){if(textOnly.replace(/——\s*[\S\s]*$/,``).replace(/["'“”‘’「」『』\s]/g,``).trim().length===0)return true}return false}function parseHtmlToWechatNodes(html){if(!html||!html.trim())return[];const trimmedRaw=html.trim();if(/^\s*\{\s*["'](?:account_id|file|fileName|theme|task_id|index)["']/i.test(trimmedRaw)&&!trimmedRaw.includes(`<`))return[];const cleaned=html.replace(/\r?\n/g,``).replace(/\[object\s*Object\]/gi,``).trim();if(!cleaned)return[];if(typeof DOMParser!==`undefined`)try{const doc=new DOMParser().parseFromString(cleaned,`text/html`);const children=Array.from(doc.body.children).filter(el=>!isGhostEmptyNodeHtml(el.outerHTML));if(children.length>0)return children.map(el=>inferNodeFromHtml(el.outerHTML))}catch{}const blocks=[];const tagPattern=/<\/?([a-zA-Z0-9]+)\b[^>]*>/g;let match;let depth=0;let blockStart=-1;let currentTopTag=``;while((match=tagPattern.exec(cleaned))!==null){const fullTag=match[0];const tagName=match[1].toLowerCase();const isClosing=fullTag.startsWith(`</`);const isSelfClosing=fullTag.endsWith(`/>`)||[`img`,`br`,`hr`,`input`].includes(tagName);if(depth===0){if(!isClosing){blockStart=match.index;currentTopTag=tagName;if(!isSelfClosing)depth=1;else{blocks.push(cleaned.slice(blockStart,tagPattern.lastIndex));blockStart=-1}}}else if(tagName===currentTopTag){if(isClosing){depth--;if(depth===0){blocks.push(cleaned.slice(blockStart,tagPattern.lastIndex));blockStart=-1;currentTopTag=``}}else if(!isSelfClosing)depth++}}if(blocks.length===0)return[{id:generateNodeId(`sec_p`),type:`p`,label:`正文段落`,rawHtml:`<p style="margin:0 0 14px;font-size:14px;line-height:1.8;color:#374151;text-indent:2em;"><span leaf="">${cleaned}</span></p>`,props:{text:cleaned}}];return blocks.filter(raw=>!isGhostEmptyNodeHtml(raw)).map(raw=>inferNodeFromHtml(raw))}function inferNodeFromHtml(rawHtml){if(/<svg\b[^>]*>[\s\S]*?animateTransform[\s\S]*?<\/svg>/i.test(rawHtml))return{id:generateNodeId(`sec_svg_marquee`),type:`svg_marquee`,label:`轮播动效`,rawHtml,props:{}};if(/新春大吉|元宵喜乐|烟雨清明|致敬劳动者|端午安康|中秋团圆|盛世华诞|师恩难忘|九九重阳|冬至大如年/i.test(rawHtml))return{id:generateNodeId(`sec_fest`),type:`festival_banner`,label:`节日标`,rawHtml,props:{}};if(/>Q<.*>A</s.test(rawHtml)||/Q&amp;A|问答/i.test(rawHtml))return{id:generateNodeId(`sec_qa`),type:`qa_bubble`,label:`问答气泡`,rawHtml,props:{}};if(/☑️|清单备忘|重点检查清单|关键自查基线|自查清单|打勾清单/i.test(rawHtml))return{id:generateNodeId(`sec_check`),type:`checklist_box`,label:`备忘清单`,rawHtml,props:{}};if(/常见偏差|实践规范|认知辨析与实践规范/i.test(rawHtml))return{id:generateNodeId(`sec_versus`),type:`versus_card`,label:`思辨对比`,rawHtml,props:{}};if(/要点提示与警示|避坑特别提醒|避坑提醒/i.test(rawHtml))return{id:generateNodeId(`sec_warning`),type:`warning_card`,label:`避坑警示`,rawHtml,props:{}};if(/float:\s*left[^>]*font-size:\s*44px/i.test(rawHtml))return{id:generateNodeId(`sec_drop_cap`),type:`drop_cap`,label:`首字放大`,rawHtml,props:{}};if(/01 \/ 惯性假设路径|02 \/ 现实约束重构/i.test(rawHtml))return{id:generateNodeId(`sec_discourse`),type:`double_column`,label:`左右对比`,rawHtml,props:{}};if(/AVAILABILITY BASELINE|COLD-START GAIN|99.95/i.test(rawHtml))return{id:generateNodeId(`sec_swiss_metric`),type:`swiss_metrics`,label:`核心数据`,rawHtml,props:{}};if(/NOTEBOOK ｜ 现场观察手记/i.test(rawHtml))return{id:generateNodeId(`sec_marginalia`),type:`marginalia`,label:`竖线强调`,rawHtml,props:{}};if(/(?:Georgia,serif|line-height:\s*0\.6)[\s\S]*?["“”]/i.test(rawHtml)||/margin:\s*14px 0;background:\s*#ffffff/i.test(rawHtml)){const textOnly=rawHtml.replace(/<[^>]+>/g,``).trim();if(textOnly.replace(/["'“”‘’「」『』—\s]/g,``).trim().length>0)return{id:generateNodeId(`sec_intro_quote`),type:`intro_card`,label:`金句引用`,rawHtml,props:{text:textOnly}}}if(/EDITOR'S DISPATCH/i.test(rawHtml))return{id:generateNodeId(`sec_editor_note`),type:`editor_note`,label:`金句引用`,rawHtml,props:{}};if(/STEP\. 01.*STEP\. 02/i.test(rawHtml))return{id:generateNodeId(`sec_sequence`),type:`sequence_steps`,label:`步骤流程`,rawHtml,props:{}};if(/COLOPHON ｜ 刊印手记|若有所感 · 不妨静心分享/i.test(rawHtml))return{id:generateNodeId(`sec_colophon`),type:`colophon`,label:`文末落款`,rawHtml,props:{}};if(/PERSPECTIVE ｜/i.test(rawHtml))return{id:generateNodeId(`sec_h2`),type:`h2`,label:`主标题`,rawHtml,props:{text:rawHtml.replace(/<[^>]+>/g,``).trim()}};if(/overflow-x:\s*auto/i.test(rawHtml)&&/scroll-snap-type/i.test(rawHtml))return{id:generateNodeId(`sec_carousel`),type:`carousel`,label:`滑动画廊`,rawHtml,props:{}};if(/<img\b[^>]*>/i.test(rawHtml)&&!rawHtml.includes(`__BRAND_`)){if((rawHtml.match(/<img\b/gi)||[]).length===1)return{id:generateNodeId(`sec_img`),type:`image_card`,label:`插图展示`,rawHtml,props:{}}}if(/<(?:h[1-6]|p)[^>]*font-weight:\s*(?:bold|700|800|900)[^>]*>/i.test(rawHtml)){const textOnly=rawHtml.replace(/<[^>]+>/g,``).trim();if(textOnly.replace(/["'“”‘’「」『』—\s]/g,``).trim().length>=2&&textOnly.length<60)return{id:generateNodeId(`sec_h2`),type:`h2`,label:`主标题`,rawHtml,props:{text:textOnly}}}return{id:generateNodeId(`sec_custom`),type:`p`,label:`正文段落`,rawHtml,props:{}}}function compileWechatNodesToHtml(nodes,_themeKey=`wenying`){if(!nodes||nodes.length===0)return``;return nodes.map(node=>{if(node.rawHtml)return node.rawHtml.replace(/\r?\n/g,``).trim();return``}).filter(Boolean).join(``)}function applyThemeToNodeHtml(rawHtml,targetThemeKey){const theme=WECHAT_THEMES[targetThemeKey]??WECHAT_THEMES[`wenying`];if(!rawHtml||!theme)return rawHtml;let updated=rawHtml;for(const oldMain of[`#991B1B`,`#1e1f23`,`#3F3F46`,`#065F46`,`#374151`,`#52525B`,`#059669`,`#4A5D52`,`#DC2626`])if(oldMain.toLowerCase()!==theme.main.toLowerCase())updated=updated.replace(new RegExp(oldMain,`gi`),theme.main);return updated}function createBlankParagraphNode(){return{id:`sec_p_${Math.random().toString(36).slice(2,8)}`,type:`p`,label:`正文段落`,rawHtml:`<p style="margin:0 0 14px;font-size:14px;line-height:1.8;color:#374151;text-indent:2em;"><span leaf="">请在此输入正文内容...</span></p>`,props:{text:`请在此输入正文内容...`}}}function scrollToCanvasNode(nodeId,focusText=false){requestAnimationFrame(()=>{setTimeout(()=>{const el=document.getElementById(nodeId);if(!el)return;el.scrollIntoView({behavior:`smooth`,block:`center`});if(focusText){const editableEl=el.querySelector(`[contenteditable='true']`);if(editableEl){editableEl.focus();const selection=window.getSelection();if(selection){const range=document.createRange();range.selectNodeContents(editableEl);range.collapse(false);selection.removeAllRanges();selection.addRange(range)}}}},60)})}function extractVisibleText(html){if(!html)return``;const leafMatch=html.match(/<span\s+leaf(?:=""|="true")?[^>]*>([\s\S]*?)<\/span>/i);if(leafMatch&&leafMatch[1])return leafMatch[1].replace(/<[^>]+>/g,``).trim();return html.replace(/<[^>]+>/g,``).trim()}function extractFirstImageUrl(html){if(!html)return null;const match=html.match(/<img[^>]+src=["']([^"']+)["']/i);return match&&match[1]?match[1]:null}function preserveNodeContent(oldNode,newNode){const result={...newNode,id:`sec_${newNode.type}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,6)}`,props:{...newNode.props}};if(oldNode.type===`h2`||newNode.type===`h2`){const userText=oldNode.props?.text?.trim()||extractVisibleText(oldNode.rawHtml);if(userText&&result.rawHtml){result.rawHtml=result.rawHtml.replace(/(<span\s+leaf(?:=""|="true")?[^>]*>)([\s\S]*?)(<\/span>)/i,`$1${userText}$3`);result.props.text=userText}return result}if(oldNode.type===`p`||newNode.type===`p`){const userText=oldNode.props?.text?.trim()||extractVisibleText(oldNode.rawHtml);if(userText&&result.rawHtml){result.rawHtml=result.rawHtml.replace(/(<span\s+leaf(?:=""|="true")?[^>]*>)([\s\S]*?)(<\/span>)/i,`$1${userText}$3`);result.props.text=userText}return result}const oldImg=extractFirstImageUrl(oldNode.rawHtml);const oldText=extractVisibleText(oldNode.rawHtml);if(result.rawHtml){let replacedHtml=result.rawHtml;if(oldImg&&replacedHtml.includes(`<img`))replacedHtml=replacedHtml.replace(/(<img[^>]+src=["'])([^"']+)(["'])/i,`$1${oldImg}$3`);if(oldText&&oldText.length>0){replacedHtml=replacedHtml.replace(/(<span\s+leaf(?:=""|="true")?[^>]*>)([\s\S]*?)(<\/span>)/i,`$1${oldText}$3`);result.props.text=oldText}result.rawHtml=replacedHtml}return result}function useWechatCanvasNodeActions({nodes,selectedNodeId,history,updateNodesAndEmit,setSelectedNodeId,setJustAddedNodeId}){const handleDeleteSelected=(0,react.useCallback)(()=>{if(!selectedNodeId)return;updateNodesAndEmit(nodes.filter(n=>n.id!==selectedNodeId));setSelectedNodeId(null);toast(`已删除选中容器`)},[selectedNodeId,nodes,updateNodesAndEmit,setSelectedNodeId]);const handleDuplicateSelected=(0,react.useCallback)(()=>{if(!selectedNodeId)return;const targetIdx=nodes.findIndex(n=>n.id===selectedNodeId);if(targetIdx===-1)return;const target=nodes[targetIdx];const dup={...target,id:`${target.id}_copy_${Date.now().toString(36)}`};const next=[...nodes];next.splice(targetIdx+1,0,dup);updateNodesAndEmit(next);setSelectedNodeId(dup.id);setJustAddedNodeId(dup.id);setTimeout(()=>{setJustAddedNodeId(null)},1200);scrollToCanvasNode(dup.id,false);toast(`已复制容器副本 (Ctrl+D)`)},[selectedNodeId,nodes,updateNodesAndEmit,setSelectedNodeId,setJustAddedNodeId]);const handleInsertBlankParagraphAt=(0,react.useCallback)(targetIndex=>{const blankNode=createBlankParagraphNode();history.pushSnapshot(nodes);const next=[...nodes];next.splice(targetIndex,0,blankNode);updateNodesAndEmit(next);setSelectedNodeId(blankNode.id);setJustAddedNodeId(blankNode.id);setTimeout(()=>{setJustAddedNodeId(null)},1200);toast(`已插入空白正文段落`);scrollToCanvasNode(blankNode.id,true)},[nodes,history,updateNodesAndEmit,setSelectedNodeId,setJustAddedNodeId]);const handleMoveNode=(0,react.useCallback)((index,dir)=>{const target=index+dir;if(target<0||target>=nodes.length)return;history.pushSnapshot(nodes);const next=[...nodes];const temp=next[target];next[target]=next[index];next[index]=temp;updateNodesAndEmit(next);scrollToCanvasNode(next[target].id,false)},[nodes,history,updateNodesAndEmit]);const handleChangeNodeTheme=(0,react.useCallback)((index,themeKey)=>{const target=nodes[index];if(!target?.rawHtml)return;history.pushSnapshot(nodes);const next=[...nodes];next[index]={...target,rawHtml:applyThemeToNodeHtml(target.rawHtml,themeKey)};updateNodesAndEmit(next)},[nodes,history,updateNodesAndEmit]);(0,react.useEffect)(()=>{const handleApplyFromSidebar=e=>{const{mode,targetNodeId,targetIndex,insertPosition,node:newNode,title}=e.detail||{};if(!newNode)return;history.pushSnapshot(nodes);if(mode===`replace`&&targetNodeId){const targetIdx=nodes.findIndex(n=>n.id===targetNodeId);if(targetIdx!==-1){const oldNode=nodes[targetIdx];const preservedNode=preserveNodeContent(oldNode,newNode);const next=[...nodes];next[targetIdx]=preservedNode;updateNodesAndEmit(next);setSelectedNodeId(preservedNode.id);setJustAddedNodeId(preservedNode.id);setTimeout(()=>{setJustAddedNodeId(null)},1200);toast(`已将当前容器替换为【${title||`新样式`}】（已保留原文内容）`);scrollToCanvasNode(preservedNode.id,preservedNode.type===`p`);return}}if((mode===`insert_below`||mode===`insert_above`||insertPosition)&&targetNodeId){const targetIdx=nodes.findIndex(n=>n.id===targetNodeId);if(targetIdx!==-1){const isAbove=mode===`insert_above`||insertPosition===`above`;const actualIndex=isAbove?targetIdx:targetIdx+1;const next=[...nodes];next.splice(actualIndex,0,newNode);updateNodesAndEmit(next);setSelectedNodeId(newNode.id);setJustAddedNodeId(newNode.id);setTimeout(()=>{setJustAddedNodeId(null)},1200);toast(`已在当前容器${isAbove?`上方`:`下方`}插入【${title||`版式组件`}】`);scrollToCanvasNode(newNode.id,newNode.type===`p`);return}}if(typeof targetIndex===`number`&&targetIndex>=0&&targetIndex<=nodes.length){const next=[...nodes];next.splice(targetIndex,0,newNode);updateNodesAndEmit(next);setSelectedNodeId(newNode.id);setJustAddedNodeId(newNode.id);setTimeout(()=>{setJustAddedNodeId(null)},1200);toast(`已在${targetIndex===0?`正文最开头`:`第 ${targetIndex} 节下方`}插入【${title||`版式组件`}】`);scrollToCanvasNode(newNode.id,newNode.type===`p`);return}let insertIndex=nodes.length;if(nodes.length>0&&nodes[nodes.length-1]?.type===`colophon`)insertIndex=nodes.length-1;const next=[...nodes];next.splice(insertIndex,0,newNode);updateNodesAndEmit(next);setSelectedNodeId(newNode.id);setJustAddedNodeId(newNode.id);setTimeout(()=>{setJustAddedNodeId(null)},1200);toast(`已插入【${title||`版式组件`}】至文章结尾`);scrollToCanvasNode(newNode.id,newNode.type===`p`)};window.addEventListener(`wincode:wechat-canvas-apply-template`,handleApplyFromSidebar);window.addEventListener(`wincode:wechat-canvas-insert-template`,handleApplyFromSidebar);return()=>{window.removeEventListener(`wincode:wechat-canvas-apply-template`,handleApplyFromSidebar);window.removeEventListener(`wincode:wechat-canvas-insert-template`,handleApplyFromSidebar)}},[nodes,history,updateNodesAndEmit,setSelectedNodeId,setJustAddedNodeId]);return{handleDeleteSelected,handleDuplicateSelected,handleInsertBlankParagraphAt,handleMoveNode,handleChangeNodeTheme}}var WechatContainerGizmo_module_css_default={"colorDot":`up_dVW_colorDot`,"gizmo":`up_dVW_gizmo`,"gizmoActions":`up_dVW_gizmoActions`,"gizmoBtn":`up_dVW_gizmoBtn`,"gizmoBtnDanger":`up_dVW_gizmoBtnDanger`,"gizmoLabel":`up_dVW_gizmoLabel`,"icon":`up_dVW_icon`,"palettePopover":`up_dVW_palettePopover`,"paletteWrapper":`up_dVW_paletteWrapper`};function WechatContainerGizmo({label,isFirst,isLast,hasImages=false,onMoveUp,onMoveDown,onInsertAbove,onInsertBelow,onDuplicate,onDelete,onChangeTheme,onBatchReplaceImages,onRegenerateImage}){const[showPalette,setShowPalette]=(0,react.useState)(false);return(0,react_jsx_runtime.jsxs)(`div`,{className:WechatContainerGizmo_module_css_default.gizmo,onClick:e=>e.stopPropagation(),children:[(0,react_jsx_runtime.jsx)(`div`,{className:WechatContainerGizmo_module_css_default.gizmoLabel,children:(0,react_jsx_runtime.jsx)(`span`,{children:label})}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatContainerGizmo_module_css_default.gizmoActions,children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,disabled:isFirst,onClick:onMoveUp,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`上移一个容器`,children:(0,react_jsx_runtime.jsx)(ArrowUp,{className:WechatContainerGizmo_module_css_default.icon})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,disabled:isLast,onClick:onMoveDown,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`下移一个容器`,children:(0,react_jsx_runtime.jsx)(ArrowDown,{className:WechatContainerGizmo_module_css_default.icon})}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onInsertAbove,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`在上方插入新组件`,style:{width:`auto`,padding:`0 6px`,fontSize:11},children:[(0,react_jsx_runtime.jsx)(Plus,{size:12}),(0,react_jsx_runtime.jsx)(`span`,{style:{marginLeft:2},children:`上插`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onInsertBelow,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`在下方插入新组件`,style:{width:`auto`,padding:`0 6px`,fontSize:11},children:[(0,react_jsx_runtime.jsx)(Plus,{size:12}),(0,react_jsx_runtime.jsx)(`span`,{style:{marginLeft:2},children:`下插`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatContainerGizmo_module_css_default.paletteWrapper,onMouseEnter:()=>setShowPalette(true),onMouseLeave:()=>setShowPalette(false),children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`切换组件主题色`,onClick:()=>setShowPalette(prev=>!prev),children:(0,react_jsx_runtime.jsx)(Palette,{className:WechatContainerGizmo_module_css_default.icon})}),showPalette&&(0,react_jsx_runtime.jsx)(`div`,{className:WechatContainerGizmo_module_css_default.palettePopover,children:Object.values(WECHAT_THEMES).map(thm=>(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>{onChangeTheme(thm.id);setShowPalette(false)},className:WechatContainerGizmo_module_css_default.colorDot,style:{backgroundColor:thm.main},title:thm.name},thm.id))})]}),hasImages&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[onRegenerateImage&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onRegenerateImage,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`微调提示词并重新生成本卡片正文配图`,style:{width:`auto`,padding:`0 6px`,fontSize:11,color:`#059669`,fontWeight:600},children:[(0,react_jsx_runtime.jsx)(RefreshCw,{size:12}),(0,react_jsx_runtime.jsx)(`span`,{style:{marginLeft:3},children:`重新生图`})]}),onBatchReplaceImages&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onBatchReplaceImages,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`按序批量替换本卡片中的图片`,style:{width:`auto`,padding:`0 6px`,fontSize:11},children:[(0,react_jsx_runtime.jsx)(Images,{size:12}),(0,react_jsx_runtime.jsx)(`span`,{style:{marginLeft:3},children:`换图`})]})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:onDuplicate,className:WechatContainerGizmo_module_css_default.gizmoBtn,title:`复制本容器`,children:(0,react_jsx_runtime.jsx)(Copy,{className:WechatContainerGizmo_module_css_default.icon})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:onDelete,className:`${WechatContainerGizmo_module_css_default.gizmoBtn} ${WechatContainerGizmo_module_css_default.gizmoBtnDanger}`,title:`删除本容器`,children:(0,react_jsx_runtime.jsx)(Trash,{className:WechatContainerGizmo_module_css_default.icon})})]})]})}var WechatGapInserter_module_css_default={"actionButton":`uy4m9a_actionButton`,"actionsGroup":`uy4m9a_actionsGroup`,"activeAnchorContainer":`uy4m9a_activeAnchorContainer`,"anchorBadge":`uy4m9a_anchorBadge`,"anchorLabel":`uy4m9a_anchorLabel`,"anchorLine":`uy4m9a_anchorLine`,"anchorPinIcon":`uy4m9a_anchorPinIcon`,"blankBtn":`uy4m9a_blankBtn`,"cancelAnchorBtn":`uy4m9a_cancelAnchorBtn`,"cancelIcon":`uy4m9a_cancelIcon`,"gapLine":`uy4m9a_gapLine`,"gapRoot":`uy4m9a_gapRoot`,"gapRootActive":`uy4m9a_gapRootActive`,"hoverTrigger":`uy4m9a_hoverTrigger`,"plusIcon":`uy4m9a_plusIcon`,"pulseLine":`uy4m9a_pulseLine`,"sparkleIcon":`uy4m9a_sparkleIcon`,"templateBtn":`uy4m9a_templateBtn`};function WechatGapInserter({onInsertBlank,onPickTemplate,isActiveAnchor=false,onCancelAnchor}){if(isActiveAnchor)return(0,react_jsx_runtime.jsx)(`div`,{className:`${WechatGapInserter_module_css_default.gapRoot} ${WechatGapInserter_module_css_default.gapRootActive}`,children:(0,react_jsx_runtime.jsxs)(`div`,{className:WechatGapInserter_module_css_default.activeAnchorContainer,children:[(0,react_jsx_runtime.jsx)(`div`,{className:WechatGapInserter_module_css_default.anchorLine}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatGapInserter_module_css_default.anchorBadge,children:[(0,react_jsx_runtime.jsx)(MapPin,{className:WechatGapInserter_module_css_default.anchorPinIcon}),(0,react_jsx_runtime.jsx)(`span`,{className:WechatGapInserter_module_css_default.anchorLabel,children:`正在向此位置插入组件 (已联动左侧素材库)`}),onCancelAnchor&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:WechatGapInserter_module_css_default.cancelAnchorBtn,onClick:e=>{e.stopPropagation();onCancelAnchor()},title:`取消此插入位置锚点`,children:[(0,react_jsx_runtime.jsx)(X,{className:WechatGapInserter_module_css_default.cancelIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`取消`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:WechatGapInserter_module_css_default.anchorLine})]})});return(0,react_jsx_runtime.jsx)(`div`,{className:WechatGapInserter_module_css_default.gapRoot,children:(0,react_jsx_runtime.jsxs)(`div`,{className:WechatGapInserter_module_css_default.hoverTrigger,children:[(0,react_jsx_runtime.jsx)(`div`,{className:WechatGapInserter_module_css_default.gapLine}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatGapInserter_module_css_default.actionsGroup,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`${WechatGapInserter_module_css_default.actionButton} ${WechatGapInserter_module_css_default.blankBtn}`,onClick:e=>{e.stopPropagation();onInsertBlank()},title:`在此处直接插入空白正文段落，打字更快捷`,children:[(0,react_jsx_runtime.jsx)(Plus,{className:WechatGapInserter_module_css_default.plusIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`空白段落`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`${WechatGapInserter_module_css_default.actionButton} ${WechatGapInserter_module_css_default.templateBtn}`,onClick:e=>{e.stopPropagation();onPickTemplate()},title:`为此位置设定锚点并唤起左侧排版素材库`,children:[(0,react_jsx_runtime.jsx)(Sparkles,{className:WechatGapInserter_module_css_default.sparkleIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`挑选素材`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:WechatGapInserter_module_css_default.gapLine})]})})}var WechatEditableNode_module_css_default={"cursorPointer":`gijDoG_cursorPointer`,"cursorText":`gijDoG_cursorText`,"editableNode":`gijDoG_editableNode`};function WechatEditableNode({nodeId,rawHtml,isSelected,onContentChange,onSelect,onImageClick}){const containerRef=(0,react.useRef)(null);const isComposingRef=(0,react.useRef)(false);const isFocusedRef=(0,react.useRef)(false);const lastHtmlRef=(0,react.useRef)(rawHtml);(0,react.useEffect)(()=>{if(!containerRef.current)return;if(isFocusedRef.current)return;const cleaned=cleanAndUnescapeHtmlContent(rawHtml||``);if(containerRef.current.innerHTML!==cleaned){containerRef.current.innerHTML=cleaned;lastHtmlRef.current=rawHtml}},[rawHtml,nodeId]);const handleInput=(0,react.useCallback)(()=>{if(!containerRef.current)return;if(isComposingRef.current)return;const cleanedHtml=containerRef.current.innerHTML.replace(/\r?\n/g,``).trim();if(cleanedHtml!==lastHtmlRef.current){lastHtmlRef.current=cleanedHtml;onContentChange(nodeId,cleanedHtml)}},[nodeId,onContentChange]);return(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:(0,react.useCallback)(e=>{e.preventDefault();const text=e.clipboardData.getData(`text/plain`);if(!text)return;const selection=window.getSelection();if(!selection||selection.rangeCount===0)return;const range=selection.getRangeAt(0);range.deleteContents();const textNode=document.createTextNode(text);range.insertNode(textNode);range.setStartAfter(textNode);range.setEndAfter(textNode);selection.removeAllRanges();selection.addRange(range);handleInput()},[handleInput]),onClick:e=>{const target=e.target;if(target&&target.tagName&&target.tagName.toLowerCase()===`img`){const src=target.src;if(src){onImageClick?.(src);return}}onSelect()},className:`${WechatEditableNode_module_css_default.editableNode} ${isSelected?WechatEditableNode_module_css_default.cursorText:WechatEditableNode_module_css_default.cursorPointer}`})}var WechatBatchImageReplaceModal_module_css_default={"backdrop":`ilh_eG_backdrop`,"bodyArea":`ilh_eG_bodyArea`,"closeBtn":`ilh_eG_closeBtn`,"confirmBtn":`ilh_eG_confirmBtn`,"dropZone":`ilh_eG_dropZone`,"dropZoneHover":`ilh_eG_dropZoneHover`,"footer":`ilh_eG_footer`,"header":`ilh_eG_header`,"headerSubtitle":`ilh_eG_headerSubtitle`,"headerTitle":`ilh_eG_headerTitle`,"iconBtn":`ilh_eG_iconBtn`,"imageItem":`ilh_eG_imageItem`,"modalContainer":`ilh_eG_modalContainer`,"thumbImg":`ilh_eG_thumbImg`};function WechatBatchImageReplaceModal({isOpen,onClose,originalImageUrls,nodeLabel=`图文卡片`,onConfirmReplace}){const[selectedImages,setSelectedImages]=(0,react.useState)([]);const[isDragging,setIsDragging]=(0,react.useState)(false);const fileInputRef=(0,react.useRef)(null);(0,react.useEffect)(()=>{if(isOpen){setSelectedImages([]);setIsDragging(false)}},[isOpen]);(0,react.useEffect)(()=>{if(!isOpen)return;const handleKeyDown=e=>{if(e.key===`Escape`)onClose()};window.addEventListener(`keydown`,handleKeyDown);return()=>window.removeEventListener(`keydown`,handleKeyDown)},[isOpen,onClose]);if(!isOpen)return null;const handleFiles=files=>{const fileArray=Array.from(files).filter(f=>f.type.startsWith(`image/`));if(fileArray.length===0)return;const newItems=[];let loadedCount=0;fileArray.forEach((file,index)=>{const reader=new FileReader;reader.onload=e=>{const url=e.target?.result;if(url)newItems[index]={id:`img_${Date.now()}_${Math.random().toString(36).slice(2,7)}_${index}`,name:file.name,url,file};loadedCount++;if(loadedCount===fileArray.length){const orderedClean=newItems.filter(Boolean);setSelectedImages(prev=>[...prev,...orderedClean])}};reader.readAsDataURL(file)})};const handleFileInputChange=e=>{if(e.target.files&&e.target.files.length>0){handleFiles(e.target.files);e.target.value=``}};const handleDragOver=e=>{e.preventDefault();e.stopPropagation();setIsDragging(true)};const handleDragLeave=e=>{e.preventDefault();e.stopPropagation();setIsDragging(false)};const handleDrop=e=>{e.preventDefault();e.stopPropagation();setIsDragging(false);if(e.dataTransfer.files&&e.dataTransfer.files.length>0)handleFiles(e.dataTransfer.files)};const handleMoveUp=index=>{if(index===0)return;setSelectedImages(prev=>{const updated=[...prev];const temp=updated[index-1];updated[index-1]=updated[index];updated[index]=temp;return updated})};const handleMoveDown=index=>{if(index===selectedImages.length-1)return;setSelectedImages(prev=>{const updated=[...prev];const temp=updated[index+1];updated[index+1]=updated[index];updated[index]=temp;return updated})};const handleRemove=index=>{setSelectedImages(prev=>prev.filter((_,i)=>i!==index))};const handleConfirm=()=>{if(selectedImages.length===0)return;onConfirmReplace(selectedImages.map(item=>item.url));onClose()};return(0,react_jsx_runtime.jsx)(`div`,{className:WechatBatchImageReplaceModal_module_css_default.backdrop,onClick:onClose,children:(0,react_jsx_runtime.jsxs)(`div`,{className:WechatBatchImageReplaceModal_module_css_default.modalContainer,onClick:e=>e.stopPropagation(),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatBatchImageReplaceModal_module_css_default.header,children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:10},children:[(0,react_jsx_runtime.jsx)(`div`,{style:{width:32,height:32,borderRadius:8,background:`rgba(16, 185, 129, 0.12)`,color:`#059669`,display:`flex`,alignItems:`center`,justifyContent:`center`},children:(0,react_jsx_runtime.jsx)(Images,{size:16})}),(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsx)(`h3`,{className:WechatBatchImageReplaceModal_module_css_default.headerTitle,children:`批量替换卡片图片`}),(0,react_jsx_runtime.jsxs)(`p`,{className:WechatBatchImageReplaceModal_module_css_default.headerSubtitle,children:[`当前组件：`,nodeLabel,` · 原有 `,originalImageUrls.length,` 个图片槽位`]})]})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:onClose,className:WechatBatchImageReplaceModal_module_css_default.closeBtn,"aria-label":`关闭窗口`,children:(0,react_jsx_runtime.jsx)(X,{size:16})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatBatchImageReplaceModal_module_css_default.bodyArea,children:[(0,react_jsx_runtime.jsxs)(`div`,{onDragOver:handleDragOver,onDragLeave:handleDragLeave,onDrop:handleDrop,onClick:()=>fileInputRef.current?.click(),className:`${WechatBatchImageReplaceModal_module_css_default.dropZone} ${isDragging?WechatBatchImageReplaceModal_module_css_default.dropZoneHover:``}`,children:[(0,react_jsx_runtime.jsx)(`input`,{type:`file`,ref:fileInputRef,onChange:handleFileInputChange,multiple:true,accept:`image/*`,style:{display:`none`}}),(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,flexDirection:`column`,alignItems:`center`,gap:8},children:[(0,react_jsx_runtime.jsx)(`div`,{style:{width:40,height:40,borderRadius:`50%`,background:`rgba(0,0,0,0.05)`,display:`flex`,alignItems:`center`,justifyContent:`center`,color:`#6b7280`},children:(0,react_jsx_runtime.jsx)(CloudUpload,{size:20})}),(0,react_jsx_runtime.jsx)(`div`,{style:{fontSize:13,fontWeight:600,color:`var(--dsw-alias-label-primary, #111827)`},children:`点击选择多张图片，或直接拖拽图片至此处`}),(0,react_jsx_runtime.jsx)(`p`,{style:{fontSize:11,color:`var(--dsw-alias-label-tertiary, #9ca3af)`,margin:0},children:`系统将严格按您勾选/放入的顺序依次替换到图文卡片中（支持 JPG / PNG / WebP）`})]})]}),selectedImages.length>0?(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,flexDirection:`column`,gap:10},children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,justifyContent:`space-between`,fontSize:11,fontWeight:600,color:`var(--dsw-alias-label-primary, #111827)`,padding:`0 4px`},children:[(0,react_jsx_runtime.jsx)(`span`,{children:`替换映射预览（支持点击箭头微调顺序）`}),(0,react_jsx_runtime.jsxs)(`span`,{style:{color:`var(--dsw-alias-label-tertiary, #9ca3af)`,fontWeight:400},children:[`已选 `,selectedImages.length,` 张图片`]})]}),(0,react_jsx_runtime.jsx)(`div`,{style:{display:`flex`,flexDirection:`column`,gap:8},children:selectedImages.map((item,idx)=>{const targetSlot=originalImageUrls[idx];return(0,react_jsx_runtime.jsxs)(`div`,{className:WechatBatchImageReplaceModal_module_css_default.imageItem,children:[(0,react_jsx_runtime.jsxs)(`span`,{style:{fontSize:11,fontWeight:700,color:`#10b981`,width:22,textAlign:`center`},children:[`#`,idx+1]}),(0,react_jsx_runtime.jsx)(`img`,{src:item.url,alt:item.name,className:WechatBatchImageReplaceModal_module_css_default.thumbImg}),(0,react_jsx_runtime.jsxs)(`div`,{style:{flex:1,minWidth:0},children:[(0,react_jsx_runtime.jsx)(`div`,{style:{fontSize:12,fontWeight:500,color:`var(--dsw-alias-label-primary, #111827)`,overflow:`hidden`,textOverflow:`ellipsis`,whiteSpace:`nowrap`},children:item.name}),targetSlot?(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:4,fontSize:10,color:`#10b981`,marginTop:2},children:[(0,react_jsx_runtime.jsx)(Check,{size:11}),(0,react_jsx_runtime.jsxs)(`span`,{children:[`映射原卡片图 #`,idx+1]})]}):(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:4,fontSize:10,color:`#d97706`,marginTop:2},children:[(0,react_jsx_runtime.jsx)(ArrowRight,{size:11}),(0,react_jsx_runtime.jsx)(`span`,{children:`超额新增至卡片末尾`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:4},children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,disabled:idx===0,onClick:()=>handleMoveUp(idx),className:WechatBatchImageReplaceModal_module_css_default.iconBtn,title:`上移`,children:(0,react_jsx_runtime.jsx)(ArrowUp,{size:12})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,disabled:idx===selectedImages.length-1,onClick:()=>handleMoveDown(idx),className:WechatBatchImageReplaceModal_module_css_default.iconBtn,title:`下移`,children:(0,react_jsx_runtime.jsx)(ArrowDown,{size:12})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>handleRemove(idx),className:WechatBatchImageReplaceModal_module_css_default.iconBtn,style:{color:`#ef4444`},title:`移除`,children:(0,react_jsx_runtime.jsx)(Trash,{size:12})})]})]},item.id)})})]}):(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:8,padding:`10px 14px`,borderRadius:8,background:`rgba(14, 165, 233, 0.08)`,border:`1px solid rgba(14, 165, 233, 0.15)`,fontSize:11,color:`#0284c7`},children:[(0,react_jsx_runtime.jsx)(Info,{size:14,style:{flexShrink:0}}),(0,react_jsx_runtime.jsx)(`span`,{children:`尚未选择替换图片。您可以一次性选中多张图片，系统将严格按您的选择顺序原位映射。`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatBatchImageReplaceModal_module_css_default.footer,children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{fontSize:11,color:`var(--dsw-alias-label-tertiary, #9ca3af)`},children:[`原图共 `,originalImageUrls.length,` 张 · 拟替换 `,selectedImages.length,` 张`]}),(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,gap:8},children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:onClose,style:{padding:`6px 14px`,borderRadius:8,border:`1px solid var(--dsw-alias-border-l2, rgba(0,0,0,0.12))`,background:`var(--dsw-alias-bg-base, #ffffff)`,color:`var(--dsw-alias-label-primary, #111827)`,cursor:`pointer`,fontSize:12},children:`取消`}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,disabled:selectedImages.length===0,onClick:handleConfirm,className:WechatBatchImageReplaceModal_module_css_default.confirmBtn,children:[`确认按序替换 (`,selectedImages.length,`)`]})]})]})]})})}var WechatCanvasLightbox_module_css_default={"backdrop":`yASF6a_backdrop`,"closeButton":`yASF6a_closeButton`,"image":`yASF6a_image`};function WechatCanvasLightbox({url,onClose}){if(!url)return null;return(0,react_jsx_runtime.jsxs)(`div`,{className:WechatCanvasLightbox_module_css_default.backdrop,onClick:onClose,children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:WechatCanvasLightbox_module_css_default.closeButton,onClick:onClose,"aria-label":`关闭预览`,children:(0,react_jsx_runtime.jsx)(X,{size:20})}),(0,react_jsx_runtime.jsx)(`img`,{src:url,alt:`大图全屏预览`,className:WechatCanvasLightbox_module_css_default.image})]})}function useWechatCanvasHistory({nodes,selectedNodeId,onApplyNodes,onSelectNode,onSaveRequested,onDeleteSelected,onDuplicateSelected}){const[past,setPast]=(0,react.useState)([]);const[future,setFuture]=(0,react.useState)([]);const currentNodesRef=(0,react.useRef)(nodes);currentNodesRef.current=nodes;const pushSnapshot=(0,react.useCallback)(_newNodes=>{setPast(prev=>[...prev.slice(-29),currentNodesRef.current]);setFuture([])},[]);const undo=(0,react.useCallback)(()=>{if(past.length===0)return false;const previous=past[past.length-1];const newPast=past.slice(0,past.length-1);setFuture(prev=>[currentNodesRef.current,...prev]);setPast(newPast);onApplyNodes(previous);return true},[past,onApplyNodes]);const redo=(0,react.useCallback)(()=>{if(future.length===0)return false;const next=future[0];const newFuture=future.slice(1);setPast(prev=>[...prev,currentNodesRef.current]);setFuture(newFuture);onApplyNodes(next);return true},[future,onApplyNodes]);(0,react.useEffect)(()=>{function handleKeyDown(e){const mod=navigator.platform.toUpperCase().indexOf(`MAC`)>=0?e.metaKey:e.ctrlKey;const target=e.target;const isTyping=target.isContentEditable||target.tagName===`INPUT`||target.tagName===`TEXTAREA`;if(mod&&(e.key===`s`||e.key===`S`)){e.preventDefault();onSaveRequested();return}if(mod&&!e.shiftKey&&(e.key===`z`||e.key===`Z`)){if(!isTyping){e.preventDefault();undo()}return}if(mod&&(e.key===`y`||e.key===`Y`)||mod&&e.shiftKey&&(e.key===`z`||e.key===`Z`)){if(!isTyping){e.preventDefault();redo()}return}if(mod&&(e.key===`d`||e.key===`D`)){if(selectedNodeId&&!isTyping){e.preventDefault();onDuplicateSelected()}return}if(e.key===`Escape`){if(selectedNodeId){e.preventDefault();onSelectNode(null)}return}if((e.key===`Delete`||e.key===`Backspace`)&&selectedNodeId&&!isTyping){e.preventDefault();onDeleteSelected()}}window.addEventListener(`keydown`,handleKeyDown);return()=>window.removeEventListener(`keydown`,handleKeyDown)},[undo,redo,onSaveRequested,selectedNodeId,onSelectNode,onDeleteSelected,onDuplicateSelected]);return{pushSnapshot,undo,redo,canUndo:past.length>0,canRedo:future.length>0}}var WechatInteractiveCanvas_module_css_default={"bottomActionBtn":`ffA5ya_bottomActionBtn`,"bottomActionIcon":`ffA5ya_bottomActionIcon`,"bottomActions":`ffA5ya_bottomActions`,"container":`ffA5ya_container`,"metaDot":`ffA5ya_metaDot`,"metaRow":`ffA5ya_metaRow`,"nodeHoverBadge":`ffA5ya_nodeHoverBadge`,"nodeItem":`ffA5ya_nodeItem`,"nodeItemJustAdded":`ffA5ya_nodeItemJustAdded`,"nodeItemSelected":`ffA5ya_nodeItemSelected`,"nodesList":`ffA5ya_nodesList`,"paperCard":`ffA5ya_paperCard`,"shortcutPill":`ffA5ya_shortcutPill`,"shortcutsGuide":`ffA5ya_shortcutsGuide`,"shortcutsHeader":`ffA5ya_shortcutsHeader`,"titleArea":`ffA5ya_titleArea`,"titleInput":`ffA5ya_titleInput`};function WechatInteractiveCanvas({article,scriptsDir,workspacePath,brandTopUrl,brandBotUrl,brandTopSpec,brandBotSpec,resolvedCoverUrl,onContentChange,onTitleChange}){const[selectedNodeId,setSelectedNodeId]=(0,react.useState)(null);const[hoveredNodeId,setHoveredNodeId]=(0,react.useState)(null);const[justAddedNodeId,setJustAddedNodeId]=(0,react.useState)(null);const[lightboxUrl,setLightboxUrl]=(0,react.useState)(null);const[batchReplaceNodeId,setBatchReplaceNodeId]=(0,react.useState)(null);const[regenerateNodeId,setRegenerateNodeId]=(0,react.useState)(null);const[regeneratePrompt,setRegeneratePrompt]=(0,react.useState)(``);const[regenerateIntent,setRegenerateIntent]=(0,react.useState)(``);const[regenerateKeywords,setRegenerateKeywords]=(0,react.useState)([]);const[regenerateSubIndex,setRegenerateSubIndex]=(0,react.useState)(1);const[activeInsertAnchorIndex,setActiveInsertAnchorIndex]=(0,react.useState)(null);const handleActivateAnchor=(0,react.useCallback)(targetIndex=>{setActiveInsertAnchorIndex(targetIndex);window.dispatchEvent(new CustomEvent(`wincode:social-open-typography`));window.dispatchEvent(new CustomEvent(`wincode:wechat-canvas-set-insert-anchor`,{detail:{targetIndex}}))},[]);const handleCancelAnchor=(0,react.useCallback)(()=>{setActiveInsertAnchorIndex(null);window.dispatchEvent(new CustomEvent(`wincode:wechat-canvas-set-insert-anchor`,{detail:{targetIndex:null}}))},[]);(0,react.useEffect)(()=>{const handleSetAnchorFromOutside=e=>{const detail=e.detail;if(detail&&detail.targetIndex===null)setActiveInsertAnchorIndex(null)};const handleTemplateApplied=()=>{setActiveInsertAnchorIndex(null)};window.addEventListener(`wincode:wechat-canvas-set-insert-anchor`,handleSetAnchorFromOutside);window.addEventListener(`wincode:wechat-canvas-apply-template`,handleTemplateApplied);return()=>{window.removeEventListener(`wincode:wechat-canvas-set-insert-anchor`,handleSetAnchorFromOutside);window.removeEventListener(`wincode:wechat-canvas-apply-template`,handleTemplateApplied)}},[]);(0,react.useEffect)(()=>{const handleKeyDown=e=>{if(e.key===`Escape`&&activeInsertAnchorIndex!==null)handleCancelAnchor()};window.addEventListener(`keydown`,handleKeyDown);return()=>window.removeEventListener(`keydown`,handleKeyDown)},[activeInsertAnchorIndex,handleCancelAnchor]);const hoverTimeoutRef=(0,react.useRef)(null);const handleNodeMouseEnter=(0,react.useCallback)(nodeId=>{if(hoverTimeoutRef.current)clearTimeout(hoverTimeoutRef.current);setHoveredNodeId(nodeId)},[]);const handleNodeMouseLeave=(0,react.useCallback)(nodeId=>{if(hoverTimeoutRef.current)clearTimeout(hoverTimeoutRef.current);hoverTimeoutRef.current=setTimeout(()=>setHoveredNodeId(curr=>curr===nodeId?null:curr),80)},[]);(0,react.useEffect)(()=>()=>{if(hoverTimeoutRef.current)clearTimeout(hoverTimeoutRef.current)},[]);const[nodes,setNodes]=(0,react.useState)(()=>parseHtmlToWechatNodes(article.content||``));const lastSyncContentRef=(0,react.useRef)(article.content);(0,react.useEffect)(()=>{if(article.content&&article.content!==lastSyncContentRef.current){lastSyncContentRef.current=article.content;setNodes(parseHtmlToWechatNodes(article.content))}},[article.content]);(0,react.useEffect)(()=>{const selected=nodes.find(n=>n.id===selectedNodeId)||null;window.dispatchEvent(new CustomEvent(`wincode:wechat-canvas-selected-node-changed`,{detail:{selectedNode:selected}}))},[selectedNodeId,nodes]);const updateNodesAndEmit=(0,react.useCallback)(newNodes=>{setNodes(newNodes);const compiled=compileWechatNodesToHtml(newNodes);lastSyncContentRef.current=compiled;onContentChange?.(compiled)},[onContentChange]);const history=useWechatCanvasHistory({nodes,selectedNodeId,onApplyNodes:restored=>updateNodesAndEmit(restored),onSelectNode:id=>setSelectedNodeId(id),onSaveRequested:()=>{updateNodesAndEmit(nodes);toast(`已立即保存当前画布修改 (Ctrl+S)`)},onDeleteSelected:()=>handleDeleteSelected(),onDuplicateSelected:()=>handleDuplicateSelected()});const{handleDeleteSelected,handleDuplicateSelected,handleInsertBlankParagraphAt,handleMoveNode,handleChangeNodeTheme}=useWechatCanvasNodeActions({nodes,selectedNodeId,history,updateNodesAndEmit,setSelectedNodeId,setJustAddedNodeId});const handleNodeContentChange=(0,react.useCallback)((nodeId,newHtml)=>{setNodes(prevNodes=>{const next=prevNodes.map(n=>n.id===nodeId?{...n,rawHtml:newHtml}:n);const compiled=compileWechatNodesToHtml(next);lastSyncContentRef.current=compiled;onContentChange?.(compiled);return next})},[onContentChange]);const handleTriggerRegenerateForNode=(0,react.useCallback)(nodeId=>{const targetIdx=nodes.findIndex(n=>n.id===nodeId);if(targetIdx===-1)return;const targetNode=nodes[targetIdx];let countBefore=0;for(let i=0;i<targetIdx;i++)countBefore+=extractImagesFromHtml(nodes[i]?.rawHtml||``).length;const currentSub=countBefore+1;const matchedSlot=(article.visualSlots||[]).find(vs=>vs.kind===`content`&&vs.sub===currentSub);let extractedCaption=``;if(targetNode.rawHtml){const pMatch=targetNode.rawHtml.match(/<p[^>]*>([^<]+)<\/p>/i);if(pMatch?.[1])extractedCaption=pMatch[1].trim()}const initialPrompt=matchedSlot?.generationPrompt||matchedSlot?.intentDescription||(extractedCaption?`现代化专业科技信息图表，围绕「${extractedCaption}」，结构分明，模块化对比看板，全中文排版`:``)||`高信息密度学术图表，严谨工整，指标对比看板，浅色干净背景`;setRegenerateNodeId(nodeId);setRegenerateSubIndex(currentSub);setRegeneratePrompt(initialPrompt);setRegenerateIntent(matchedSlot?.intentDescription||extractedCaption||``);setRegenerateKeywords(matchedSlot?.searchKeywords||(extractedCaption?[extractedCaption,article.title]:[]))},[nodes,article.visualSlots,article.title]);const handleImageRegenerated=(0,react.useCallback)(dataUrl=>{if(!regenerateNodeId)return;const targetNode=nodes.find(n=>n.id===regenerateNodeId);if(targetNode?.rawHtml){history.pushSnapshot(nodes);handleNodeContentChange(regenerateNodeId,replaceImagesInHtmlByOrder(targetNode.rawHtml,[dataUrl],{appendIfMore:false}))}setRegenerateNodeId(null)},[regenerateNodeId,nodes,history,handleNodeContentChange]);const handleConfirmBatchReplace=orderedUrls=>{if(!batchReplaceNodeId)return;const target=nodes.find(n=>n.id===batchReplaceNodeId);if(!target?.rawHtml)return;history.pushSnapshot(nodes);handleNodeContentChange(batchReplaceNodeId,replaceImagesInHtmlByOrder(target.rawHtml,orderedUrls,{appendIfMore:true}));setBatchReplaceNodeId(null)};const targetNodeForBatchReplace=(0,react.useMemo)(()=>batchReplaceNodeId?nodes.find(n=>n.id===batchReplaceNodeId)||null:null,[batchReplaceNodeId,nodes]);const targetOriginalImages=(0,react.useMemo)(()=>targetNodeForBatchReplace?.rawHtml?extractImagesFromHtml(targetNodeForBatchReplace.rawHtml):[],[targetNodeForBatchReplace]);const hasTopInNodes=(0,react.useMemo)(()=>nodes.some(n=>n.rawHtml&&(n.rawHtml.includes(`__BRAND_TOP__`)||brandTopUrl&&n.rawHtml.includes(brandTopUrl))),[nodes,brandTopUrl]);const hasBotInNodes=(0,react.useMemo)(()=>nodes.some(n=>n.rawHtml&&(n.rawHtml.includes(`__BRAND_BOT__`)||brandBotUrl&&n.rawHtml.includes(brandBotUrl))),[nodes,brandBotUrl]);return(0,react_jsx_runtime.jsxs)(`div`,{className:WechatInteractiveCanvas_module_css_default.container,onClick:()=>{setSelectedNodeId(null);if(activeInsertAnchorIndex!==null)handleCancelAnchor()},children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatInteractiveCanvas_module_css_default.paperCard,onClick:e=>e.stopPropagation(),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatInteractiveCanvas_module_css_default.titleArea,children:[(0,react_jsx_runtime.jsx)(`input`,{type:`text`,value:article.title||``,onChange:e=>onTitleChange?.(e.target.value),placeholder:`请输入微信公众号文章标题...`,className:WechatInteractiveCanvas_module_css_default.titleInput}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatInteractiveCanvas_module_css_default.metaRow,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`微信公众平台排版`}),(0,react_jsx_runtime.jsx)(`span`,{className:WechatInteractiveCanvas_module_css_default.metaDot,children:`·`}),(0,react_jsx_runtime.jsxs)(`span`,{children:[nodes.length,` 个内容段落`]})]})]}),brandTopUrl&&!hasTopInNodes&&(0,react_jsx_runtime.jsx)(`div`,{style:{paddingTop:4,paddingBottom:8},children:renderBrandBanner(brandTopUrl,brandTopSpec,`header`,url=>setLightboxUrl(url))}),(0,react_jsx_runtime.jsx)(WechatGapInserter,{onInsertBlank:()=>handleInsertBlankParagraphAt(0),onPickTemplate:()=>handleActivateAnchor(0),isActiveAnchor:activeInsertAnchorIndex===0,onCancelAnchor:handleCancelAnchor}),(0,react_jsx_runtime.jsx)(`div`,{className:WechatInteractiveCanvas_module_css_default.nodesList,children:nodes.map((node,idx)=>{const isSelected=selectedNodeId===node.id;const isHovered=hoveredNodeId===node.id;const isJustAdded=justAddedNodeId===node.id;return(0,react_jsx_runtime.jsxs)(`div`,{id:node.id,"data-section-node-id":node.id,style:{position:`relative`},children:[(0,react_jsx_runtime.jsxs)(`div`,{onMouseEnter:()=>handleNodeMouseEnter(node.id),onMouseLeave:()=>handleNodeMouseLeave(node.id),onClick:e=>{e.stopPropagation();setSelectedNodeId(node.id)},className:`${WechatInteractiveCanvas_module_css_default.nodeItem} ${isSelected?WechatInteractiveCanvas_module_css_default.nodeItemSelected:``} ${isJustAdded?WechatInteractiveCanvas_module_css_default.nodeItemJustAdded:``}`,children:[isHovered&&!isSelected&&!isJustAdded&&(0,react_jsx_runtime.jsx)(`div`,{className:WechatInteractiveCanvas_module_css_default.nodeHoverBadge,children:node.label}),isSelected&&(0,react_jsx_runtime.jsx)(WechatContainerGizmo,{label:node.label,isFirst:idx===0,isLast:idx===nodes.length-1,hasImages:extractImagesFromHtml(node.rawHtml||``).length>0,onMoveUp:()=>handleMoveNode(idx,-1),onMoveDown:()=>handleMoveNode(idx,1),onInsertAbove:()=>handleInsertBlankParagraphAt(idx),onInsertBelow:()=>handleInsertBlankParagraphAt(idx+1),onDuplicate:handleDuplicateSelected,onDelete:handleDeleteSelected,onChangeTheme:themeKey=>handleChangeNodeTheme(idx,themeKey),onBatchReplaceImages:()=>setBatchReplaceNodeId(node.id),onRegenerateImage:()=>handleTriggerRegenerateForNode(node.id)}),(0,react_jsx_runtime.jsx)(WechatEditableNode,{nodeId:node.id,rawHtml:node.rawHtml||``,isSelected,onSelect:()=>setSelectedNodeId(node.id),onContentChange:handleNodeContentChange,onImageClick:src=>setLightboxUrl(src)})]}),(0,react_jsx_runtime.jsx)(WechatGapInserter,{onInsertBlank:()=>handleInsertBlankParagraphAt(idx+1),onPickTemplate:()=>handleActivateAnchor(idx+1),isActiveAnchor:activeInsertAnchorIndex===idx+1,onCancelAnchor:handleCancelAnchor})]},node.id)})}),brandBotUrl&&!hasBotInNodes&&(0,react_jsx_runtime.jsx)(`div`,{style:{paddingTop:12,paddingBottom:8},children:renderBrandBanner(brandBotUrl,brandBotSpec,`footer`,url=>setLightboxUrl(url))}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatInteractiveCanvas_module_css_default.bottomActions,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>{window.dispatchEvent(new CustomEvent(`wincode:social-open-typography`))},className:WechatInteractiveCanvas_module_css_default.bottomActionBtn,title:`一键切换左侧边栏为微信排版素材面板`,children:[(0,react_jsx_runtime.jsx)(Layers,{className:WechatInteractiveCanvas_module_css_default.bottomActionIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`侧栏排版素材库`})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>handleInsertBlankParagraphAt(nodes.length),className:WechatInteractiveCanvas_module_css_default.bottomActionBtn,title:`在文章末尾追加空白普通正文段落`,children:(0,react_jsx_runtime.jsx)(`span`,{children:`+ 空白段落`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatInteractiveCanvas_module_css_default.shortcutsGuide,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatInteractiveCanvas_module_css_default.shortcutsHeader,children:[(0,react_jsx_runtime.jsx)(Command,{size:12}),(0,react_jsx_runtime.jsx)(`span`,{children:`快捷键`})]}),[`Ctrl+Z 撤回`,`Ctrl+Y 重做`,`Ctrl+S 保存`,`Delete 删除`,`Esc 取消`].map(tip=>(0,react_jsx_runtime.jsx)(`span`,{className:WechatInteractiveCanvas_module_css_default.shortcutPill,children:tip},tip))]})]}),(0,react_jsx_runtime.jsx)(WechatImageRegenerateModal,{isOpen:Boolean(regenerateNodeId),onClose:()=>setRegenerateNodeId(null),subIndex:regenerateSubIndex,initialPrompt:regeneratePrompt,intentDescription:regenerateIntent,searchKeywords:regenerateKeywords,articleIndex:article.index||1,accountId:article.accountId,platform:article.platform,scriptsDir,workspacePath,onImageRegenerated:handleImageRegenerated}),(0,react_jsx_runtime.jsx)(WechatBatchImageReplaceModal,{isOpen:batchReplaceNodeId!==null,onClose:()=>setBatchReplaceNodeId(null),originalImageUrls:targetOriginalImages,nodeLabel:targetNodeForBatchReplace?.label,onConfirmReplace:handleConfirmBatchReplace}),(0,react_jsx_runtime.jsx)(WechatCanvasLightbox,{url:lightboxUrl,onClose:()=>setLightboxUrl(null)})]})}function getPlatformDisplayName(platform,platformName){if(platformName&&![`toutiao`,`gzh`,`xhs`,`zhihu`,`baijiahao`].includes(platformName.toLowerCase()))return platformName;const p=(platform||``).toLowerCase();if(p===`gzh`||p===`wechat`)return`微信公众号`;if(p===`toutiao`)return`今日头条`;if(p===`zhihu`)return`知乎`;if(p===`baijiahao`)return`百家号`;if(p===`xiaohongshu`||p===`xhs`)return`小红书`;return platformName||platform||`社媒`}function cleanHtmlToPlainText(html){if(!html)return``;return html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi,``).replace(/<script[^>]*>[\s\S]*?<\/script>/gi,``).replace(/<\/p>|<\/div>|<\/section>|<br\s*\/?>/gi,`
+`).replace(/<[^>]+>/g,``).replace(/&nbsp;/g,` `).replace(/&lt;/g,`<`).replace(/&gt;/g,`>`).replace(/&amp;/g,`&`).replace(/\n{3,}/g,`
+
+`).trim()}function cleanGenericArticleTextForClipboard(text){if(!text)return``;return text.replace(/!\[.*?\]\(\s*\)/g,``).replace(/!\[.*?\]\(.*?__?BRAND_(?:TOP|BOT)__?.*?\)/gi,``).replace(/```(?:json)?\s*\{[\s\S]*?"cards"[\s\S]*?\}\s*```/gi,``).trim()}async function copyArticleToClipboard(article){if(!article)return false;if(article.platform===`xiaohongshu`){const plain=cleanHtmlToPlainText(article.content);return copyPlainTextToClipboard(article.title?`${article.title}\n\n${plain}`:plain)}if(article.platform===`gzh`&&article.articleType===`newspic`){const plain=cleanHtmlToPlainText(article.content);return copyPlainTextToClipboard(article.title?`${article.title}\n\n${plain}`:plain)}if(article.platform===`gzh`){const plainTextFallback=article.title?`${article.title}\n\n${cleanHtmlToPlainText(article.content)}`:cleanHtmlToPlainText(article.content);return copyRichHtmlToClipboard(article.content,plainTextFallback)}const cleanedContent=cleanGenericArticleTextForClipboard(article.content);const plainText=article.title?`${article.title}\n\n${cleanedContent}`:cleanedContent;if(/<[a-z][\s\S]*>/i.test(cleanedContent))return copyRichHtmlToClipboard(cleanedContent,plainText);return copyPlainTextToClipboard(plainText)}async function copyRichHtmlToClipboard(htmlContent,plainTextFallback){const plainText=plainTextFallback||cleanHtmlToPlainText(htmlContent);const fullHtml=`
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+  <div style="max-width: 677px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', Arial, sans-serif; font-size: 16px; line-height: 1.8; color: #333333; letter-spacing: 0.5px;">
+    ${htmlContent}
+  </div>
+</body>
+</html>`.trim();try{if(typeof ClipboardItem!==`undefined`&&navigator.clipboard&&navigator.clipboard.write){const htmlBlob=new Blob([fullHtml],{type:`text/html`});const textBlob=new Blob([plainText],{type:`text/plain`});await navigator.clipboard.write([new ClipboardItem({"text/html":htmlBlob,"text/plain":textBlob})]);return true}}catch(e){console.warn(`[socialClipboard] 写入富文本剪贴板失败，回退至纯文本模式:`,e)}return copyPlainTextToClipboard(plainText)}async function copyPlainTextToClipboard(text){try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);return true}const textArea=document.createElement(`textarea`);textArea.value=text;textArea.style.position=`fixed`;textArea.style.left=`-9999px`;document.body.appendChild(textArea);textArea.select();const successful=document.execCommand(`copy`);document.body.removeChild(textArea);return successful}catch{return false}}const copySocialArticleContent=copyArticleToClipboard;function renderBrandBanner(url,spec,slot,onClick){if(!url)return null;if(!(spec?.enabled??true))return null;const adaptive=!spec?.width||Number(spec.width)<=0;const widthVal=Number(spec?.width)||100;const widthStyle=adaptive?`auto`:`${widthVal}%`;const maxWidthStyle=adaptive?`100%`:`${widthVal}%`;const heightStyle=spec?.height&&Number(spec.height)>0?`${spec.height}px`:`auto`;const radiusStyle=`${spec?.radius??0}px`;const objectFit=spec?.fit||`contain`;const objectPosition=spec?.position||`center`;const marginTop=`${spec?.margin_top??(slot===`footer`?20:0)}px`;const marginBottom=`${spec?.margin_bottom??(slot===`header`?16:0)}px`;const bannerAlt=slot===`header`?`文章头部品牌图`:`文章尾部品牌图`;if(spec?.frame)return(0,react_jsx_runtime.jsx)(`div`,{style:{textAlign:`center`,margin:`${marginTop} auto ${marginBottom}`,padding:0},children:(0,react_jsx_runtime.jsx)(`div`,{style:{display:`inline-block`,boxSizing:`border-box`,width:widthStyle,maxWidth:maxWidthStyle,background:`#FFFFFF`,border:`1px solid #E5E7EB`,borderRadius:`${(spec?.radius??0)+6}px`,padding:`6px`,boxShadow:`0 4px 12px -2px rgba(0,0,0,0.06)`},children:(0,react_jsx_runtime.jsx)(`img`,{src:url,alt:bannerAlt,style:{width:`100%`,height:heightStyle,objectFit,objectPosition,display:`block`,margin:`0 auto`,borderRadius:radiusStyle,cursor:`zoom-in`},onClick:()=>onClick?.(url)})})});return(0,react_jsx_runtime.jsx)(`div`,{style:{textAlign:`center`,margin:`${marginTop} auto ${marginBottom}`,padding:0},children:(0,react_jsx_runtime.jsx)(`img`,{src:url,alt:bannerAlt,style:{width:widthStyle,maxWidth:maxWidthStyle,height:heightStyle,objectFit,objectPosition,display:`block`,margin:`0 auto`,borderRadius:radiusStyle,cursor:`zoom-in`},onClick:()=>onClick?.(url)})})}function generateBlockId(prefix){return`${prefix}_${Math.random().toString(36).slice(2,8)}_${Date.now().toString(36)}`}function cleanMarkdownContent(raw){if(!raw||typeof raw!==`string`)return``;let text=raw.trim();if(text.startsWith(`"`)&&text.endsWith(`"`)||text.startsWith(`'`)&&text.endsWith(`'`))text=text.slice(1,-1);return text.replace(/\\n/g,`
+`).replace(/\\"/g,`"`).replace(/\\'/g,`'`)}function parseMarkdownToGenericBlocks(content){if(!content||!content.trim())return[];let sanitized=cleanMarkdownContent(content);sanitized=sanitized.replace(/!\[.*?\]\(\s*\)/g,``);sanitized=sanitized.replace(/```(?:json)?\s*\{[\s\S]*?"cards"[\s\S]*?\}\s*```/gi,``).replace(/```(?:json)?\s*\[[\s\S]*?"role"[\s\S]*?\]\s*```/gi,``).trim();const lines=sanitized.split(/\r?\n/);const blocks=[];let paragraphBuffer=[];const flushParagraph=()=>{if(paragraphBuffer.length>0){const text=paragraphBuffer.join(`
+`).trim();if(text)blocks.push({id:generateBlockId(`blk_p`),type:`p`,text});paragraphBuffer=[]}};for(let i=0;i<lines.length;i++){const rawLine=lines[i];if(typeof rawLine!==`string`)continue;const trimmed=rawLine.trim();if(!trimmed){flushParagraph();continue}if(/^!\[.*?\]\(.*?(?:__?BRAND_TOP__?|brand_top).*?\)$/i.test(trimmed)){flushParagraph();blocks.push({id:generateBlockId(`blk_brand_top`),type:`brand_top`,rawText:trimmed});continue}if(/^!\[.*?\]\(.*?(?:__?BRAND_BOT__?|brand_bot).*?\)$/i.test(trimmed)){flushParagraph();blocks.push({id:generateBlockId(`blk_brand_bot`),type:`brand_bot`,rawText:trimmed});continue}const imgMatch=trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);if(imgMatch&&imgMatch[2]){flushParagraph();const alt=imgMatch[1]||``;const rawTarget=imgMatch[2].trim();const urlMatch=rawTarget.match(/^(\S+)(?:\s+["'](.*)["'])?$/);const src=urlMatch&&urlMatch[1]?urlMatch[1]:rawTarget;if(alt.includes(`封面`)||/(?:cover_\d+|cover\.|IMG_COVER|COVER_IMG|_COVER_)/i.test(src))continue;blocks.push({id:generateBlockId(`blk_img`),type:`img`,alt,src,rawText:trimmed});continue}if(trimmed.startsWith(`#### `)){flushParagraph();blocks.push({id:generateBlockId(`blk_h4`),type:`h4`,text:trimmed.replace(/^####\s+/,``).trim()});continue}if(trimmed.startsWith(`### `)){flushParagraph();blocks.push({id:generateBlockId(`blk_h3`),type:`h3`,text:trimmed.replace(/^###\s+/,``).trim()});continue}if(trimmed.startsWith(`## `)){flushParagraph();blocks.push({id:generateBlockId(`blk_h2`),type:`h2`,text:trimmed.replace(/^##\s+/,``).trim()});continue}if(trimmed.startsWith(`# `)){flushParagraph();blocks.push({id:generateBlockId(`blk_h1`),type:`h1`,text:trimmed.replace(/^#\s+/,``).trim()});continue}if(trimmed.startsWith(`>`)){flushParagraph();blocks.push({id:generateBlockId(`blk_quote`),type:`blockquote`,text:trimmed.replace(/^>\s*/,``).trim()});continue}const listMatch=trimmed.match(/^([-*]|\d+\.)\s+(.+)$/);if(listMatch&&listMatch[2]){flushParagraph();blocks.push({id:generateBlockId(`blk_li`),type:`li`,text:listMatch[2].trim()});continue}if(/^-{3,}$/.test(trimmed)){flushParagraph();blocks.push({id:generateBlockId(`blk_hr`),type:`hr`});continue}paragraphBuffer.push(trimmed)}flushParagraph();return blocks}function compileGenericBlocksToMarkdown(blocks){if(!blocks||blocks.length===0)return``;const lines=[];for(const b of blocks)switch(b.type){case`brand_top`:lines.push(`![头部品牌图](__BRAND_TOP__)`,``);break;case`brand_bot`:lines.push(`![尾部品牌图](__BRAND_BOT__)`,``);break;case`h1`:if(b.text?.trim())lines.push(`# ${b.text.trim()}`,``);break;case`h2`:if(b.text?.trim())lines.push(`## ${b.text.trim()}`,``);break;case`h3`:if(b.text?.trim())lines.push(`### ${b.text.trim()}`,``);break;case`h4`:if(b.text?.trim())lines.push(`#### ${b.text.trim()}`,``);break;case`blockquote`:if(b.text?.trim())lines.push(`> ${b.text.trim()}`,``);break;case`li`:if(b.text?.trim())lines.push(`- ${b.text.trim()}`,``);break;case`img`:if(b.src)lines.push(`![${b.alt||``}](${b.src})`,``);break;case`hr`:lines.push(`---`,``);break;default:if(b.text?.trim())lines.push(b.text.trim(),``);break}return lines.join(`
+`).trimEnd()+`
+`}function GenericEditableBlock({block,platform,isSelected,onSelect,onContentChange}){const containerRef=(0,react.useRef)(null);const isComposingRef=(0,react.useRef)(false);const isFocusedRef=(0,react.useRef)(false);const lastTextRef=(0,react.useRef)(block.text||``);(0,react.useEffect)(()=>{if(!containerRef.current)return;if(isFocusedRef.current)return;const currentDomText=containerRef.current.innerText||``;const targetText=block.text||``;if(currentDomText!==targetText){containerRef.current.innerText=targetText;lastTextRef.current=targetText}},[block.text,block.id]);const handleInput=(0,react.useCallback)(()=>{if(!containerRef.current)return;if(isComposingRef.current)return;const currentText=containerRef.current.innerText||``;if(currentText!==lastTextRef.current){lastTextRef.current=currentText;onContentChange(block.id,currentText)}},[block.id,onContentChange]);const handlePaste=(0,react.useCallback)(e=>{e.preventDefault();const text=e.clipboardData.getData(`text/plain`);if(!text)return;const selection=window.getSelection();if(!selection||selection.rangeCount===0)return;const range=selection.getRangeAt(0);range.deleteContents();const textNode=document.createTextNode(text);range.insertNode(textNode);range.setStartAfter(textNode);range.setEndAfter(textNode);selection.removeAllRanges();selection.addRange(range);handleInput()},[handleInput]);const isToutiao=platform===`toutiao`;const isZhihu=platform===`zhihu`;const isBaijiahao=platform===`baijiahao`;let contentNode=null;switch(block.type){case`h1`:contentNode=(0,react_jsx_runtime.jsx)(`div`,{className:`pt-4 pb-1 border-b border-border/40`,children:(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect?.()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:handlePaste,className:`text-ui-lg font-bold text-foreground tracking-tight outline-hidden focus:outline-hidden py-1 rounded px-1 -mx-1 hover:bg-surface-hover/30 focus:bg-primary/5 transition-colors cursor-text`})});break;case`h2`:contentNode=(0,react_jsx_runtime.jsxs)(`div`,{className:`pt-4 pb-1 flex items-start gap-2.5`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:cn(`w-1.5 h-5 rounded-full shrink-0 mt-1 select-none`,isToutiao?`bg-red-600 dark:bg-red-500`:isZhihu?`bg-sky-600 dark:bg-sky-500`:isBaijiahao?`bg-blue-600 dark:bg-blue-500`:`bg-primary`)}),(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect?.()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:handlePaste,className:`flex-1 text-ui-base sm:text-ui-lg font-bold text-foreground tracking-tight outline-hidden focus:outline-hidden py-0.5 rounded px-1 -mx-1 hover:bg-surface-hover/30 focus:bg-primary/5 transition-colors cursor-text`})]});break;case`h3`:contentNode=(0,react_jsx_runtime.jsx)(`div`,{className:`pt-2 pb-0.5`,children:(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect?.()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:handlePaste,className:`text-ui-sm sm:text-ui-base font-semibold text-foreground/95 outline-hidden focus:outline-hidden py-0.5 rounded px-1 -mx-1 hover:bg-surface-hover/30 focus:bg-primary/5 transition-colors cursor-text`})});break;case`h4`:contentNode=(0,react_jsx_runtime.jsx)(`div`,{className:`pt-1.5 pb-0.5`,children:(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect?.()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:handlePaste,className:`text-ui-xs font-bold text-foreground/85 outline-hidden focus:outline-hidden py-0.5 rounded px-1 -mx-1 hover:bg-surface-hover/30 focus:bg-primary/5 transition-colors cursor-text`})});break;case`blockquote`:contentNode=(0,react_jsx_runtime.jsx)(`blockquote`,{className:cn(`my-3 border-l-4 rounded-r-lg px-4 py-2.5 text-ui-xs leading-relaxed`,isToutiao?`border-red-500/70 bg-red-500/[0.04] text-foreground-subtle`:isZhihu?`border-sky-500/70 bg-sky-500/[0.04] text-foreground-subtle`:isBaijiahao?`border-blue-500/70 bg-blue-500/[0.04] text-foreground-subtle`:`border-primary/60 bg-primary/5 text-foreground-subtle`),children:(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect?.()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:handlePaste,className:`outline-hidden focus:outline-hidden cursor-text`})});break;case`li`:contentNode=(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-start gap-2.5 text-ui-sm text-foreground/90 leading-relaxed pl-1 py-0.5`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-1.5 rounded-full bg-foreground-subtle/70 mt-2 shrink-0 select-none`}),(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect?.()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:handlePaste,className:`flex-1 outline-hidden focus:outline-hidden rounded px-1 -mx-1 hover:bg-surface-hover/30 focus:bg-primary/5 transition-colors cursor-text`})]});break;case`hr`:contentNode=(0,react_jsx_runtime.jsx)(`hr`,{className:`my-5 border-border/50`});break;default:contentNode=(0,react_jsx_runtime.jsx)(`div`,{className:`py-0.5`,children:(0,react_jsx_runtime.jsx)(`div`,{ref:containerRef,contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>{isFocusedRef.current=true;onSelect?.()},onBlur:()=>{isFocusedRef.current=false;handleInput()},onCompositionStart:()=>{isComposingRef.current=true},onCompositionEnd:()=>{isComposingRef.current=false;handleInput()},onInput:handleInput,onPaste:handlePaste,className:`text-ui-sm sm:text-[15px] text-foreground/90 leading-[1.8] min-h-[1.5rem] outline-hidden focus:outline-hidden py-0.5 rounded px-1 -mx-1 hover:bg-surface-hover/30 focus:bg-primary/5 transition-colors cursor-text tracking-wide`})});break}return(0,react_jsx_runtime.jsx)(`div`,{onClick:onSelect,className:cn(`relative rounded-md transition-all duration-200`,isSelected?`ring-1 ring-primary/40 bg-primary/[0.02]`:``),children:contentNode})}function resolveGenericPlatformMeta(platform){if(platform===`toutiao`)return{label:`今日头条`,badge:`头条文章`,badgeClass:`bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20`,ratioLabel:`16:9`,aspectRatio:`aspect-[16/9]`,subtitle:`头条号创作者 · 优质资讯流排版仿真`};if(platform===`baijiahao`)return{label:`百家号`,badge:`百度百家号`,badgeClass:`bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20`,ratioLabel:`2.35:1`,aspectRatio:`aspect-[2.35/1]`,subtitle:`百度内容创作者 · 百家号专栏排版仿真`};return{label:`知乎专栏`,badge:`知乎专栏`,badgeClass:`bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20`,ratioLabel:`16:9`,aspectRatio:`aspect-[16/9]`,subtitle:`知乎创作者 · 盐选与专栏排版仿真`}}function GenericInteractiveCanvas({article,workspacePath,sessionId:_sessionId,scriptsDir,resolvedCoverUrl,resolvedMap,brandTopUrl,brandBotUrl,brandTopSpec,brandBotSpec,onTitleChange,onContentChange}){const[selectedBlockId,setSelectedBlockId]=(0,react.useState)(null);const[lightboxUrl,setLightboxUrl]=(0,react.useState)(null);const[justSaved,setJustSaved]=(0,react.useState)(false);const platformMeta=(0,react.useMemo)(()=>resolveGenericPlatformMeta(article.platform),[article.platform]);const[blocks,setBlocks]=(0,react.useState)(()=>parseMarkdownToGenericBlocks(article.content||``));const lastSyncContentRef=(0,react.useRef)(article.content);(0,react.useEffect)(()=>{if(article.content&&article.content!==lastSyncContentRef.current){lastSyncContentRef.current=article.content;setBlocks(parseMarkdownToGenericBlocks(article.content))}},[article.content]);const debounceTimerRef=(0,react.useRef)(null);const handleBlockChange=(0,react.useCallback)((blockId,newText)=>{setBlocks(prev=>{const next=prev.map(b=>b.id===blockId?{...b,text:newText}:b);const compiled=compileGenericBlocksToMarkdown(next);lastSyncContentRef.current=compiled;if(debounceTimerRef.current)clearTimeout(debounceTimerRef.current);debounceTimerRef.current=setTimeout(()=>{onContentChange?.(compiled);setJustSaved(true);setTimeout(()=>setJustSaved(false),1500)},200);return next})},[onContentChange]);(0,react.useEffect)(()=>{return()=>{if(debounceTimerRef.current)clearTimeout(debounceTimerRef.current)}},[]);const hasTopInBlocks=(0,react.useMemo)(()=>blocks.some(b=>b.type===`brand_top`),[blocks]);const hasBotInBlocks=(0,react.useMemo)(()=>blocks.some(b=>b.type===`brand_bot`),[blocks]);const resolveImageSource=(0,react.useCallback)(src=>{if(!src)return void 0;const isDirectProtocol=src.startsWith(`http://`)||src.startsWith(`https://`)||src.startsWith(`data:`)||src.startsWith(`wincode-media://`);if(!resolvedMap)return isDirectProtocol?src:void 0;const diskPath=extractLocalDiskPathFromUrl(src);const fileName=src.replace(/^.*[\\/]/,``);let resolved=resolvedMap.get(src)||resolvedMap.get(diskPath)||resolvedMap.get(fileName);if(!resolved){for(const[k,v]of resolvedMap.entries())if(fileName&&k.endsWith(fileName)||diskPath&&k.includes(diskPath)){resolved=v;break}}if(!resolved){const pMatch=src.match(/(?:IMG_A?(\d+)_(\d+)|IMG_(\d+)_(\d+)|CONTENT_(\d+)_(\d+)|IMG_(\d+)|CONTENT_(\d+))/i);if(pMatch){const artIdxStr=pMatch[1]||pMatch[3]||pMatch[5];const sIdx=pMatch[2]||pMatch[4]||pMatch[6]||pMatch[7]||pMatch[8]||`1`;const currentArtIdx=article.index||1;const targetArtIdx=artIdxStr?Number.parseInt(artIdxStr,10):currentArtIdx;for(const[k,v]of resolvedMap.entries())if(k.endsWith(`content_${targetArtIdx}_${sIdx}.png`)||k.endsWith(`content_${targetArtIdx}_${sIdx}.jpg`)||k.endsWith(`pic_${targetArtIdx}_${sIdx}.png`)||k.endsWith(`pic_${targetArtIdx}_${sIdx}.jpg`)||targetArtIdx===1&&(k.endsWith(`content_${sIdx}.png`)||k.endsWith(`pic_${sIdx}.png`))){resolved=v;break}}}return resolved||(isDirectProtocol?src:void 0)},[resolvedMap,article.index]);return(0,react_jsx_runtime.jsxs)(`div`,{className:`mx-auto max-w-[720px] rounded-3xl border border-border/80 bg-card shadow-sm p-6 sm:p-10 space-y-6 pb-12 transition-all select-text`,onClick:()=>setSelectedBlockId(null),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-wrap items-center justify-between gap-3 border-b border-border/40 pb-3.5 text-ui-xs text-foreground-muted select-none`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2.5`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:cn(`px-2 py-0.5 rounded-md font-semibold text-ui-xs border`,platformMeta.badgeClass),children:platformMeta.badge}),(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`font-bold text-foreground flex items-center gap-1.5`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:getPlatformDisplayName(article.platform,article.platformName)}),(0,react_jsx_runtime.jsxs)(`span`,{className:`font-normal text-foreground-subtle`,children:[`@`,article.accountName||article.accountId]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`text-[11px] text-foreground-subtle`,children:platformMeta.subtitle})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2.5 font-mono text-[11px]`,children:[justSaved&&(0,react_jsx_runtime.jsxs)(`span`,{className:`inline-flex items-center gap-1 text-emerald-600 font-bold animate-in fade-in`,children:[(0,react_jsx_runtime.jsx)(Check,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`已就地实时同步`})]}),(0,react_jsx_runtime.jsxs)(`span`,{className:`text-foreground-subtle bg-surface px-2 py-0.5 rounded-full border border-border/40`,children:[blocks.length,` 个排版段落`]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1.5 group/title relative`,children:[(0,react_jsx_runtime.jsx)(`input`,{type:`text`,value:article.title||``,onChange:e=>onTitleChange?.(e.target.value),placeholder:`请输入专栏文章标题...`,className:`w-full text-ui-xl sm:text-[22px] font-bold text-foreground bg-transparent border-0 border-b border-transparent hover:border-border/60 focus:border-primary focus:outline-hidden py-1 transition-colors leading-snug`}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between text-[11px] text-foreground-subtle select-none`,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:`flex items-center gap-1`,children:[(0,react_jsx_runtime.jsx)(PenLine,{className:`size-3 text-primary/70`}),(0,react_jsx_runtime.jsx)(`span`,{children:`所见即所得：直接在原文段落打字修改，修改即刻自动保存`})]}),(0,react_jsx_runtime.jsx)(`span`,{className:`font-mono text-foreground-subtle/80`,children:`#1 篇目`})]})]}),resolvedCoverUrl?(0,react_jsx_runtime.jsxs)(`div`,{className:cn(platformMeta.aspectRatio,`w-full rounded-2xl overflow-hidden border border-border/50 relative group select-none shadow-xs`),children:[(0,react_jsx_runtime.jsx)(SafePreviewImage,{src:resolvedCoverUrl,alt:`专栏封面`,aspectRatio:platformMeta.aspectRatio,onClick:()=>setLightboxUrl(resolvedCoverUrl)}),(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute bottom-2.5 right-3 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-xs select-none`,children:[`#`,article.index||1,` `,platformMeta.label,` `,platformMeta.ratioLabel,` 大图封面`]}),(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:`专栏封面 (#${article.index||1})`,kind:`cover`,articleIndex:article.index||1,currentImageUrl:resolvedCoverUrl,scriptsDir,targetFileName:`cover_${article.index||1}.png`,accountId:article.accountId,platform:article.platform,workspacePath,onZoom:()=>setLightboxUrl(resolvedCoverUrl)})]}):(0,react_jsx_runtime.jsx)(SocialArticleImageCreatingPlaceholder,{platform:`generic`}),brandTopUrl&&!hasTopInBlocks&&(0,react_jsx_runtime.jsx)(`div`,{className:`pt-2 pb-1`,children:renderBrandBanner(brandTopUrl,brandTopSpec,`header`,url=>setLightboxUrl(url))}),(0,react_jsx_runtime.jsx)(`div`,{className:`space-y-3 pt-2`,children:blocks.map(block=>{if(block.type===`brand_top`)return(0,react_jsx_runtime.jsx)(`div`,{className:`py-2`,children:renderBrandBanner(brandTopUrl,brandTopSpec,`header`,url=>setLightboxUrl(url))},block.id);if(block.type===`brand_bot`)return(0,react_jsx_runtime.jsx)(`div`,{className:`py-3`,children:renderBrandBanner(brandBotUrl,brandBotSpec,`footer`,url=>setLightboxUrl(url))},block.id);if(block.type===`img`){const finalSrc=resolveImageSource(block.src);if(resolvedCoverUrl&&finalSrc===resolvedCoverUrl||/(?:cover_\d+|cover\.|IMG_COVER|COVER_IMG)/i.test(block.src||``)||block.alt&&block.alt.includes(`封面`))return null;if(!finalSrc)return(0,react_jsx_runtime.jsx)(SocialArticleImageCreatingPlaceholder,{platform:`inline-body`,caption:block.alt?`▲ ${block.alt}`:void 0},block.id);return(0,react_jsx_runtime.jsxs)(`figure`,{className:`my-5 rounded-2xl overflow-hidden border border-border/60 bg-surface/30 shadow-xs relative group select-none`,children:[(0,react_jsx_runtime.jsx)(SafePreviewImage,{src:finalSrc,alt:block.alt||`专栏插图`,aspectRatio:`aspect-auto`,className:`w-full bg-surface/20`,onClick:()=>setLightboxUrl(finalSrc)}),(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:block.alt||`专栏插图`,kind:`pic`,articleIndex:article.index||1,currentImageUrl:finalSrc,scriptsDir,accountId:article.accountId,platform:article.platform,workspacePath,onZoom:()=>setLightboxUrl(finalSrc)}),block.alt&&(0,react_jsx_runtime.jsxs)(`figcaption`,{className:`px-3 py-1.5 text-center text-ui-2xs text-foreground-subtle bg-surface/50 border-t border-border/30 font-medium`,children:[`▲ `,block.alt]})]},block.id)}return(0,react_jsx_runtime.jsx)(GenericEditableBlock,{block,platform:article.platform,isSelected:selectedBlockId===block.id,onSelect:()=>setSelectedBlockId(block.id),onContentChange:handleBlockChange},block.id)})}),brandBotUrl&&!hasBotInBlocks&&(0,react_jsx_runtime.jsx)(`div`,{className:`pt-4 pb-2 border-t border-border/30`,children:renderBrandBanner(brandBotUrl,brandBotSpec,`footer`,url=>setLightboxUrl(url))}),(0,react_jsx_runtime.jsxs)(`div`,{className:`pt-6 border-t border-border/30 text-center text-ui-2xs text-foreground-subtle select-none flex flex-wrap items-center justify-center gap-2 font-mono`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1 text-foreground-muted`,children:[(0,react_jsx_runtime.jsx)(Command,{className:`size-3 text-foreground-subtle`}),(0,react_jsx_runtime.jsx)(`span`,{children:`所见即所得`})]}),[`点击直接打字修改`,`Ctrl+S 立即保存`,`修改实时同步`].map(tip=>(0,react_jsx_runtime.jsx)(`span`,{className:`px-1.5 py-0.2 rounded text-[11px] text-foreground-subtle bg-surface-hover/50 border border-border/30`,children:tip},tip))]}),lightboxUrl&&(0,react_jsx_runtime.jsx)(`div`,{className:`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in`,onClick:()=>setLightboxUrl(null),children:(0,react_jsx_runtime.jsx)(`img`,{src:lightboxUrl,alt:`高清放大`,className:`max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl`})})]})}function createSlotPlaceholderDataUrl(label){const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="608" viewBox="0 0 1080 608"><rect width="100%" height="100%" fill="#f8fafc" rx="16" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="8 6"/><text x="50%" y="46%" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="bold" fill="#64748b" text-anchor="middle">🖼️ ${label}</text><text x="50%" y="56%" font-family="system-ui, -apple-system, sans-serif" font-size="18" fill="#94a3b8" text-anchor="middle">独立配图插槽 · 待生成或装载中（绝不复用同篇已有插图）</text></svg>`;return`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`}function resolveWechatImagesInHtml(rawHtml,options){if(!rawHtml||!rawHtml.trim())return{html:``,hasTopInHtml:false,hasBotInHtml:false};let sanitizedHtml=rawHtml.trim();if(/^\s*\{\s*["'](?:account_id|file|fileName|theme|task_id|index)["']/i.test(sanitizedHtml)&&!sanitizedHtml.includes(`<`))return{html:``,hasTopInHtml:false,hasBotInHtml:false};sanitizedHtml=sanitizedHtml.replace(/^\s*\{\s*["'](?:account_id|file|fileName|theme|task_id|index)["'][\s\S]*?(?=<)/i,``);const{inlineImages=[],resolvedMap,brandTopUrl,brandBotUrl,brandTopSpec,brandBotSpec,artIndex=1}=options;let finalHtml=sanitizedHtml;let hasTopInHtml=false;let hasBotInHtml=false;const uniqueInlineImages=Array.from(new Set(inlineImages.filter(Boolean)));const usedImageUrls=new Set;finalHtml=finalHtml.replace(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi,(match,src)=>{if(/(?:cover_\d+|cover\.|IMG_COVER|COVER_IMG)/i.test(src)||/alt=["'][^"']*封面[^"']*["']/i.test(match))return``;if(/__?BRAND_TOP__?/i.test(src)){if(!(brandTopSpec?.enabled??true)||!brandTopUrl)return``;hasTopInHtml=true;return match.replace(src,brandTopUrl)}if(/__?BRAND_BOT__?/i.test(src)){if(!(brandBotSpec?.enabled??true)||!brandBotUrl)return``;hasBotInHtml=true;return match.replace(src,brandBotUrl)}const diskPath=extractLocalDiskPathFromUrl(src);const fileName=extractFileName(src);let resolved=resolvedMap?.get(src)||resolvedMap?.get(diskPath)||resolvedMap?.get(fileName);if(!resolved&&resolvedMap){for(const[k,v]of resolvedMap.entries())if(k.endsWith(fileName)||k.endsWith(src)){resolved=v;break}}const placeholderMatch=src.match(/(?:IMG_A?\d*_(\d+)|IMG_\d*_(\d+)|IMG_(\d+)|CONTENT_(\d+))/i);if(placeholderMatch){const subIndexStr=placeholderMatch[1]||placeholderMatch[2]||placeholderMatch[3]||placeholderMatch[4];const subIdx=subIndexStr?Number.parseInt(subIndexStr,10):1;const candidateImg=uniqueInlineImages[subIdx-1];if(candidateImg&&!usedImageUrls.has(candidateImg)){usedImageUrls.add(candidateImg);const candidateResolved=resolvedMap?.get(candidateImg)||resolvedMap?.get(candidateImg.replace(/^.*[\\/]/,``))||resolvedMap?.get(extractLocalDiskPathFromUrl(candidateImg))||candidateImg;return match.replace(src,candidateResolved)}if(uniqueInlineImages.length>0&&resolvedMap){let selfHealed;for(const[k,v]of resolvedMap.entries()){const normK=k.replace(/\\/g,`/`);if((/\/tasks\/(?:active|archive)\//i.test(normK)||normK.includes(`/images/`))&&(normK.endsWith(`/content_${artIndex}_${subIdx}.png`)||normK.endsWith(`/content_${artIndex}_${subIdx}.jpg`)||normK.endsWith(`/pic_${artIndex}_${subIdx}.png`))){selfHealed=v;break}}if(selfHealed&&!usedImageUrls.has(selfHealed)){usedImageUrls.add(selfHealed);return match.replace(src,selfHealed)}}return match.replace(src,createSlotPlaceholderDataUrl(`正文插图 ${subIdx}`))}if(resolved&&!usedImageUrls.has(resolved)){usedImageUrls.add(resolved);return match.replace(src,resolved)}if(isRenderableImageUrl(src))return match;if(/__?IMG_[A-Z0-9_]+__?/i.test(src)||/^IMG_/i.test(src)){const fallbackMatch=src.match(/(\d+)/);const slotNum=fallbackMatch?fallbackMatch[1]:`1`;return match.replace(src,createSlotPlaceholderDataUrl(`正文插图 ${slotNum}`))}return match});let matchCount=0;if(/(?:<!--\s*IMG_A\d+_\d+\s*-->|IMG_A\d+_\d+|<!--\s*IMAGE_\d+\s*-->)/i.test(finalHtml))finalHtml=finalHtml.replace(/(?:<!--\s*IMG_A\d+_\d+\s*-->|IMG_A\d+_\d+|<!--\s*IMAGE_\d+\s*-->)/gi,()=>{const availableImg=uniqueInlineImages.find(img=>!usedImageUrls.has(img));matchCount++;if(availableImg){usedImageUrls.add(availableImg);return`<section style="margin:20px 0;text-align:center;"><img src="${availableImg}" alt="正文配图" style="max-width:100%;display:block;margin:0 auto;border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,0.06);cursor:zoom-in;" /></section>`}return`<section style="margin:20px 0;text-align:center;"><img src="${createSlotPlaceholderDataUrl(`配图 ${matchCount}`)}" alt="配图 ${matchCount}" style="max-width:100%;border-radius:6px;" /></section>`});return{html:finalHtml.replace(/\r?\n/g,``).trim(),hasTopInHtml,hasBotInHtml}}function WechatContentLoadingSkeleton(){return(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-4 select-none py-2 animate-pulse`,"data-testid":`wechat-content-loading-skeleton`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`h-5 bg-border/40 rounded-md w-3/4`}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-2.5 pt-2`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`h-3.5 bg-surface-hover/70 rounded w-full`}),(0,react_jsx_runtime.jsx)(`div`,{className:`h-3.5 bg-surface-hover/70 rounded w-11/12`}),(0,react_jsx_runtime.jsx)(`div`,{className:`h-3.5 bg-surface-hover/50 rounded w-4/5`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`h-20 bg-surface/40 rounded-xl my-4 border border-border/30 flex items-center justify-center text-ui-xs text-foreground-muted gap-2 font-mono`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-1.5 rounded-full bg-primary/70 animate-pulse`}),(0,react_jsx_runtime.jsx)(`span`,{children:`正文排版编译装载中...`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-2.5`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`h-3.5 bg-surface-hover/70 rounded w-full`}),(0,react_jsx_runtime.jsx)(`div`,{className:`h-3.5 bg-surface-hover/60 rounded w-5/6`})]})]})}function ArticlePendingLoadingCard(){return(0,react_jsx_runtime.jsxs)(`div`,{className:`my-6 flex flex-col items-center justify-center rounded-2xl border border-border/50 bg-surface/30 p-8 text-center shadow-xs select-none`,"data-testid":`article-pending-loading-card`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`mb-3 flex size-10 items-center justify-center rounded-xl bg-surface-hover/80 border border-border/40 text-foreground-muted`,children:(0,react_jsx_runtime.jsx)(`span`,{className:`size-2 rounded-full bg-primary/80 animate-pulse`})}),(0,react_jsx_runtime.jsx)(`h4`,{className:`text-ui-sm font-semibold text-foreground`,children:`正文段落与排版规格编译中`}),(0,react_jsx_runtime.jsx)(`p`,{className:`mt-1 max-w-md text-ui-xs text-foreground-muted leading-relaxed font-mono`,children:`排版落盘完成后将自动在此处高保真无缝呈现`}),(0,react_jsx_runtime.jsxs)(`div`,{className:`mt-4 flex items-center gap-1.5 rounded-full border border-border/40 bg-background/60 px-3 py-1 text-[11px] text-foreground-muted font-mono`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-1.5 rounded-full bg-primary animate-pulse`}),(0,react_jsx_runtime.jsx)(`span`,{children:`沙箱落盘编译中`})]})]})}function getResolvedBrandAsset(resolvedMap,accountId,type=`top`){if(!resolvedMap)return void 0;const safeAcc=accountId||`default`;const exts=[`.jpg`,`.png`,`.jpeg`,`.webp`];const names=type===`top`?[`brand_top`]:[`brand_bot`,`brand_bottom`];for(const name of names)for(const ext of exts){const hit=resolvedMap.get(`accounts/${safeAcc}/brand_assets/${name}${ext}`);if(hit)return hit}for(const name of names)for(const ext of exts){const target=`${name}${ext}`;for(const[k,v]of resolvedMap.entries()){const normK=k.replace(/\\/g,`/`);if(normK.includes(`/${safeAcc}/`)&&(normK.endsWith(`/${target}`)||normK===target))return v}}for(const name of names)for(const ext of exts){const hit=resolvedMap.get(`.social-publisher/brand_assets/${name}${ext}`);if(hit)return hit}}function renderWechatNewspicContent(text){if(!text)return null;let rawText=text;if(rawText.trim().startsWith(`{`)&&rawText.trim().endsWith(`}`))try{const parsed=JSON.parse(rawText.trim());if(typeof parsed.content===`string`&&parsed.content.trim())rawText=parsed.content}catch{}return(0,react_jsx_runtime.jsx)(`div`,{className:`space-y-2 text-[#333333] dark:text-[#d4d4d4] text-ui-sm leading-relaxed whitespace-pre-wrap font-sans`,children:cleanAndUnescapeHtmlContent(rawText).replace(/<[^>]+>/g,``).replace(/!\[.*?\]\([^)]+\)/g,``).replace(/^[ \t]*IMG_A\d+_\d+[ \t]*$/gm,``).replace(/IMG_A\d+_\d+/g,``).replace(/^01\s*正文(?:\s*正文示意图)*/g,``).replace(/正文示意图/g,``).replace(/```(?:json)?\s*\{[\s\S]*?"cards"[\s\S]*?\}\s*```/gi,``).replace(/```(?:json)?\s*\[[\s\S]*?"role"[\s\S]*?\]\s*```/gi,``).replace(/(?:["']cards["']|cards)\s*:\s*\[[\s\S]*$/gi,``).replace(/\{[\s\r\n]*"(?:cards|img_count|plain_chars|problems)"[\s\S]*\}$/gi,``).trim().split(/\r?\n/).map((line,idx)=>{return(0,react_jsx_runtime.jsx)(`div`,{className:`min-h-[1.25rem]`,children:line.split(/(#[^\s#]+#?)/g).map((part,pIdx)=>{if(part.startsWith(`#`))return(0,react_jsx_runtime.jsx)(`span`,{className:`inline-block rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 text-ui-xs font-semibold mr-1.5 my-0.5`,children:part},pIdx);return(0,react_jsx_runtime.jsx)(`span`,{children:part},pIdx)})},idx)})})}function renderXiaohongshuContent(text){if(!text)return null;return(0,react_jsx_runtime.jsx)(`div`,{className:`space-y-2 text-[#333333] dark:text-[#d4d4d4] text-ui-sm leading-relaxed whitespace-pre-wrap`,children:cleanAndUnescapeHtmlContent(text).replace(/!\[.*?\]\([^)]+\)/g,``).replace(/^[ \t]*IMG_A\d+_\d+[ \t]*$/gm,``).replace(/IMG_A\d+_\d+/g,``).replace(/```(?:json)?\s*\{[\s\S]*?"cards"[\s\S]*?\}\s*```/gi,``).replace(/```(?:json)?\s*\[[\s\S]*?"role"[\s\S]*?\]\s*```/gi,``).replace(/(?:["']cards["']|cards)\s*:\s*\[[\s\S]*$/gi,``).replace(/\{[\s\r\n]*"(?:cards|img_count|plain_chars|problems)"[\s\S]*\}$/gi,``).trim().split(/\r?\n/).map((line,idx)=>{return(0,react_jsx_runtime.jsx)(`div`,{className:`min-h-[1.25rem]`,children:line.split(/(#[^\s#]+#?)/g).map((part,pIdx)=>{if(part.startsWith(`#`))return(0,react_jsx_runtime.jsx)(`span`,{className:`inline-block rounded-md bg-blue-500/10 text-[#133863] dark:text-sky-300 px-1.5 py-0.5 text-ui-xs font-semibold mr-1.5 my-0.5 hover:underline cursor-pointer`,children:part},pIdx);return(0,react_jsx_runtime.jsx)(`span`,{children:part},pIdx)})},idx)})})}function SocialArticlePlatformPreview({article,allImages:_allImages=[],workspacePath,workspaceIdentity,sessionId,taskId:_taskId,editable:_editableProp=false,onTitleChange,onDigestChange,onContentChange,onImageChanged,onAddCard,onDeleteCard,onArticleChange:_onArticleChange}){const[editingField,setEditingField]=(0,react.useState)(`none`);const maxQuota=article.platform===`xiaohongshu`?18:20;const[tempTitle,setTempTitle]=(0,react.useState)(article.title);const[tempDigest,setTempDigest]=(0,react.useState)(article.digest||``);const[tempContent,setTempContent]=(0,react.useState)(article.content);const[savedBadge,setSavedBadge]=(0,react.useState)(false);const tempTitleRef=(0,react.useRef)(tempTitle);tempTitleRef.current=tempTitle;const tempDigestRef=(0,react.useRef)(tempDigest);tempDigestRef.current=tempDigest;const tempContentRef=(0,react.useRef)(tempContent);tempContentRef.current=tempContent;const editingFieldRef=(0,react.useRef)(editingField);editingFieldRef.current=editingField;(0,react.useEffect)(()=>{return()=>{if(editingFieldRef.current===`title`&&tempTitleRef.current!==(article.title||``))onTitleChange?.(tempTitleRef.current);else if(editingFieldRef.current===`digest`&&tempDigestRef.current!==(article.digest||``))onDigestChange?.(tempDigestRef.current);else if(editingFieldRef.current===`content`&&tempContentRef.current!==(article.content||``))onContentChange?.(tempContentRef.current)}},[article.id,article.filePath,article.index,onTitleChange,onDigestChange,onContentChange,article.title,article.digest,article.content]);(0,react.useEffect)(()=>{if(editingField===`none`){setTempTitle(article.title);setTempDigest(article.digest||``);setTempContent(article.content)}},[article.title,article.digest,article.content,editingField]);const handleFinishEditing=fieldToSave=>{const field=fieldToSave||(editingField!==`none`?editingField:void 0);if(!field){setEditingField(`none`);return}let hasChanged=false;if(field===`title`&&tempTitle!==article.title){onTitleChange?.(tempTitle);hasChanged=true}else if(field===`digest`&&tempDigest!==(article.digest||``)){onDigestChange?.(tempDigest);hasChanged=true}else if(field===`content`&&tempContent!==article.content){onContentChange?.(tempContent);hasChanged=true}setEditingField(`none`);if(hasChanged){setSavedBadge(true);setTimeout(()=>setSavedBadge(false),2e3)}};const handleCancelEditing=()=>{setTempTitle(article.title);setTempDigest(article.digest||``);setTempContent(article.content);setEditingField(`none`)};const isXhs=article.platform===`xiaohongshu`;const isWechatNewspic=article.platform===`gzh`&&article.articleType===`newspic`;const isWechatNews=article.platform===`gzh`&&!isWechatNewspic;const workspaceServices=useWorkspaceServices(workspacePath,void 0,workspaceIdentity);const socialPublisherRpc=useOptionalServices()?.socialPublisherService??workspaceServices?.socialPublisherService??null;const resolvedDiskFilePath=(0,react.useMemo)(()=>{if(article.filePath)return article.filePath;const rawContent=article.content||``;if(typeof rawContent===`string`&&(rawContent.includes(`.html`)||rawContent.includes(`article_v2`))){const normalizedRaw=rawContent.replace(/\t(asks|emp|est|ools)/gi,`\\t$1`);const match=normalizedRaw.match(/["']file["']\s*:\s*["']([^"']+\.html)["']/i)||normalizedRaw.match(/([a-zA-Z]:\\[^"'\r\n<>]+\.html)/i)||normalizedRaw.match(/([a-zA-Z]:\/[^"'\r\n<>]+\.html)/i);if(match&&match[1])return match[1].replace(/\\/g,`\\`)}},[article.filePath,article.content]);const{brandTopRpcUrl,brandBotRpcUrl,brandImagesConfig:_brandImagesConfig,loadedHtml,loadingHtml}=useArticlePlatformAsset({article:{...article,filePath:resolvedDiskFilePath||article.filePath},workspaceServices,socialPublisherRpc});const isStubContent=(0,react.useMemo)(()=>{const c=(article.content||``).trim();if(!c)return true;if(c===`微信公众号深度图文排版长文。`||c===`小绿书 3:4 竖版专属图文卡片。`||c===`文章排版与规范校验已就绪，可随时发布或导出。`||c===`笔记正文与 3:4 竖版配图已生成就绪，可随时发布或导出。`||c.includes(`排版落盘产物生成中`)||c.includes(`文章正在快马加鞭赶来`))return true;return c.length<100&&!c.includes(`<`)&&!c.includes(`#`)},[article.content]);const activeContent=(0,react.useMemo)(()=>{if(editingField===`content`&&tempContent?.trim())return tempContent;if(loadedHtml&&loadedHtml.trim())return loadedHtml;if(article.content?.trim()&&!isStubContent)return article.content;return loadedHtml||``},[editingField,tempContent,loadedHtml,article.content,isStubContent]);const pureContentUrls=(0,react.useMemo)(()=>{if(article.contentImages&&article.contentImages.length>0)return article.contentImages;if(article.coverUrl)return(article.images||[]).filter(img=>img!==article.coverUrl);return article.images||[]},[article.contentImages,article.coverUrl,article.images]);const activeDiskFilePath=resolvedDiskFilePath||article.filePath;const effectiveScriptsDir=article.scriptsDir||(activeDiskFilePath?activeDiskFilePath.replace(/[\\/][^\\/]+$/,``):void 0);const hasGeneratedImages=Boolean(article.coverUrl||article.images&&article.images.length>0||pureContentUrls&&pureContentUrls.length>0);const rawImageUrls=(0,react.useMemo)(()=>{const list=[];const artIndex=article.index||1;const sep=effectiveScriptsDir&&effectiveScriptsDir.includes(`\\`)?`\\`:`/`;const isXhs=article.platform===`xiaohongshu`;if(isWechatNewspic||isXhs){for(const img of article.images||[]){const lower=img.toLowerCase();if(!lower.includes(`brand_`)&&!list.includes(img)){if(!isXhs&&!isWechatNewspic&&lower.includes(`cover_`))continue;list.push(img)}}if(article.coverUrl&&!list.includes(article.coverUrl))list.push(article.coverUrl);if(hasGeneratedImages&&effectiveScriptsDir){const targetProbeCards=Math.min(resolveTargetCardCount(article),isXhs?18:12);for(let pIdx=1;pIdx<=targetProbeCards;pIdx++){const pNames=[`pic_${artIndex}_${pIdx}.png`,`pic_${artIndex}_${pIdx}.jpg`,`xhs_pic_${artIndex}_${pIdx}.png`,`xhs_pic_${artIndex}_${pIdx}.jpg`,...artIndex===1?[`pic_${pIdx}.png`,`pic_${pIdx}.jpg`]:[]];for(const pName of pNames){const fullP=`${effectiveScriptsDir}${sep}${pName}`;if(!list.includes(fullP))list.push(fullP);if(effectiveScriptsDir.endsWith(`/articles`)||effectiveScriptsDir.endsWith(`\\articles`)){const fullImgP=`${effectiveScriptsDir.slice(0,-9)+`${sep}images`}${sep}${pName}`;if(!list.includes(fullImgP))list.push(fullImgP)}}}}return list}if(article.coverUrl&&!list.includes(article.coverUrl))list.push(article.coverUrl);for(const img of pureContentUrls)if(img&&!list.includes(img))list.push(img);if(activeContent){const matches=Array.from(activeContent.matchAll(/<img[^>]+src=["']([^"']+)["']/gi),m=>m[1]);for(const m of matches){if(!m)continue;if(!list.includes(m))list.push(m);const pMatch=m.match(/(?:IMG_A?(\d+)_(\d+)|IMG_(\d+)_(\d+)|CONTENT_(\d+)_(\d+))/i);if(pMatch&&hasGeneratedImages&&effectiveScriptsDir){const inferredFileName=`content_${pMatch[1]||pMatch[3]||pMatch[5]||String(artIndex)}_${pMatch[2]||pMatch[4]||pMatch[6]||`1`}.png`;const fullInferred=`${effectiveScriptsDir}${sep}${inferredFileName}`;if(!list.includes(fullInferred))list.push(fullInferred);const fullImgInferred=`${effectiveScriptsDir}${sep}images${sep}${inferredFileName}`;if(!list.includes(fullImgInferred))list.push(fullImgInferred)}}const mdMatches=Array.from(activeContent.matchAll(/!\[.*?\]\(([^)]+)\)/g),m=>m[1]?.trim());for(const m of mdMatches){if(!m||m.includes(`__BRAND_`))continue;if(!list.includes(m))list.push(m);const diskPath=extractLocalDiskPathFromUrl(m);if(diskPath&&!list.includes(diskPath))list.push(diskPath);const fileName=m.replace(/^.*[\\/]/,``);if(fileName&&!list.includes(fileName))list.push(fileName)}}if(!isWechatNewspic&&article.platform!==`xiaohongshu`&&hasGeneratedImages&&effectiveScriptsDir){const artCandidates=[`cover_${artIndex}.png`,`cover_${artIndex}.jpg`,`cover_${artIndex}.webp`,`cover_${artIndex}.jpeg`,...artIndex===1?[`cover.png`,`cover.jpg`,`cover.webp`]:[]];for(let s=1;s<=12;s++){artCandidates.push(`content_${artIndex}_${s}.png`);artCandidates.push(`content_${artIndex}_${s}.jpg`);artCandidates.push(`content_${artIndex}_${s}.webp`);artCandidates.push(`pic_${artIndex}_${s}.png`);artCandidates.push(`pic_${artIndex}_${s}.jpg`)}for(const fb of artCandidates){const fullP=`${effectiveScriptsDir}${sep}${fb}`;if(!list.includes(fullP))list.push(fullP);const directImagesP=`${effectiveScriptsDir}${sep}images${sep}${fb}`;if(!list.includes(directImagesP))list.push(directImagesP);if(effectiveScriptsDir.endsWith(`/articles`)||effectiveScriptsDir.endsWith(`\\articles`)){const fullImgP=`${effectiveScriptsDir.slice(0,-9)+`${sep}images`}${sep}${fb}`;if(!list.includes(fullImgP))list.push(fullImgP)}}}const safeAcc=article.accountId||`default`;const brandExts=[`.jpg`,`.png`,`.jpeg`,`.webp`];const brandBaseNames=[`brand_top`,`brand_bot`,`brand_bottom`];const homeDir=typeof process!==`undefined`?{}.USERPROFILE||{}.HOME:void 0;const normHome=homeDir?homeDir.replace(/\\/g,`/`).replace(/\/+$/,``):``;for(const bName of brandBaseNames)for(const ext of brandExts){if(normHome){const userGlobalItem=`${normHome}/.wincode/v2/social-publisher/tasks/default/brand_assets/${bName}${ext}`;if(!list.includes(userGlobalItem))list.push(userGlobalItem);const userAccItem=`${normHome}/.wincode/v2/social-publisher/tasks/default/accounts/${safeAcc}/brand_assets/${bName}${ext}`;if(!list.includes(userAccItem))list.push(userAccItem)}const accItem=`accounts/${safeAcc}/brand_assets/${bName}${ext}`;if(!list.includes(accItem))list.push(accItem);const globalItem=`${bName}${ext}`;if(!list.includes(globalItem))list.push(globalItem);const globalAssetItem=`brand_assets/${bName}${ext}`;if(!list.includes(globalAssetItem))list.push(globalAssetItem);if(workspacePath){const normW=workspacePath.replace(/\\/g,`/`);const wAccItem=`${normW}/accounts/${safeAcc}/brand_assets/${bName}${ext}`;if(!list.includes(wAccItem))list.push(wAccItem);const wDotItem=`${normW}/.social-publisher/brand_assets/${bName}${ext}`;if(!list.includes(wDotItem))list.push(wDotItem);const wItem=`${normW}/brand_assets/${bName}${ext}`;if(!list.includes(wItem))list.push(wItem)}}return list},[effectiveScriptsDir,isWechatNewspic,article.images,article.index,article.coverUrl,article.accountId,pureContentUrls,activeContent,article.platform,workspacePath,hasGeneratedImages]);const resolvedImages=useResolvedMediaUrls(rawImageUrls,{workspacePath,workspaceIdentity,accountId:article.accountId,scriptsDir:effectiveScriptsDir,sessionId});const resolvedMap=(0,react.useMemo)(()=>{const map=new Map;for(let i=0;i<rawImageUrls.length;i++){const raw=rawImageUrls[i];const res=resolvedImages[i];if(raw&&res&&isRenderableImageUrl(res)){map.set(raw,res);map.set(extractLocalDiskPathFromUrl(raw),res);const fileName=extractFileName(raw);if(fileName&&!map.has(fileName))map.set(fileName,res)}}return map},[rawImageUrls,resolvedImages]);const resolvedCoverUrl=(0,react.useMemo)(()=>{const artIndex=article.index||1;if(article.coverUrl){const direct=resolvedMap.get(article.coverUrl)||resolvedMap.get(extractLocalDiskPathFromUrl(article.coverUrl));if(direct&&isRenderableImageUrl(direct))return direct;const fileName=extractFileName(article.coverUrl);for(const[k,v]of resolvedMap.entries())if(k.endsWith(fileName)&&isRenderableImageUrl(v))return v;if(isRenderableImageUrl(article.coverUrl))return article.coverUrl}if(!hasGeneratedImages||!effectiveScriptsDir)return;const normScripts=effectiveScriptsDir.replace(/\\/g,`/`);const fallbackKeys=[`cover_${artIndex}.png`,`cover_${artIndex}.jpg`,`cover_${artIndex}.webp`,`cover_${artIndex}.jpeg`,...artIndex===1?[`cover.png`,`cover.jpg`,`cover.webp`,`cover.jpeg`]:[]];for(const fb of fallbackKeys){const fullCand1=`${normScripts}/${fb}`;const fullCand2=`${normScripts}/images/${fb}`;const directHit=resolvedMap.get(fullCand1)||resolvedMap.get(fullCand2);if(directHit&&isRenderableImageUrl(directHit))return directHit;for(const[k,v]of resolvedMap.entries()){const normK=k.replace(/\\/g,`/`);if(normK.startsWith(normScripts)&&normK.endsWith(`/`+fb)&&isRenderableImageUrl(v))return v}const scopedKey=`${normScripts}/${fb}`;const coverHit=resolvedCoverCache.get(scopedKey);if(coverHit&&isRenderableImageUrl(coverHit))return coverHit}for(const[k,v]of resolvedMap.entries()){if(!v||!isRenderableImageUrl(v))continue;const lower=k.toLowerCase();if(!effectiveScriptsDir||!k.replace(/\\/g,`/`).includes(effectiveScriptsDir.replace(/\\/g,`/`)))continue;if(lower.includes(`cover_${artIndex}.`)||lower.includes(`cover_${artIndex}_`))return v}},[article.coverUrl,article.index,resolvedMap,effectiveScriptsDir,hasGeneratedImages]);const _resolvedContentImages=(0,react.useMemo)(()=>{const artIndex=article.index||1;const matchedSlots=[];const usedUrls=new Set;for(const[k,v]of resolvedMap.entries()){if(!v||!isRenderableImageUrl(v)||usedUrls.has(v))continue;const lowerKey=k.toLowerCase();if(lowerKey.includes(`cover_`)||lowerKey.includes(`brand_`))continue;const m=k.match(/(?:content|pic)_(\d+)_(\d+)/i);if(m&&m[1]&&m[2]){const fileArtIdx=Number.parseInt(m[1],10);const slotIdx=Number.parseInt(m[2],10);const normK=k.replace(/\\/g,`/`);const normScripts=effectiveScriptsDir?effectiveScriptsDir.replace(/\\/g,`/`):``;const isBelongToCurrentSandbox=Boolean(normScripts&&normK.includes(normScripts));if(fileArtIdx===artIndex&&isBelongToCurrentSandbox){usedUrls.add(v);matchedSlots.push({index:slotIdx,url:v})}}}matchedSlots.sort((a,b)=>a.index-b.index);const sortedFromMap=matchedSlots.map(item=>item.url);if(sortedFromMap.length>0)return sortedFromMap;const fallbackList=pureContentUrls.map(raw=>{let res=resolvedMap.get(raw)||resolvedMap.get(extractLocalDiskPathFromUrl(raw));if(!res){const fn=extractFileName(raw);for(const[k,v]of resolvedMap.entries())if(k.endsWith(fn)){res=v;break}}return res}).filter(url=>{if(!url)return false;const lower=url.toLowerCase();return!lower.includes(`cover_`)&&!lower.includes(`brand_`)});return Array.from(new Set(fallbackList))},[pureContentUrls,article.index,resolvedMap]);const galleryCardSlots=(0,react.useMemo)(()=>{if(!isWechatNewspic&&article.platform!==`xiaohongshu`)return[];const artIndex=article.index||1;const isXhs=article.platform===`xiaohongshu`;const maxQuota=isXhs?18:12;const targetCards=resolveTargetCardCount(article);const totalSlots=Math.max(1,Math.min(targetCards,maxQuota));const slots=[];for(let c=1;c<=totalSlots;c++){let resolvedCard;const rawArticleImg=article.images?.[c-1];if(rawArticleImg){resolvedCard=resolvedMap.get(rawArticleImg)||resolvedMap.get(extractLocalDiskPathFromUrl(rawArticleImg));if(!resolvedCard){const fn=extractFileName(rawArticleImg);if(fn){for(const[key,val]of resolvedMap.entries())if(key.endsWith(fn)){resolvedCard=val;break}}}if(!resolvedCard&&isRenderableImageUrl(rawArticleImg))resolvedCard=rawArticleImg}if(!resolvedCard&&c===1&&article.coverUrl){resolvedCard=resolvedMap.get(article.coverUrl)||resolvedMap.get(extractLocalDiskPathFromUrl(article.coverUrl));if(!resolvedCard){const fn=extractFileName(article.coverUrl);if(fn){for(const[key,val]of resolvedMap.entries())if(key.endsWith(fn)){resolvedCard=val;break}}}}if(!resolvedCard){const probeAliases=isWechatNewspic||isXhs?[`pic_${artIndex}_${c}.png`,`pic_${artIndex}_${c}.jpg`,`xhs_pic_${artIndex}_${c}.png`,`xhs_pic_${artIndex}_${c}.jpg`,...artIndex===1?[`pic_${c}.png`,`pic_${c}.jpg`]:[]]:[`pic_${artIndex}_${c}.png`,`pic_${artIndex}_${c}.jpg`,...c===1?artIndex===1?[`cover_${artIndex}.png`,`cover_${artIndex}.jpg`,`cover.png`,`cover.jpg`]:[`cover_${artIndex}.png`,`cover_${artIndex}.jpg`]:[`content_${artIndex}_${c-1}.png`,`content_${artIndex}_${c-1}.jpg`]];for(const[key,val]of resolvedMap.entries()){const normK=key.replace(/\\/g,`/`);if(probeAliases.some(alias=>normK.endsWith(alias)||normK.includes(alias))){resolvedCard=val;break}}}const isReady=Boolean(resolvedCard&&isRenderableImageUrl(resolvedCard));const targetFileName=isWechatNewspic||isXhs?artIndex===1&&c===1?`pic_${c}.png`:`pic_${artIndex}_${c}.png`:c===1?`cover_${artIndex}.png`:`pic_${artIndex}_${c}.png`;const matchedSlot=(article.visualSlots||[]).find(vs=>vs.sub===c||c===1&&vs.kind===`cover`);slots.push({slotIndex:c,url:isReady?resolvedCard:void 0,isReady,slotTitle:isXhs?`小红书卡片 #${c}`:`小绿书卡片 #${c}`,aspectRatio:`aspect-[3/4]`,kind:c===1?`cover`:`pic`,targetFileName,matchedSlot})}return slots},[isWechatNewspic,article,resolvedMap]);(0,react.useMemo)(()=>{return galleryCardSlots.filter(s=>s.isReady&&Boolean(s.url)).map(s=>s.url)},[galleryCardSlots]);const[activeImgIndex,setActiveImgIndex]=(0,react.useState)(0);const[lightboxUrl,setLightboxUrl]=(0,react.useState)(null);const titleInputRef=(0,react.useRef)(null);const contentTextareaRef=(0,react.useRef)(null);const digestTextareaRef=(0,react.useRef)(null);(0,react.useEffect)(()=>{if(editingField===`title`)titleInputRef.current?.focus();else if(editingField===`content`)contentTextareaRef.current?.focus();else if(editingField===`digest`)digestTextareaRef.current?.focus()},[editingField]);const renderCanvasToolbar=()=>{if(editingField===`none`&&!savedBadge)return null;return(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between gap-2 px-3 py-1.5 bg-surface/80 border-b border-border/30 text-ui-2xs select-none`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5 text-foreground-muted`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-1.5 rounded-full bg-amber-500 animate-pulse`}),(0,react_jsx_runtime.jsx)(`span`,{className:`font-mono text-[11px]`,children:`正在就地编辑 · 点击外侧或按 Esc 完成`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2`,children:[savedBadge&&(0,react_jsx_runtime.jsxs)(`span`,{className:`inline-flex items-center gap-1 text-emerald-600 text-[11px] font-bold animate-in fade-in`,children:[(0,react_jsx_runtime.jsx)(Check,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`已更新并重新渲染`})]}),editingField!==`none`?(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1`,children:[(0,react_jsx_runtime.jsxs)(Button,{type:`button`,size:`sm`,variant:`ghost`,onClick:handleCancelEditing,className:`h-6 px-2 text-[11px] text-foreground-muted hover:text-foreground cursor-pointer`,children:[(0,react_jsx_runtime.jsx)(RotateCcw,{className:`size-3 mr-1`}),(0,react_jsx_runtime.jsx)(`span`,{children:`放弃`})]}),(0,react_jsx_runtime.jsxs)(Button,{type:`button`,size:`sm`,onClick:()=>handleFinishEditing(),className:`h-6 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs`,children:[(0,react_jsx_runtime.jsx)(Check,{className:`size-3 mr-1`}),(0,react_jsx_runtime.jsx)(`span`,{children:`完成编辑`})]})]}):(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>setEditingField(`content`),className:`inline-flex items-center gap-1 text-[11px] text-primary hover:underline cursor-pointer`,title:`点击直接激活画布正文编辑`,children:[(0,react_jsx_runtime.jsx)(PenLine,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`编辑内容`})]})]})]})};if(isXhs)return(0,react_jsx_runtime.jsxs)(`div`,{className:`mx-auto max-w-[580px] rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden transition-all`,children:[renderCanvasToolbar(),article.isStreaming&&(0,react_jsx_runtime.jsxs)(`div`,{className:`mx-4 mt-3 flex items-center justify-between px-3 py-1.5 rounded-lg border border-border/50 bg-surface/60 text-foreground-muted text-ui-2xs select-none font-mono`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-1.5 rounded-full bg-primary animate-pulse`}),(0,react_jsx_runtime.jsx)(`span`,{children:`正文与排版流式编译中...`})]}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[10px] text-foreground-subtle`,children:`实时同步`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between p-3.5 border-b border-border/30 bg-surface/30`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2.5`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`size-7 rounded-full bg-surface-hover border border-border/50 flex items-center justify-center font-mono text-[10px] text-foreground-muted font-bold`,children:`RED`}),(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsx)(`div`,{className:`text-ui-xs font-bold text-foreground`,children:article.accountName||`小红书爆款创作者`}),(0,react_jsx_runtime.jsx)(`div`,{className:`text-[11px] text-foreground-muted`,children:`刚刚发布 · 关注`})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`flex items-center gap-2`,children:(0,react_jsx_runtime.jsx)(`span`,{className:`rounded-full bg-rose-500/10 text-rose-600 px-2.5 py-0.5 text-ui-2xs font-semibold`,children:`3:4 笔记`})})]}),galleryCardSlots.length===0?(0,react_jsx_runtime.jsx)(SocialArticleImageCreatingPlaceholder,{platform:`xiaohongshu`}):(0,react_jsx_runtime.jsxs)(`div`,{className:`relative aspect-[3/4] w-full bg-surface-hover/30 overflow-hidden group select-none`,children:[(()=>{const safeImgIndex=activeImgIndex<galleryCardSlots.length?activeImgIndex:0;const currentSlot=galleryCardSlots[safeImgIndex]||galleryCardSlots[0];const currentImg=currentSlot?.url;return(0,react_jsx_runtime.jsx)(react_jsx_runtime.Fragment,{children:currentSlot?.isReady&&currentImg?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(SafePreviewImage,{src:currentImg,alt:`小红书配图 ${safeImgIndex+1}`,aspectRatio:`aspect-[3/4]`,onClick:()=>{if(currentImg)setLightboxUrl(currentImg)}}),(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:`小红书卡片 #${safeImgIndex+1}`,kind:safeImgIndex===0?`cover`:`pic`,articleIndex:article.index||1,subIndex:safeImgIndex+1,currentImageUrl:currentImg,scriptsDir:effectiveScriptsDir,targetFileName:currentSlot.targetFileName,accountId:article.accountId,platform:article.platform,workspacePath,onImageChanged:newUrl=>onImageChanged?.(safeImgIndex+1,newUrl),canDelete:galleryCardSlots.length>1,onDelete:()=>onDeleteCard?.(safeImgIndex+1),onZoom:()=>{if(currentImg)setLightboxUrl(currentImg)}})]}):(0,react_jsx_runtime.jsxs)(`div`,{className:`relative aspect-[3/4] w-full flex flex-col items-center justify-center p-6 text-center select-none bg-surface/30`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`size-11 rounded-2xl bg-surface-hover/70 border border-border/50 flex items-center justify-center mb-3`,children:(0,react_jsx_runtime.jsx)(Image,{className:`size-5 text-foreground-muted/70`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1 max-w-[240px]`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-center gap-1.5`,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:`rounded px-1.5 py-0.5 text-ui-2xs font-mono font-semibold bg-surface-hover text-foreground-muted border border-border/40`,children:[`#`,safeImgIndex+1]}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-ui-xs font-semibold text-foreground`,children:currentSlot?.slotTitle||`卡片 #${safeImgIndex+1}`})]}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-[11px] text-foreground-muted font-mono leading-relaxed`,children:`3:4 竖版多图排版构建中...`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute top-3 left-3 px-2 py-0.5 rounded text-[10px] font-mono bg-background/60 text-foreground-muted border border-border/40`,children:[`待生成 · `,currentSlot?.targetFileName]}),(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:`小红书卡片 #${safeImgIndex+1}`,kind:safeImgIndex===0?`cover`:`pic`,articleIndex:article.index||1,subIndex:safeImgIndex+1,currentImageUrl:void 0,scriptsDir:effectiveScriptsDir,targetFileName:currentSlot?.targetFileName||`pic_${article.index||1}_${safeImgIndex+1}.png`,accountId:article.accountId,platform:article.platform,workspacePath,onImageChanged:newUrl=>onImageChanged?.(safeImgIndex+1,newUrl),canDelete:galleryCardSlots.length>1,onDelete:()=>onDeleteCard?.(safeImgIndex+1)})]})})})(),galleryCardSlots.length>1&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:e=>{e.stopPropagation();setActiveImgIndex(prev=>prev>0?prev-1:galleryCardSlots.length-1)},className:`absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 hover:bg-black/70 p-2 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm z-10`,"aria-label":`上一张卡片`,children:(0,react_jsx_runtime.jsx)(ChevronLeft,{className:`size-4`})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:e=>{e.stopPropagation();setActiveImgIndex(prev=>prev<galleryCardSlots.length-1?prev+1:0)},className:`absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 hover:bg-black/70 p-2 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm z-10`,"aria-label":`下一张卡片`,children:(0,react_jsx_runtime.jsx)(ChevronRight,{className:`size-4`})}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-xs z-10`,children:galleryCardSlots.map((slot,dotIdx)=>(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>setActiveImgIndex(dotIdx),className:cn(`size-1.5 rounded-full transition-all cursor-pointer`,activeImgIndex===dotIdx?`w-3 bg-white`:slot.isReady?`bg-white/70`:`bg-white/30`)},slot.slotIndex))}),(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute top-3 right-3 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-xs z-10`,children:[activeImgIndex+1,`/`,galleryCardSlots.length]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-5 space-y-4`,children:[editingField===`title`?(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1`,children:[(0,react_jsx_runtime.jsx)(`input`,{ref:titleInputRef,type:`text`,value:tempTitle,onChange:e=>setTempTitle(e.target.value),onBlur:()=>handleFinishEditing(`title`),onKeyDown:e=>{if(e.key===`Escape`||e.key===`Enter`)handleFinishEditing(`title`)},className:`w-full rounded-xl border border-rose-500 bg-background px-3 py-1.5 text-[17px] font-bold text-foreground focus:outline-hidden ring-2 ring-rose-500/20`,placeholder:`小红书标题...`}),(0,react_jsx_runtime.jsx)(`div`,{className:`text-[10px] text-foreground-subtle text-right`,children:`回车或失焦完成保存`})]}):(0,react_jsx_runtime.jsxs)(`div`,{onClick:()=>setEditingField(`title`),className:`group/title relative cursor-pointer rounded-lg p-1 -m-1 hover:bg-surface-hover/40 transition-colors`,title:`点击就地编辑标题`,children:[(0,react_jsx_runtime.jsx)(`h2`,{className:`text-[17px] font-bold text-foreground leading-snug`,children:article.title?.replace(/^\*+|\*+$/g,``).replace(/^#+\s*/,``)}),(0,react_jsx_runtime.jsxs)(`span`,{className:`absolute right-1 top-1 opacity-0 group-hover/title:opacity-60 text-[10px] text-foreground-muted flex items-center gap-0.5`,children:[(0,react_jsx_runtime.jsx)(PenLine,{className:`size-2.5`}),` 双击编辑`]})]}),(0,react_jsx_runtime.jsx)(`div`,{contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>setEditingField(`content`),onBlur:e=>{const text=e.currentTarget.innerText||``;setTempContent(text);onContentChange?.(text);setEditingField(`none`)},onInput:e=>{const text=e.currentTarget.innerText||``;setTempContent(text);onContentChange?.(text)},className:`group/content relative rounded-xl p-2 -m-2 hover:bg-surface-hover/30 focus:bg-rose-500/[0.03] outline-hidden focus:outline-hidden transition-colors cursor-text`,title:`点击正文直接在原文修改`,children:renderXiaohongshuContent(tempContent||article.content)}),(0,react_jsx_runtime.jsxs)(`div`,{className:`pt-4 border-t border-border/40 flex items-center justify-between text-foreground-muted text-ui-xs`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-4`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1 hover:text-rose-500 cursor-pointer`,children:[(0,react_jsx_runtime.jsx)(Heart,{className:`size-4`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px]`,children:`8.9k`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1 hover:text-amber-500 cursor-pointer`,children:[(0,react_jsx_runtime.jsx)(Star,{className:`size-4`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px]`,children:`3.2k`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1 hover:text-primary cursor-pointer`,children:[(0,react_jsx_runtime.jsx)(MessageCircle,{className:`size-4`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px]`,children:`642`})]})]}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[10px] text-foreground-subtle`,children:`小红书 App 视觉仿真`})]})]}),lightboxUrl&&(0,react_jsx_runtime.jsxs)(`div`,{className:`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in`,onClick:()=>setLightboxUrl(null),children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:`absolute top-4 right-4 text-white hover:opacity-80 p-2 cursor-pointer`,onClick:()=>setLightboxUrl(null),children:(0,react_jsx_runtime.jsx)(X,{className:`size-6`})}),(0,react_jsx_runtime.jsx)(`img`,{src:lightboxUrl,alt:`高清放大`,className:`max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl`})]})]});if(isWechatNewspic)return(0,react_jsx_runtime.jsxs)(`div`,{className:`mx-auto max-w-[580px] rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden transition-all`,children:[renderCanvasToolbar(),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between p-3.5 border-b border-border/30 bg-surface/30`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2.5`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`size-8 rounded-full bg-emerald-600/15 text-emerald-600 flex items-center justify-center font-bold text-ui-xs`,children:`图文`}),(0,react_jsx_runtime.jsxs)(`div`,{children:[(0,react_jsx_runtime.jsx)(`div`,{className:`text-ui-xs font-bold text-foreground`,children:article.accountName||`公众号小绿书`}),(0,react_jsx_runtime.jsx)(`div`,{className:`text-[11px] text-foreground-muted`,children:`微信公众平台 · 3:4 图文`})]})]}),(0,react_jsx_runtime.jsx)(`span`,{className:`rounded-full bg-emerald-500/10 text-emerald-600 px-2.5 py-0.5 text-ui-2xs font-semibold`,children:`小绿书卡片`})]}),galleryCardSlots.length===0?(0,react_jsx_runtime.jsx)(SocialArticleImageCreatingPlaceholder,{platform:`wechat-newspic`}):(0,react_jsx_runtime.jsxs)(`div`,{className:`relative aspect-[3/4] w-full bg-surface-hover/30 overflow-hidden group select-none`,children:[(()=>{const safeImgIndex=activeImgIndex<galleryCardSlots.length?activeImgIndex:0;const currentSlot=galleryCardSlots[safeImgIndex]||galleryCardSlots[0];const currentImg=currentSlot?.url;const cardSub=safeImgIndex+1;const matchedSlot=currentSlot?.matchedSlot||(article.visualSlots||[]).find(vs=>vs.sub===cardSub||cardSub===1&&vs.kind===`cover`);return(0,react_jsx_runtime.jsx)(react_jsx_runtime.Fragment,{children:currentSlot?.isReady&&currentImg?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(SafePreviewImage,{src:currentImg,alt:`小绿书配图 ${safeImgIndex+1}`,aspectRatio:`aspect-[3/4]`,onClick:()=>{if(currentImg)setLightboxUrl(currentImg)}}),(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:`小绿书卡片 #${safeImgIndex+1}`,kind:safeImgIndex===0?`cover`:`pic`,articleIndex:article.index||1,subIndex:safeImgIndex+1,currentImageUrl:currentImg,currentPrompt:matchedSlot?.generationPrompt||matchedSlot?.intentDescription||``,intentDescription:matchedSlot?.intentDescription,searchKeywords:matchedSlot?.searchKeywords,scriptsDir:effectiveScriptsDir,targetFileName:currentSlot.targetFileName,accountId:article.accountId,platform:article.platform,workspacePath,onImageChanged:newUrl=>onImageChanged?.(safeImgIndex+1,newUrl),canDelete:galleryCardSlots.length>1,onDelete:()=>onDeleteCard?.(safeImgIndex+1),onZoom:()=>{if(currentImg)setLightboxUrl(currentImg)}})]}):(0,react_jsx_runtime.jsxs)(`div`,{className:`relative aspect-[3/4] w-full flex flex-col items-center justify-center p-6 text-center select-none bg-surface/30`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`size-11 rounded-2xl bg-surface-hover/70 border border-border/50 flex items-center justify-center mb-3`,children:(0,react_jsx_runtime.jsx)(Image,{className:`size-5 text-foreground-muted/70`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1 max-w-[240px]`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-center gap-1.5`,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:`rounded px-1.5 py-0.5 text-ui-2xs font-mono font-semibold bg-surface-hover text-foreground-muted border border-border/40`,children:[`#`,safeImgIndex+1]}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-ui-xs font-semibold text-foreground`,children:currentSlot?.slotTitle||`卡片 #${safeImgIndex+1}`})]}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-[11px] text-foreground-muted font-mono leading-relaxed`,children:matchedSlot?.intentDescription||`3:4 竖版多图排版构建中...`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute top-3 left-3 px-2 py-0.5 rounded text-[10px] font-mono bg-background/60 text-foreground-muted border border-border/40`,children:[`待生成 · `,currentSlot?.targetFileName]}),(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:`小绿书卡片 #${safeImgIndex+1}`,kind:safeImgIndex===0?`cover`:`pic`,articleIndex:article.index||1,subIndex:safeImgIndex+1,currentImageUrl:void 0,currentPrompt:matchedSlot?.generationPrompt||matchedSlot?.intentDescription||``,intentDescription:matchedSlot?.intentDescription,searchKeywords:matchedSlot?.searchKeywords,scriptsDir:effectiveScriptsDir,targetFileName:currentSlot?.targetFileName||`pic_${article.index||1}_${safeImgIndex+1}.png`,accountId:article.accountId,platform:article.platform,workspacePath,onImageChanged:newUrl=>onImageChanged?.(safeImgIndex+1,newUrl),canDelete:galleryCardSlots.length>1,onDelete:()=>onDeleteCard?.(safeImgIndex+1)})]})})})(),galleryCardSlots.length>1&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:e=>{e.stopPropagation();setActiveImgIndex(prev=>prev>0?prev-1:galleryCardSlots.length-1)},className:`absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 hover:bg-black/70 p-2 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm z-10`,"aria-label":`上一张卡片`,children:(0,react_jsx_runtime.jsx)(ChevronLeft,{className:`size-4`})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:e=>{e.stopPropagation();setActiveImgIndex(prev=>prev<galleryCardSlots.length-1?prev+1:0)},className:`absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 hover:bg-black/70 p-2 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm z-10`,"aria-label":`下一张卡片`,children:(0,react_jsx_runtime.jsx)(ChevronRight,{className:`size-4`})}),(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/40 px-2.5 py-1 backdrop-blur-xs z-10`,children:[galleryCardSlots.map((slot,dotIdx)=>(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>setActiveImgIndex(dotIdx),className:cn(`size-1.5 rounded-full transition-all cursor-pointer`,activeImgIndex===dotIdx?`w-3 bg-white`:slot.isReady?`bg-white/70`:`bg-white/30`)},slot.slotIndex)),onAddCard&&galleryCardSlots.length<maxQuota&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:e=>{e.stopPropagation();onAddCard()},className:`size-3.5 rounded-full bg-white/25 hover:bg-white/50 text-white flex items-center justify-center text-[11px] leading-none transition-colors cursor-pointer font-bold ml-0.5`,title:`添加一张视觉卡片`,"aria-label":`添加视觉卡片`,children:`+`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute top-3 right-3 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white backdrop-blur-xs z-10`,children:[activeImgIndex+1,`/`,galleryCardSlots.length]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-5 space-y-3.5`,children:[editingField===`title`?(0,react_jsx_runtime.jsx)(`input`,{ref:titleInputRef,type:`text`,value:tempTitle,onChange:e=>setTempTitle(e.target.value),onBlur:()=>handleFinishEditing(`title`),onKeyDown:e=>{if(e.key===`Escape`||e.key===`Enter`)handleFinishEditing(`title`)},className:`w-full rounded-xl border border-emerald-500 bg-background px-3 py-1.5 text-ui-base font-bold text-foreground focus:outline-hidden ring-2 ring-emerald-500/20`,placeholder:`输入小绿书标题...`}):(0,react_jsx_runtime.jsx)(`div`,{onClick:()=>setEditingField(`title`),className:`cursor-pointer group/t rounded-lg p-1 -m-1 hover:bg-surface-hover/40`,title:`点击就地编辑标题`,children:(0,react_jsx_runtime.jsx)(`h2`,{className:`text-ui-base font-bold text-foreground leading-snug`,children:article.title?.replace(/^\*+|\*+$/g,``).replace(/^#+\s*/,``)})}),(0,react_jsx_runtime.jsx)(`div`,{contentEditable:true,suppressContentEditableWarning:true,onFocus:()=>setEditingField(`content`),onBlur:e=>{const text=e.currentTarget.innerText||``;setTempContent(text);onContentChange?.(text);setEditingField(`none`)},onInput:e=>{const text=e.currentTarget.innerText||``;setTempContent(text);onContentChange?.(text)},className:`cursor-pointer group/c rounded-xl p-2 -m-2 hover:bg-surface-hover/30 focus:bg-emerald-500/[0.03] outline-hidden focus:outline-hidden transition-colors cursor-text`,title:`点击正文直接在原文修改`,children:renderWechatNewspicContent(activeContent||tempContent||article.content)})]})]});if(isWechatNews){if(loadingHtml||isArticleContentPending(activeContent,article.filePath,article.isStreaming))return(0,react_jsx_runtime.jsx)(`div`,{style:{width:`100%`,display:`flex`,justifyContent:`center`,padding:`24px 16px 48px`,boxSizing:`border-box`},children:(0,react_jsx_runtime.jsx)(`div`,{style:{width:`100%`,maxWidth:680,background:`var(--dsw-alias-bg-base, #ffffff)`,borderRadius:16,border:`1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.08))`,boxShadow:`0 4px 20px -2px rgba(0, 0, 0, 0.06)`,padding:32,boxSizing:`border-box`},children:loadingHtml?(0,react_jsx_runtime.jsx)(WechatContentLoadingSkeleton,{}):(0,react_jsx_runtime.jsx)(ArticlePendingLoadingCard,{})})});const effectiveBrandTopUrl=brandTopRpcUrl||getResolvedBrandAsset(resolvedMap,article.accountId,`top`);const effectiveBrandBotUrl=brandBotRpcUrl||getResolvedBrandAsset(resolvedMap,article.accountId,`bot`);const resolvedWechatResult=resolveWechatImagesInHtml(activeContent||article.content||``,{inlineImages:_resolvedContentImages,resolvedMap,brandTopUrl:effectiveBrandTopUrl,brandBotUrl:effectiveBrandBotUrl,brandTopSpec:_brandImagesConfig?.header,brandBotSpec:_brandImagesConfig?.footer,artIndex:article.index||1});return(0,react_jsx_runtime.jsxs)(`div`,{style:{width:`100%`,display:`flex`,flexDirection:`column`,alignItems:`center`,paddingBottom:48},children:[renderCanvasToolbar(),(0,react_jsx_runtime.jsx)(`div`,{style:{width:`100%`,maxWidth:680,marginBottom:16},children:resolvedCoverUrl?article.index&&article.index>1?(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,alignItems:`center`,justifyContent:`space-between`,padding:`16px 20px`,background:`var(--dsw-alias-bg-base, #ffffff)`,borderRadius:16,border:`1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.08))`,boxShadow:`0 1px 3px rgba(0, 0, 0, 0.05)`,boxSizing:`border-box`},children:[(0,react_jsx_runtime.jsxs)(`div`,{style:{display:`flex`,flexDirection:`column`,gap:4},children:[(0,react_jsx_runtime.jsxs)(`span`,{style:{display:`inline-block`,borderRadius:4,background:`rgba(16, 185, 129, 0.1)`,color:`#059669`,padding:`2px 8px`,fontSize:11,fontWeight:700,width:`fit-content`},children:[`#`,article.index,` 次条封面`]}),(0,react_jsx_runtime.jsx)(`p`,{style:{fontSize:11,color:`var(--dsw-alias-label-tertiary, #9ca3af)`,margin:0},children:`微信 1:1 方形列表封面`})]}),(0,react_jsx_runtime.jsxs)(`div`,{style:{position:`relative`,width:64,height:64,borderRadius:12,overflow:`hidden`,border:`1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.08))`,cursor:`zoom-in`,flexShrink:0},children:[(0,react_jsx_runtime.jsx)(SafePreviewImage,{src:resolvedCoverUrl,alt:`次条封面`,aspectRatio:`aspect-square`,onClick:()=>setLightboxUrl(resolvedCoverUrl)}),(()=>{const matchedSlot=(article.visualSlots||[]).find(vs=>vs.kind===`cover`||vs.sub===1);return(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:`微信次条封面 (#${article.index})`,kind:`cover`,articleIndex:article.index,currentImageUrl:resolvedCoverUrl,currentPrompt:matchedSlot?.generationPrompt||matchedSlot?.intentDescription||``,intentDescription:matchedSlot?.intentDescription,searchKeywords:matchedSlot?.searchKeywords,scriptsDir:effectiveScriptsDir,targetFileName:`cover_${article.index}.png`,accountId:article.accountId,platform:article.platform,workspacePath,onZoom:()=>setLightboxUrl(resolvedCoverUrl)})})()]})]}):(0,react_jsx_runtime.jsxs)(`div`,{style:{position:`relative`,aspectRatio:`2.35 / 1`,width:`100%`,background:`var(--dsw-alias-bg-base, #ffffff)`,borderRadius:16,overflow:`hidden`,border:`1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.08))`,boxShadow:`0 1px 3px rgba(0, 0, 0, 0.05)`,boxSizing:`border-box`},children:[(0,react_jsx_runtime.jsx)(SafePreviewImage,{src:resolvedCoverUrl,alt:`头条封面`,aspectRatio:`aspect-[2.35/1]`,onClick:()=>setLightboxUrl(resolvedCoverUrl)}),(0,react_jsx_runtime.jsx)(`div`,{style:{position:`absolute`,bottom:10,right:12,borderRadius:6,background:`rgba(0, 0, 0, 0.65)`,padding:`2px 8px`,fontSize:10,fontWeight:500,color:`#ffffff`,backdropFilter:`blur(8px)`,WebkitBackdropFilter:`blur(8px)`,zIndex:10,userSelect:`none`},children:`#1 头条 2.35:1 大图封面`}),(()=>{const matchedSlot=(article.visualSlots||[]).find(vs=>vs.kind===`cover`||vs.sub===1);return(0,react_jsx_runtime.jsx)(SocialImageActionOverlay,{slotTitle:`微信头条封面 (2.35:1)`,kind:`cover`,articleIndex:article.index||1,currentImageUrl:resolvedCoverUrl,currentPrompt:matchedSlot?.generationPrompt||matchedSlot?.intentDescription||``,intentDescription:matchedSlot?.intentDescription,searchKeywords:matchedSlot?.searchKeywords,scriptsDir:effectiveScriptsDir,targetFileName:`cover_${article.index||1}.png`,accountId:article.accountId,platform:article.platform,workspacePath,onZoom:()=>setLightboxUrl(resolvedCoverUrl)})})()]}):article.index&&article.index>1?(0,react_jsx_runtime.jsx)(SocialArticleImageCreatingPlaceholder,{platform:`wechat-news`,isSecondary:true,articleIndex:article.index}):(0,react_jsx_runtime.jsx)(SocialArticleImageCreatingPlaceholder,{platform:`wechat-news`})}),(0,react_jsx_runtime.jsx)(WechatInteractiveCanvas,{article:{...article,content:resolvedWechatResult.html},scriptsDir:effectiveScriptsDir,workspacePath,workspaceIdentity,brandTopUrl:effectiveBrandTopUrl,brandBotUrl:effectiveBrandBotUrl,brandTopSpec:_brandImagesConfig?.header,brandBotSpec:_brandImagesConfig?.footer,onContentChange,onTitleChange,onDigestChange})]})}const effectiveGenericBrandTopUrl=brandTopRpcUrl||getResolvedBrandAsset(resolvedMap,article.accountId,`top`);const effectiveGenericBrandBotUrl=brandBotRpcUrl||getResolvedBrandAsset(resolvedMap,article.accountId,`bot`);return(0,react_jsx_runtime.jsx)(GenericInteractiveCanvas,{article:{...article,content:activeContent||article.content||``},workspacePath,workspaceIdentity,sessionId,scriptsDir:effectiveScriptsDir,resolvedCoverUrl,resolvedMap,brandTopUrl:effectiveGenericBrandTopUrl,brandBotUrl:effectiveGenericBrandBotUrl,brandTopSpec:_brandImagesConfig?.header,brandBotSpec:_brandImagesConfig?.footer,onTitleChange,onContentChange})}var WechatMultiArticleOverview_module_css_default={"accountAvatar":`bXJRSa_accountAvatar`,"accountName":`bXJRSa_accountName`,"accountNameCol":`bXJRSa_accountNameCol`,"accountRow":`bXJRSa_accountRow`,"bottomStatus":`bXJRSa_bottomStatus`,"container":`bXJRSa_container`,"feedCard":`bXJRSa_feedCard`,"feedCountBadge":`bXJRSa_feedCountBadge`,"feedHeader":`bXJRSa_feedHeader`,"feedMeta":`bXJRSa_feedMeta`,"headlineBadge":`bXJRSa_headlineBadge`,"headlineBadgeRow":`bXJRSa_headlineBadgeRow`,"headlineBanner":`bXJRSa_headlineBanner`,"headlineImg":`bXJRSa_headlineImg`,"headlineOverlay":`bXJRSa_headlineOverlay`,"headlineSlot":`bXJRSa_headlineSlot`,"headlineTitle":`bXJRSa_headlineTitle`,"subBadge":`bXJRSa_subBadge`,"subCoverImg":`bXJRSa_subCoverImg`,"subCoverWrap":`bXJRSa_subCoverWrap`,"subInfo":`bXJRSa_subInfo`,"subItem":`bXJRSa_subItem`,"subList":`bXJRSa_subList`,"subTitle":`bXJRSa_subTitle`};function WechatMultiArticleOverview({articles,workspacePath,workspaceIdentity,sessionId,scriptsDir:explicitScriptsDir,onSelectArticle}){const headline=articles.find(a=>a.articleType!==`newspic`)||articles[0];const rawSubArticles=articles.filter(a=>a.id!==headline?.id&&a.articleType!==`newspic`);const hasPhysicalNews=rawSubArticles.some(a=>Boolean(a.filePath&&(a.id.startsWith(`art_file_`)||!a.id.startsWith(`art_auto_`)&&!a.id.startsWith(`art_seq_`))));const subArticles=rawSubArticles.filter(a=>{if(!hasPhysicalNews)return true;if(Boolean(a.filePath&&(a.id.startsWith(`art_file_`)||!a.id.startsWith(`art_auto_`)&&!a.id.startsWith(`art_seq_`))))return true;const hasValidContent=Boolean(a.content&&a.content.length>300&&!a.content.includes(`已生成就绪`)&&!a.content.includes(`快马加鞭赶来的路上`));const hasValidCover=Boolean(a.coverUrl&&!a.coverUrl.includes(`placeholder`));return hasValidContent||hasValidCover});const newsTitles=new Set(articles.filter(a=>a.articleType!==`newspic`).map(a=>a.title.replace(/^[《<]|[》>]$/g,``).replace(/\s+/g,``).trim()).filter(Boolean));const rawNewspics=articles.filter(a=>a.articleType===`newspic`);const hasPhysicalNewspic=rawNewspics.some(np=>Boolean(np.filePath&&(np.filePath.includes(`_pic.json`)||np.filePath.includes(`newspic`)))||np.images&&np.images.length>0);const newspics=rawNewspics.filter(np=>{if(Boolean(np.filePath&&(np.filePath.includes(`_pic.json`)||np.filePath.includes(`newspic`)))||np.images&&np.images.length>0)return true;const cleanT=np.title.replace(/^[《<]|[》>]$/g,``).replace(/\s+/g,``).trim();if(hasPhysicalNewspic||cleanT&&newsTitles.has(cleanT))return false;return true});const effectiveScriptsDir=explicitScriptsDir||headline?.scriptsDir||articles.find(a=>a.scriptsDir)?.scriptsDir;const allMediaUrls=react.default.useMemo(()=>{const list=[];const normEffective=effectiveScriptsDir?.replace(/\\/g,`/`).replace(/\/+$/,``);for(const a of articles){const idx=a.index||1;const sDir=a.scriptsDir?.replace(/\\/g,`/`).replace(/\/+$/,``)||normEffective;const acc=a.accountId||headline?.accountId||`default`;const targetDirs=sDir?[sDir,`${sDir}/gzh_${acc}`,`${sDir}/${acc}`]:[];if(a.coverUrl&&!list.includes(a.coverUrl))list.push(a.coverUrl);if(a.images){for(const img of a.images)if(img&&!list.includes(img))list.push(img)}const probeFiles=[`cover_${idx}.png`,`cover_${idx}.jpg`,`cover_${idx}.webp`,...idx===1?[`cover.png`,`cover.jpg`]:[]];for(const p of probeFiles){if(!list.includes(p))list.push(p);for(const td of targetDirs){const direct1=`${td}/${p}`;const direct2=`${td}/images/${p}`;if(!list.includes(direct1))list.push(direct1);if(!list.includes(direct2))list.push(direct2)}}}return list},[articles,effectiveScriptsDir]);const resolvedUrls=useResolvedMediaUrls(allMediaUrls,{workspacePath,workspaceIdentity,accountId:headline?.accountId,scriptsDir:effectiveScriptsDir,sessionId});const resolvedMap=react.default.useMemo(()=>{const map=new Map;for(let i=0;i<allMediaUrls.length;i++){const raw=allMediaUrls[i];const res=resolvedUrls[i];if(raw&&res&&isRenderableImageUrl(res)){map.set(raw,res);map.set(raw.replace(/\\/g,`/`),res);const diskPath=extractLocalDiskPathFromUrl(raw);if(diskPath){map.set(diskPath,res);map.set(diskPath.replace(/\\/g,`/`),res)}const fileName=extractFileName(raw);if(fileName&&!map.has(fileName))map.set(fileName,res)}}return map},[allMediaUrls,resolvedUrls]);const[imgErrorMap,setImgErrorMap]=react.default.useState({});react.default.useEffect(()=>{setImgErrorMap({})},[resolvedUrls]);const accountDisplayName=headline?.accountName||headline?.accountId||`微信官方公众号`;const getSafeResolvedImageUrl=react.default.useCallback((rawUrl,articleIndex,subCardIndex)=>{if(rawUrl){const trimmed=rawUrl.trim();if(isRenderableImageUrl(trimmed))return trimmed;const direct=resolvedMap.get(trimmed)||resolvedMap.get(trimmed.replace(/\\/g,`/`));if(direct&&isRenderableImageUrl(direct))return direct;const diskPath=extractLocalDiskPathFromUrl(trimmed);if(diskPath){const fromDisk=resolvedMap.get(diskPath)||resolvedMap.get(diskPath.replace(/\\/g,`/`));if(fromDisk&&isRenderableImageUrl(fromDisk))return fromDisk}const fileName=extractFileName(trimmed);if(fileName){const fromName=resolvedMap.get(fileName);if(fromName&&isRenderableImageUrl(fromName))return fromName;for(const[k,v]of resolvedMap.entries())if((k===fileName||k.endsWith(`/`+fileName)||k.endsWith(`\\`+fileName))&&isRenderableImageUrl(v))return v}}if(articleIndex){const fallbackNames=subCardIndex!==void 0?[`pic_${articleIndex}_${subCardIndex}.png`,`pic_${articleIndex}_${subCardIndex}.jpg`,`xhs_pic_${articleIndex}_${subCardIndex}.png`,`xhs_pic_${articleIndex}_${subCardIndex}.jpg`,...articleIndex===1?[`pic_${subCardIndex}.png`,`pic_${subCardIndex}.jpg`]:[],...subCardIndex===1?[`cover_${articleIndex}.png`,`cover_${articleIndex}.jpg`,...articleIndex===1?[`cover.png`,`cover.jpg`]:[]]:[]]:[`cover_${articleIndex}.png`,`cover_${articleIndex}.jpg`,`cover_${articleIndex}.webp`,...articleIndex===1?[`cover.png`,`cover.jpg`]:[],`pic_${articleIndex}.png`];for(const fb of fallbackNames){const matched=resolvedMap.get(fb);if(matched&&isRenderableImageUrl(matched))return matched;for(const[k,v]of resolvedMap.entries())if((k===fb||k.endsWith(`/`+fb)||k.endsWith(`\\`+fb))&&isRenderableImageUrl(v))return v}}},[resolvedMap]);const headlineCover=getSafeResolvedImageUrl(headline?.coverUrl,headline?.index||1);const isHeadlineCoverValid=Boolean(headlineCover&&!imgErrorMap[headlineCover]);return(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.container,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.feedCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.feedHeader,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.accountRow,children:[(0,react_jsx_runtime.jsx)(`div`,{className:WechatMultiArticleOverview_module_css_default.accountAvatar,children:`订阅号`}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.accountNameCol,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.accountName,children:[(0,react_jsx_runtime.jsx)(`span`,{children:accountDisplayName}),(0,react_jsx_runtime.jsx)(`span`,{style:{borderRadius:4,background:`rgba(16, 185, 129, 0.1)`,color:`#059669`,padding:`1px 4px`,fontSize:9,fontWeight:700},children:`认证号`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:WechatMultiArticleOverview_module_css_default.feedMeta,children:`今天 12:00 · 微信多图文合辑群发推送`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.feedCountBadge,children:[(0,react_jsx_runtime.jsx)(Layers,{size:12,style:{color:`#059669`}}),(0,react_jsx_runtime.jsxs)(`span`,{children:[`合辑推送 · 共 `,subArticles.length+(headline?1:0),` 篇`]})]})]}),headline&&(0,react_jsx_runtime.jsx)(`div`,{onClick:()=>onSelectArticle(articles.indexOf(headline)),className:WechatMultiArticleOverview_module_css_default.headlineSlot,title:`点击审校并编辑 #1 首篇长文`,children:(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.headlineBanner,children:[isHeadlineCoverValid?(0,react_jsx_runtime.jsx)(`img`,{src:headlineCover,alt:``,onError:()=>setImgErrorMap(prev=>({...prev,[headlineCover]:true})),className:WechatMultiArticleOverview_module_css_default.headlineImg}):(0,react_jsx_runtime.jsxs)(`div`,{style:{width:`100%`,height:`100%`,display:`flex`,flexDirection:`column`,alignItems:`center`,justifyContent:`center`,gap:8,color:`#34d399`},children:[(0,react_jsx_runtime.jsx)(Image,{size:24}),(0,react_jsx_runtime.jsx)(`span`,{style:{fontSize:11},children:`微信公众号封面大图排版`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.headlineOverlay,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.headlineBadgeRow,children:[(0,react_jsx_runtime.jsx)(`span`,{className:WechatMultiArticleOverview_module_css_default.headlineBadge,children:`#1 封面大图`}),(0,react_jsx_runtime.jsx)(`span`,{style:{fontSize:11,opacity:.85},children:`深度长文`})]}),(0,react_jsx_runtime.jsx)(`h3`,{className:WechatMultiArticleOverview_module_css_default.headlineTitle,children:headline.title||`未命名首篇长文`})]})]})}),subArticles.length>0&&(0,react_jsx_runtime.jsx)(`div`,{className:WechatMultiArticleOverview_module_css_default.subList,children:subArticles.map(subArt=>{const actualIdx=articles.indexOf(subArt);const articleIdx=subArt.index??actualIdx+1;const subCover=getSafeResolvedImageUrl(subArt.coverUrl,articleIdx);return(0,react_jsx_runtime.jsxs)(`div`,{onClick:()=>onSelectArticle(actualIdx),className:WechatMultiArticleOverview_module_css_default.subItem,title:`点击审校并编辑 #${actualIdx+1} 次条长文`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:WechatMultiArticleOverview_module_css_default.subInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{children:(0,react_jsx_runtime.jsxs)(`span`,{className:WechatMultiArticleOverview_module_css_default.subBadge,children:[`#`,actualIdx+1,` 次条`]})}),(0,react_jsx_runtime.jsx)(`h4`,{className:WechatMultiArticleOverview_module_css_default.subTitle,children:subArt.title||`未命名次条长文`}),subArt.digest&&(0,react_jsx_runtime.jsx)(`p`,{style:{fontSize:11,color:`var(--dsw-alias-label-tertiary, #9ca3af)`,margin:0},children:subArt.digest})]}),(0,react_jsx_runtime.jsx)(`div`,{className:WechatMultiArticleOverview_module_css_default.subCoverWrap,children:subCover&&!imgErrorMap[subCover]?(0,react_jsx_runtime.jsx)(`img`,{src:subCover,alt:``,onError:()=>setImgErrorMap(prev=>({...prev,[subCover]:true})),className:WechatMultiArticleOverview_module_css_default.subCoverImg}):(0,react_jsx_runtime.jsx)(`div`,{style:{width:`100%`,height:`100%`,display:`flex`,alignItems:`center`,justifyContent:`center`,color:`#9ca3af`},children:(0,react_jsx_runtime.jsx)(Image,{size:20})})})]},subArt.id||actualIdx)})}),newspics.length>0&&(0,react_jsx_runtime.jsxs)(`div`,{className:`border-t border-border/30 bg-surface/20 p-4 space-y-3`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between text-[11px] text-foreground-muted px-1`,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:`font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1`,children:[(0,react_jsx_runtime.jsx)(Smartphone,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`同批次独立发表 · 微信小绿书 (图片消息)`})]}),(0,react_jsx_runtime.jsx)(`span`,{children:`独立单篇发送`})]}),newspics.map(np=>{const actualIdx=articles.indexOf(np);const targetSlots=resolveTargetCardCount(np);return(0,react_jsx_runtime.jsxs)(`div`,{onClick:()=>onSelectArticle(actualIdx),className:`rounded-2xl border border-emerald-500/25 bg-card/80 p-3.5 space-y-2.5 hover:border-emerald-500/50 hover:shadow-xs transition-all cursor-pointer group`,title:`点击审校并编辑 #${actualIdx+1} 微信小绿书多图卡片`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5`,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:`rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-ui-2xs font-bold flex items-center gap-1`,children:[(0,react_jsx_runtime.jsx)(Smartphone,{className:`size-3`}),(0,react_jsx_runtime.jsxs)(`span`,{children:[`#$`,actualIdx+1,` 微信小绿书`]})]}),(0,react_jsx_runtime.jsxs)(`span`,{className:`text-[11px] text-foreground-muted`,children:[`3:4 竖版多图流 · $`,targetSlots,` 张卡片`]})]}),(0,react_jsx_runtime.jsxs)(`span`,{className:`text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-0.5 group-hover:translate-x-0.5 transition-transform`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`单篇审校`}),(0,react_jsx_runtime.jsx)(ChevronRight,{className:`size-3`})]})]}),(0,react_jsx_runtime.jsx)(`h4`,{className:`text-ui-xs font-bold text-foreground leading-snug`,children:np.title||`微信小绿书图文速递`}),(0,react_jsx_runtime.jsx)(`div`,{className:`flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar`,children:Array.from({length:targetSlots}).map((_,slotIdx)=>{const cardSub=slotIdx+1;const rawUrl=np.images?.[slotIdx];const safeUrl=getSafeResolvedImageUrl(rawUrl,actualIdx+1,cardSub);const hasImage=Boolean(safeUrl&&!imgErrorMap[safeUrl]);return(0,react_jsx_runtime.jsxs)(`div`,{className:`relative aspect-[3/4] w-16 md:w-20 rounded-lg overflow-hidden border border-border/40 bg-surface-hover/30 shrink-0 shadow-2xs`,children:[safeUrl&&hasImage?(0,react_jsx_runtime.jsx)(`img`,{src:safeUrl,alt:`卡片 ${cardSub}`,onError:()=>{setImgErrorMap(prev=>({...prev,[safeUrl]:true}))},className:`size-full object-cover`}):(0,react_jsx_runtime.jsxs)(`div`,{className:`size-full flex flex-col items-center justify-center text-foreground-muted/40 bg-surface-hover/50`,children:[(0,react_jsx_runtime.jsx)(Image,{className:`size-4 opacity-50`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[9px] font-mono text-foreground-subtle mt-0.5`,children:`待生成`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute top-1 right-1 rounded-sm bg-black/60 px-1 py-0.2 text-[8px] font-bold text-white`,children:cardSub})]},slotIdx)})})]},np.id||actualIdx)})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between px-3 py-2 rounded-2xl bg-surface/40 border border-border/30 text-ui-2xs text-foreground-muted`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5`,children:[(0,react_jsx_runtime.jsx)(CircleCheck,{className:`size-3.5 text-emerald-600 dark:text-emerald-400`}),(0,react_jsx_runtime.jsx)(`span`,{children:`合辑排版就绪 · 图文排他性对齐已校验`})]}),(0,react_jsx_runtime.jsx)(`span`,{children:`点击任意篇目直接进入就地编辑`})]})]})}var SocialArticleRightTab_module_css_default={"actionsGroup":`kdvtsa_actionsGroup`,"bodyArea":`kdvtsa_bodyArea`,"container":`kdvtsa_container`,"copyBtn":`kdvtsa_copyBtn`,"copyBtnSuccess":`kdvtsa_copyBtnSuccess`,"emptyIcon":`kdvtsa_emptyIcon`,"emptyState":`kdvtsa_emptyState`,"emptySub":`kdvtsa_emptySub`,"emptyTitle":`kdvtsa_emptyTitle`,"header":`kdvtsa_header`,"iconBtn":`kdvtsa_iconBtn`,"navPill":`kdvtsa_navPill`,"navPillActive":`kdvtsa_navPillActive`,"navPillsScroll":`kdvtsa_navPillsScroll`};const SOCIAL_ARTICLE_TAB_ID=`social-publisher/article-preview`;function SocialArticleRightTabTitle(_props){return(0,react_jsx_runtime.jsxs)(`span`,{style:{display:`inline-flex`,alignItems:`center`,gap:`6px`},children:[(0,react_jsx_runtime.jsx)(FileText,{size:14}),(0,react_jsx_runtime.jsx)(`span`,{children:`文章预览与排版`})]})}function getArticleSlotLabel(art,idx,allArticles=[]){const isXhs=art.platform===`xiaohongshu`;const isNewspic=art.articleType===`newspic`;const isGzhNews=art.platform===`gzh`&&!isNewspic;const isToutiao=art.platform===`toutiao`;const isZhihu=art.platform===`zhihu`;const slotNum=typeof art.index===`number`&&art.index>0?art.index:idx+1;if(isNewspic){const sameAccountNewspics=allArticles.filter(a=>a.articleType===`newspic`&&(a.accountId||``)===(art.accountId||``));if(sameAccountNewspics.length>1){const nIdx=sameAccountNewspics.findIndex(a=>a.id===art.id)+1;return`小绿书 #${nIdx>0?nIdx:slotNum} (3:4)`}return`小绿书 (3:4)`}if(isXhs)return`#${slotNum} 小红书笔记`;if(isGzhNews){if(allArticles.filter(a=>a.platform===`gzh`&&a.articleType!==`newspic`).length>1)return`#${slotNum} 公众号长文`;return`公众号长文`}if(isToutiao)return`#${slotNum} 今日头条`;if(isZhihu)return`#${slotNum} 知乎文章`;return`#${slotNum} ${art.platformName||`稿件`}`}function SocialArticleRightTab(props){let sessionId;try{sessionId=(props.useTabInfo?.())?.sessionId}catch{}const{workflow}=useSocialWorkflow(sessionId);const articles=(0,react.useMemo)(()=>Array.isArray(workflow.articles)?workflow.articles:[],[workflow.articles]);const[currentIndex,setCurrentIndex]=(0,react.useState)(0);const[localArticles,setLocalArticles]=(0,react.useState)(articles);const[copied,setCopied]=(0,react.useState)(false);(0,react.useEffect)(()=>{if(Array.isArray(workflow.articles)&&workflow.articles.length>0)setLocalArticles(workflow.articles)},[workflow.articles]);const totalCount=localArticles.length;const currentArticle=localArticles[currentIndex]||localArticles[0]||null;const hasMultipleGzhNews=(0,react.useMemo)(()=>{return localArticles.filter(a=>a.platform===`gzh`&&a.articleType!==`newspic`).length>1},[localArticles]);const handleCopyCurrent=(0,react.useCallback)(async()=>{if(!currentArticle)return;if(await copySocialArticleContent(currentArticle)){setCopied(true);setTimeout(()=>setCopied(false),2e3)}},[currentArticle]);const handleTitleChange=(0,react.useCallback)(newTitle=>{setLocalArticles(prev=>prev.map((art,idx)=>idx===currentIndex?{...art,title:newTitle}:art))},[currentIndex]);const handleDigestChange=(0,react.useCallback)(newDigest=>{setLocalArticles(prev=>prev.map((art,idx)=>idx===currentIndex?{...art,digest:newDigest}:art))},[currentIndex]);const handleContentChange=(0,react.useCallback)(newContent=>{setLocalArticles(prev=>prev.map((art,idx)=>idx===currentIndex?{...art,content:newContent}:art))},[currentIndex]);if(!currentArticle||totalCount===0)return(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleRightTab_module_css_default.container,children:(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleRightTab_module_css_default.emptyState,children:[(0,react_jsx_runtime.jsx)(FileText,{className:SocialArticleRightTab_module_css_default.emptyIcon}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleRightTab_module_css_default.emptyTitle,children:`暂无社媒图文内容`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleRightTab_module_css_default.emptySub,children:`请在主对话中启动社媒发布任务，生成的多平台图文将在此实时拟真呈现与审校。`})]})});const isOverviewSelected=currentIndex===-1;return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleRightTab_module_css_default.container,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleRightTab_module_css_default.header,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleRightTab_module_css_default.navPillsScroll,children:[hasMultipleGzhNews&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>setCurrentIndex(-1),className:`${SocialArticleRightTab_module_css_default.navPill} ${isOverviewSelected?SocialArticleRightTab_module_css_default.navPillActive:``}`,title:`查看多图文消息流合辑总览`,children:[(0,react_jsx_runtime.jsx)(Layers,{style:{width:`12px`,height:`12px`}}),(0,react_jsx_runtime.jsx)(`span`,{children:`合辑总览`})]}),localArticles.map((art,idx)=>{const isSelected=!isOverviewSelected&&currentIndex===idx;const label=getArticleSlotLabel(art,idx,localArticles);return(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>setCurrentIndex(idx),className:`${SocialArticleRightTab_module_css_default.navPill} ${isSelected?SocialArticleRightTab_module_css_default.navPillActive:``}`,title:art.title||label,children:(0,react_jsx_runtime.jsx)(`span`,{children:label})},art.id||idx)})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleRightTab_module_css_default.actionsGroup,children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>setCurrentIndex(prev=>Math.max(0,prev-1)),disabled:currentIndex<=0,className:SocialArticleRightTab_module_css_default.iconBtn,title:`查看上一篇`,"aria-label":`查看上一篇`,children:(0,react_jsx_runtime.jsx)(ChevronLeft,{style:{width:`14px`,height:`14px`}})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>setCurrentIndex(prev=>Math.min(totalCount-1,prev+1)),disabled:currentIndex>=totalCount-1,className:SocialArticleRightTab_module_css_default.iconBtn,title:`查看下一篇`,"aria-label":`查看下一篇`,children:(0,react_jsx_runtime.jsx)(ChevronRight,{style:{width:`14px`,height:`14px`}})}),!isOverviewSelected&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:handleCopyCurrent,className:`${SocialArticleRightTab_module_css_default.copyBtn} ${copied?SocialArticleRightTab_module_css_default.copyBtnSuccess:``}`,title:`复制当前文章文案与排版`,children:copied?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(Check,{style:{width:`13px`,height:`13px`}}),(0,react_jsx_runtime.jsx)(`span`,{children:`已复制`})]}):(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(Copy,{style:{width:`13px`,height:`13px`}}),(0,react_jsx_runtime.jsx)(`span`,{children:`复制`})]})})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleRightTab_module_css_default.bodyArea,children:isOverviewSelected?(0,react_jsx_runtime.jsx)(WechatMultiArticleOverview,{articles:localArticles,onSelectArticle:idx=>setCurrentIndex(idx)}):(0,react_jsx_runtime.jsx)(SocialArticlePlatformPreview,{article:currentArticle,workspacePath:``,onTitleChange:handleTitleChange,onDigestChange:handleDigestChange,onContentChange:handleContentChange})})]})}const SOCIAL_COMPANION_CHAT_TAB_ID=`social-publisher/companion-chat`;const SOCIAL_COMPANION_CHAT_KIND=`social-chat`;const CompanionChatContext=(0,react.createContext)(false);const useIsCompanionChat=()=>(0,react.useContext)(CompanionChatContext);const EMPTY_SESSION_LIST_SNAPSHOT$1={byId:{}};function SocialCompanionChatTabTitle(_props){const listStore=getGlobalCtx()?.sessions?.list;const sessionListSnapshot=(0,react.useSyncExternalStore)(cb=>listStore?.subscribe?.(cb)??(()=>{}),()=>listStore?.getSnapshot?.()??EMPTY_SESSION_LIST_SNAPSHOT$1);const activeSessionId=(0,react.useMemo)(()=>{if(!sessionListSnapshot?.byId)return void 0;return Object.values(sessionListSnapshot.byId).find(s=>(s.retainedBy?.mainView??0)>0)?.id},[sessionListSnapshot]);return(0,react_jsx_runtime.jsx)(`span`,{children:activeSessionId&&sessionListSnapshot?.byId?.[activeSessionId]?.title||`伴随对话`})}function FixedChatConversationView(props){return(0,react_jsx_runtime.jsx)(react_jsx_runtime.Fragment,{children:props.renderSlot(`conversation.session`,{view:`chat`})})}function CompanionConversationPanel(props){const{renderFactorySlot}=props;if(typeof renderFactorySlot!==`function`)return null;return(0,react_jsx_runtime.jsx)(CompanionChatContext.Provider,{value:true,children:(0,react_jsx_runtime.jsx)(`div`,{style:{display:`flex`,flexDirection:`column`,flex:1,height:`100%`,width:`100%`,minHeight:0,minWidth:0,overflow:`hidden`,position:`relative`},children:renderFactorySlot(`conversation.content`,{variant:`embedded`,phase:`active`,hero:false},{slots:{views:FixedChatConversationView}})})})}function SocialCompanionChatTab(props){const{renderSlot}=props;return(0,react_jsx_runtime.jsx)(`div`,{style:{display:`flex`,flexDirection:`column`,height:`100%`,width:`100%`,minHeight:0,minWidth:0,overflow:`hidden`,background:`var(--dsw-alias-bg-base, #ffffff)`},children:(0,react_jsx_runtime.jsx)(`div`,{style:{display:`flex`,flexDirection:`column`,flex:1,minHeight:0,minWidth:0,height:`100%`,width:`100%`,position:`relative`,overflow:`hidden`},children:renderSlot(`sidebar.social.companion.chat`,{})})})}var SocialPublisherSettings_module_css_default={"accountCard":`cFy18a_accountCard`,"accountCardDisabled":`cFy18a_accountCardDisabled`,"accountCardSelected":`cFy18a_accountCardSelected`,"accountItem":`cFy18a_accountItem`,"accountItemActive":`cFy18a_accountItemActive`,"appleColorChip":`cFy18a_appleColorChip`,"appleColorChipActive":`cFy18a_appleColorChipActive`,"appleColorStrip":`cFy18a_appleColorStrip`,"card":`cFy18a_card`,"cardHeader":`cFy18a_cardHeader`,"cardSubtitle":`cFy18a_cardSubtitle`,"cardTitle":`cFy18a_cardTitle`,"craftGroup":`cFy18a_craftGroup`,"craftGroupDesc":`cFy18a_craftGroupDesc`,"craftGroupTitle":`cFy18a_craftGroupTitle`,"craftPanel":`cFy18a_craftPanel`,"craftRow":`cFy18a_craftRow`,"craftRowControl":`cFy18a_craftRowControl`,"craftRowHint":`cFy18a_craftRowHint`,"craftRowInfo":`cFy18a_craftRowInfo`,"craftRowLabel":`cFy18a_craftRowLabel`,"detailStage":`cFy18a_detailStage`,"filterChip":`cFy18a_filterChip`,"filterChipActive":`cFy18a_filterChipActive`,"formGroup":`cFy18a_formGroup`,"formLabel":`cFy18a_formLabel`,"grid2":`cFy18a_grid2`,"grid3":`cFy18a_grid3`,"grid4":`cFy18a_grid4`,"groupHeader":`cFy18a_groupHeader`,"groupSection":`cFy18a_groupSection`,"macosGroup":`cFy18a_macosGroup`,"macosGroupCard":`cFy18a_macosGroupCard`,"macosGroupFooter":`cFy18a_macosGroupFooter`,"macosGroupHeader":`cFy18a_macosGroupHeader`,"macosHero":`cFy18a_macosHero`,"macosHeroActions":`cFy18a_macosHeroActions`,"macosHeroAvatar":`cFy18a_macosHeroAvatar`,"macosHeroIdentity":`cFy18a_macosHeroIdentity`,"macosRow":`cFy18a_macosRow`,"macosRowControl":`cFy18a_macosRowControl`,"macosRowHint":`cFy18a_macosRowHint`,"macosRowInfo":`cFy18a_macosRowInfo`,"macosRowLabel":`cFy18a_macosRowLabel`,"macosRowNoDivider":`cFy18a_macosRowNoDivider`,"masterDetailLayout":`cFy18a_masterDetailLayout`,"masterRail":`cFy18a_masterRail`,"platformFilterStrip":`cFy18a_platformFilterStrip`,"railAccountList":`cFy18a_railAccountList`,"railBottom":`cFy18a_railBottom`,"railHeader":`cFy18a_railHeader`,"select":`cFy18a_select`,"settingsContainer":`cFy18a_settingsContainer`,"stageContainer":`cFy18a_stageContainer`,"statusBeacon":`cFy18a_statusBeacon`,"statusBeaconIdle":`cFy18a_statusBeaconIdle`,"statusBeaconOnline":`cFy18a_statusBeaconOnline`,"statusBeaconTesting":`cFy18a_statusBeaconTesting`,"stickyBar":`cFy18a_stickyBar`,"systemNavBtn":`cFy18a_systemNavBtn`,"systemNavBtnActive":`cFy18a_systemNavBtnActive`};function mergeAccountBrandImages(existing,patchBrand){if(!patchBrand)return existing;return{...existing,...patchBrand,header:{...existing?.header,...patchBrand?.header},footer:{...existing?.footer,...patchBrand?.footer}}}const LOCAL_STORAGE_KEY=`wincast.social_publisher.config.v1`;const DEBOUNCE_SAVE_MS=800;let accountUniqueCounter=0;var SocialPublisherConfigStoreManager=class{state;listeners=new Set;saveTimer=null;rpcService=null;initialized=false;constructor(){let initialConfig=DEFAULT_PUBLISHER_SECTION_CONFIG;if(typeof window!==`undefined`&&window.localStorage)try{const cached=window.localStorage.getItem(LOCAL_STORAGE_KEY);if(cached){const parsed=JSON.parse(cached);if(parsed&&typeof parsed===`object`)initialConfig=parsed}}catch{}const accounts=normalizeAccountsList$1(initialConfig.accounts);const validAccounts=accounts.length>0?accounts:normalizeAccountsList$1(DEFAULT_PUBLISHER_SECTION_CONFIG.accounts);const firstAccId=validAccounts[0]?.id||`default`;initialConfig={...DEFAULT_PUBLISHER_SECTION_CONFIG,...initialConfig,accounts:validAccounts,image_providers:normalizeProvidersList(initialConfig.image_providers||DEFAULT_PUBLISHER_SECTION_CONFIG.image_providers)};this.state={config:initialConfig,selectedAccountId:initialConfig.default_account||firstAccId,activeNav:`acc_${initialConfig.default_account||firstAccId}`,saveStatus:`idle`,saveError:null,lastSavedAt:null,loading:false,loginStatusMap:{},checkingLogin:null,loginingAccountId:null,collapsedGroups:{},searchQuery:``};if(typeof window!==`undefined`){window.addEventListener(`beforeunload`,()=>{this.flushPendingSave()});window.addEventListener(`wincode:social-account-login-synced`,e=>{const{accountId,userName}=e.detail||{};if(accountId){this.setLoginStatus(accountId,true);if(userName)this.updateAccount(accountId,{name:userName})}})}}getState(){return this.state}subscribe(listener){this.listeners.add(listener);return()=>{this.listeners.delete(listener)}}emitChange(){for(const listener of this.listeners)try{listener()}catch(err){console.error(`[SocialPublisherConfigStore] listener error:`,err)}}setState(patch){this.state={...this.state,...patch};this.emitChange()}setRpcService(rpc){this.rpcService=rpc}async init(rpc){if(rpc)this.rpcService=rpc;if(this.initialized)return;this.initialized=true;await this.fetchFromBackend()}async fetchFromBackend(){this.setState({loading:true});try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/config/export?include_secrets=true&download=false`,{},this.rpcService));if(parsed.ok){const loadedCfg=parsed.data.config||parsed.data;if(loadedCfg&&typeof loadedCfg===`object`){const{brand_images:_deprecated,...cleanLoaded}=loadedCfg;const accountsList=normalizeAccountsList$1(cleanLoaded.accounts);const providersList=normalizeProvidersList(cleanLoaded.image_providers);const nextConfig={...cleanLoaded,accounts:accountsList,image_providers:providersList};const currentSelected=this.state.selectedAccountId;const validSelected=currentSelected&&accountsList.some(a=>a.id===currentSelected)?currentSelected:accountsList[0]?.id||`default`;this.setState({config:nextConfig,selectedAccountId:validSelected,activeNav:this.state.activeNav.startsWith(`acc_`)?`acc_${validSelected}`:this.state.activeNav,saveStatus:`saved`,loading:false});this.syncToLocalStorage(nextConfig);for(const acc of accountsList)if(acc.enabled!==false&&acc.platform&&acc.id)this.checkLoginStatus(acc.platform,acc.id);return}}}catch(err){console.warn(`[SocialPublisherConfigStore] 初始拉取配置未成功，采用本地快照:`,err)}finally{this.setState({loading:false})}}syncToLocalStorage(cfg){if(typeof window!==`undefined`&&window.localStorage)try{window.localStorage.setItem(LOCAL_STORAGE_KEY,JSON.stringify(cfg))}catch{}}updateConfig(updater,immediate=false){const nextConfig=updater(this.state.config);this.syncToLocalStorage(nextConfig);this.setState({config:nextConfig,saveStatus:`saving`,saveError:null});if(this.saveTimer){clearTimeout(this.saveTimer);this.saveTimer=null}if(immediate)this.executeSave();else this.saveTimer=setTimeout(()=>{this.executeSave()},DEBOUNCE_SAVE_MS)}flushPendingSave(){if(this.saveTimer){clearTimeout(this.saveTimer);this.saveTimer=null;this.executeSave()}}async executeSave(){try{this.setState({saveStatus:`saving`});const payload=serializePublisherConfigPayload(this.state.config);const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/config/save`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(payload)},this.rpcService));if(parsed.ok){this.setState({saveStatus:`saved`,saveError:null,lastSavedAt:Date.now()});return true}else{const errorText=parsed.error||parsed.data?.error||`服务无响应`;this.setState({saveStatus:`error`,saveError:`保存失败: ${errorText}`});return false}}catch(e){this.setState({saveStatus:`error`,saveError:`网络错误: ${e.message||`无法连接到本地服务`}`});return false}}updateAccount(accountId,patch){this.updateConfig(prev=>{const accounts=normalizeAccountsList$1(prev.accounts);return{...prev,accounts:accounts.map(a=>{if(a.id!==accountId)return a;const cloned=JSON.parse(JSON.stringify(a));return{...cloned,...patch,brand_images:mergeAccountBrandImages(cloned.brand_images,patch.brand_images)}})}})}addAccount(platform=`gzh`){const count=normalizeAccountsList$1(this.state.config.accounts).filter(a=>a.platform===platform).length+1;const baseName={gzh:`微信公众号`,xiaohongshu:`小红书`,zhihu:`知乎专栏`,baijiahao:`百家号`,toutiao:`今日头条`}[platform]||`新社媒账号`;const uniqueSuffix=(++accountUniqueCounter).toString(36);const newId=`${platform}_${Date.now().toString(36)}_${uniqueSuffix}`;const newAccount={id:newId,name:`${baseName} ${count}`,platform,enabled:true,publish_mode:`browser`,auto_enable_original:true,wechat:{brand_name:`文映学术通`,author_name:`文映学术`},content:{headline_theme:`wenying`,font_size:`13px`,line_height:`20px`,image_count_mode:`auto`}};this.updateConfig(prev=>({...prev,accounts:[...normalizeAccountsList$1(prev.accounts),newAccount]}));this.setSelectedAccountId(newId)}duplicateAccount(sourceId){const source=normalizeAccountsList$1(this.state.config.accounts).find(a=>a.id===sourceId);if(!source)return;const cloned=JSON.parse(JSON.stringify(source));const uniqueSuffix=(++accountUniqueCounter).toString(36);const newId=`${cloned.platform||`acc`}_${Date.now().toString(36)}_${uniqueSuffix}`;cloned.id=newId;cloned.name=`${cloned.name||`未命名账号`} (副本)`;this.updateConfig(prev=>({...prev,accounts:[...normalizeAccountsList$1(prev.accounts),cloned]}));this.setSelectedAccountId(newId)}deleteAccount(accountId){const accounts=normalizeAccountsList$1(this.state.config.accounts);if(accounts.length<=1){alert(`请至少保留一个社媒账号配置！`);return}const remaining=accounts.filter(a=>a.id!==accountId);this.updateConfig(prev=>({...prev,accounts:remaining}));if(this.state.selectedAccountId===accountId){const nextId=remaining[0]?.id||`default`;this.setSelectedAccountId(nextId)}}setSelectedAccountId(id){this.flushPendingSave();this.setState({selectedAccountId:id,activeNav:`acc_${id}`})}setActiveNav(nav){this.flushPendingSave();this.setState({activeNav:nav})}setSearchQuery(q){this.setState({searchQuery:q})}toggleGroupCollapse(groupKey){this.setState({collapsedGroups:{...this.state.collapsedGroups,[groupKey]:!this.state.collapsedGroups[groupKey]}})}setLoginStatus(accountId,status){this.setState({loginStatusMap:{...this.state.loginStatusMap,[accountId]:status}})}async checkLoginStatus(platform,accountId){if(!accountId)return;this.setState({checkingLogin:accountId});try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/${getPlatformRoute(platform)}`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({account_id:accountId,action:`check`})},this.rpcService));const isLoggedIn=parsed.ok?Boolean(parsed.data?.logged_in):false;this.setLoginStatus(accountId,isLoggedIn);if(isLoggedIn&&parsed.data?.user_name)this.updateAccount(accountId,{name:parsed.data.user_name})}catch{this.setLoginStatus(accountId,false)}finally{this.setState({checkingLogin:null})}}async triggerLogin(platform,accountId){this.setState({loginingAccountId:accountId});try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/${getPlatformRoute(platform)}`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({account_id:accountId,action:`login`})},this.rpcService));if(parsed.ok&&parsed.data?.ok){this.setLoginStatus(accountId,true);await this.fetchFromBackend();return{ok:true,message:`账号 ${accountId} 登录成功！凭据已持久化。`}}else return{ok:false,message:parsed.error||parsed.data?.error||`登录流程未完成或窗口已关闭`}}catch(e){const msg=e.message||String(e);return{ok:false,message:msg.includes(`未运行`)||msg.includes(`未响应`)||msg.includes(`Failed to fetch`)?`社媒发布后台未启动（端口 3088~3090 未响应）。请确认本地服务正常运行。`:`唤起登录失败: ${msg}`}}finally{this.setState({loginingAccountId:null})}}};const socialPublisherConfigStore=new SocialPublisherConfigStoreManager;const getStoreSnapshot=()=>socialPublisherConfigStore.getState();function useSocialPublisherStore(){return(0,react.useSyncExternalStore)(callback=>socialPublisherConfigStore.subscribe(callback),getStoreSnapshot,getStoreSnapshot)}const PLATFORM_GROUPS=[{key:`gzh`,name:`微信公众号`,shortName:`微信`,badge:`WX`},{key:`xiaohongshu`,name:`小红书`,shortName:`红书`,badge:`XHS`},{key:`zhihu`,name:`知乎专栏`,shortName:`知乎`,badge:`ZH`},{key:`baijiahao`,name:`百家号`,shortName:`百家`,badge:`BJH`},{key:`toutiao`,name:`今日头条`,shortName:`头条`,badge:`TT`}];function PlatformIcon({platform}){const p=(platform||`gzh`).toLowerCase();if(p===`gzh`)return(0,react_jsx_runtime.jsx)(`svg`,{width:`14`,height:`14`,viewBox:`0 0 24 24`,fill:`none`,stroke:`currentColor`,strokeWidth:`2`,children:(0,react_jsx_runtime.jsx)(`path`,{d:`M8 12h.01M12 12h.01M16 8h.01M20 8h.01M9 16c-4.418 0-8-2.686-8-6s3.582-6 8-6 8 2.686 8 6c0 1.257-.52 2.417-1.408 3.354L17 21l-3.667-2.037A9.458 9.458 0 0 1 9 16z`})});if(p===`xiaohongshu`||p===`xhs`)return(0,react_jsx_runtime.jsxs)(`svg`,{width:`14`,height:`14`,viewBox:`0 0 24 24`,fill:`none`,stroke:`currentColor`,strokeWidth:`2`,children:[(0,react_jsx_runtime.jsx)(`path`,{d:`M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z`}),(0,react_jsx_runtime.jsx)(`path`,{d:`M6 6h10M6 10h10`})]});if(p===`zhihu`)return(0,react_jsx_runtime.jsxs)(`svg`,{width:`14`,height:`14`,viewBox:`0 0 24 24`,fill:`none`,stroke:`currentColor`,strokeWidth:`2`,children:[(0,react_jsx_runtime.jsx)(`path`,{d:`M4 4h16v16H4z`}),(0,react_jsx_runtime.jsx)(`path`,{d:`M9 8h6l-6 8h6`})]});if(p===`baijiahao`||p===`bjh`)return(0,react_jsx_runtime.jsxs)(`svg`,{width:`14`,height:`14`,viewBox:`0 0 24 24`,fill:`none`,stroke:`currentColor`,strokeWidth:`2`,children:[(0,react_jsx_runtime.jsx)(`circle`,{cx:`12`,cy:`12`,r:`10`}),(0,react_jsx_runtime.jsx)(`path`,{d:`M12 6v6l4 2`})]});return(0,react_jsx_runtime.jsxs)(`svg`,{width:`14`,height:`14`,viewBox:`0 0 24 24`,fill:`none`,stroke:`currentColor`,strokeWidth:`2`,children:[(0,react_jsx_runtime.jsx)(`rect`,{x:`3`,y:`4`,width:`18`,height:`16`,rx:`2`}),(0,react_jsx_runtime.jsx)(`line`,{x1:`7`,y1:`8`,x2:`17`,y2:`8`}),(0,react_jsx_runtime.jsx)(`line`,{x1:`7`,y1:`12`,x2:`13`,y2:`12`}),(0,react_jsx_runtime.jsx)(`line`,{x1:`7`,y1:`16`,x2:`11`,y2:`16`})]})}function SocialPublisherAccountRail(){const{config,selectedAccountId,activeNav,loginStatusMap,collapsedGroups,searchQuery}=useSocialPublisherStore();const[addMenuOpen,setAddMenuOpen]=(0,react.useState)(false);const[platformFilter,setPlatformFilter]=(0,react.useState)(`all`);const rawAccounts=normalizeAccountsList$1(config?.accounts);const q=searchQuery.trim().toLowerCase();const searchFiltered=q?rawAccounts.filter(a=>(a.name||``).toLowerCase().includes(q)||(a.id||``).toLowerCase().includes(q)||(a.platform||``).toLowerCase().includes(q)):rawAccounts;const accounts=platformFilter===`all`?searchFiltered:searchFiltered.filter(a=>{const p=(a.platform||`gzh`).toLowerCase();if(platformFilter===`xiaohongshu`)return p===`xiaohongshu`||p===`xhs`;return p===platformFilter});const handleSelectAccount=id=>{socialPublisherConfigStore.setSelectedAccountId(id)};const handleAddPlatformAccount=platformKey=>{socialPublisherConfigStore.addAccount(platformKey);setAddMenuOpen(false)};return(0,react_jsx_runtime.jsxs)(`aside`,{className:SocialPublisherSettings_module_css_default.masterRail,"data-testid":`social-publisher-account-rail`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.railHeader,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`relative w-full`,children:[(0,react_jsx_runtime.jsx)(Search,{className:`absolute left-2.5 top-2.5 size-3.5 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`input`,{type:`text`,className:`h-8 w-full rounded-md border border-border/80 bg-background pl-8 pr-7 text-ui-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none`,placeholder:`搜索账号...`,value:searchQuery,onChange:e=>socialPublisherConfigStore.setSearchQuery(e.target.value)}),searchQuery&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:`absolute right-2 top-2 text-muted-foreground hover:text-foreground`,onClick:()=>socialPublisherConfigStore.setSearchQuery(``),children:(0,react_jsx_runtime.jsx)(X,{className:`size-3.5`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.platformFilterStrip,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`${SocialPublisherSettings_module_css_default.filterChip} ${platformFilter===`all`?SocialPublisherSettings_module_css_default.filterChipActive:``}`,onClick:()=>setPlatformFilter(`all`),children:[`全部 (`,rawAccounts.length,`)`]}),PLATFORM_GROUPS.map(pg=>{const count=rawAccounts.filter(a=>{const p=(a.platform||`gzh`).toLowerCase();if(pg.key===`xiaohongshu`)return p===`xiaohongshu`||p===`xhs`;return p===pg.key}).length;if(count===0)return null;return(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`${SocialPublisherSettings_module_css_default.filterChip} ${platformFilter===pg.key?SocialPublisherSettings_module_css_default.filterChipActive:``}`,onClick:()=>setPlatformFilter(pg.key),children:[pg.shortName,` (`,count,`)`]},pg.key)})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.railAccountList,children:[PLATFORM_GROUPS.map(group=>{const groupAccounts=accounts.filter(a=>{const p=(a.platform||`gzh`).toLowerCase();return p===group.key||group.key===`xiaohongshu`&&p===`xhs`});if(groupAccounts.length===0)return null;const isCollapsed=Boolean(collapsedGroups[group.key]);return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.groupSection,children:[platformFilter===`all`&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.groupHeader,onClick:()=>socialPublisherConfigStore.toggleGroupCollapse(group.key),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5 min-w-0`,children:[(0,react_jsx_runtime.jsx)(ChevronDown,{className:`size-3 text-muted-foreground transition-transform duration-200 ${isCollapsed?`-rotate-90`:``}`}),(0,react_jsx_runtime.jsx)(`span`,{className:`truncate`,children:group.name})]}),(0,react_jsx_runtime.jsx)(`span`,{className:`font-mono text-[10px] text-muted-foreground`,children:groupAccounts.length})]}),(!isCollapsed||platformFilter!==`all`)&&(0,react_jsx_runtime.jsx)(`div`,{className:`flex flex-col gap-0.5 mt-0.5`,children:groupAccounts.map(acc=>{const isSelected=activeNav===`acc_${acc.id}`&&selectedAccountId===acc.id;const isLoggedIn=loginStatusMap[acc.id];const isEnabled=acc.enabled!==false;return(0,react_jsx_runtime.jsxs)(`div`,{className:`${SocialPublisherSettings_module_css_default.accountItem} ${isSelected?SocialPublisherSettings_module_css_default.accountItemActive:``}`,onClick:()=>handleSelectAccount(acc.id),title:`${acc.name||`未命名账号`} (${acc.id})`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`shrink-0 flex items-center justify-center text-muted-foreground`,children:(0,react_jsx_runtime.jsx)(PlatformIcon,{platform:acc.platform})}),(0,react_jsx_runtime.jsx)(`span`,{className:`flex-1 truncate text-ui-xs font-medium`,children:acc.name||`未命名账号`}),!isEnabled&&(0,react_jsx_runtime.jsx)(`span`,{className:`text-[10px] text-muted-foreground bg-muted/60 px-1 py-0.5 rounded shrink-0`,children:`停用`}),(0,react_jsx_runtime.jsx)(`span`,{className:`${SocialPublisherSettings_module_css_default.statusBeacon} ${isLoggedIn===true?SocialPublisherSettings_module_css_default.statusBeaconOnline:isLoggedIn===false?SocialPublisherSettings_module_css_default.statusBeaconIdle:SocialPublisherSettings_module_css_default.statusBeaconTesting}`,title:isLoggedIn===true?`会话已授权`:isLoggedIn===false?`未登录`:`状态待测`})]},acc.id)})})]},group.key)}),accounts.length===0&&(0,react_jsx_runtime.jsx)(`div`,{className:`py-6 px-3 text-center text-ui-xs text-muted-foreground`,children:`未找到匹配的账号`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.railBottom,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`relative`,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border/80 bg-background hover:bg-accent text-foreground text-ui-xs font-medium transition-colors`,onClick:()=>setAddMenuOpen(!addMenuOpen),children:[(0,react_jsx_runtime.jsx)(Plus,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`添加社媒发布账号`})]}),addMenuOpen&&(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute bottom-10 left-0 right-0 z-20 rounded-lg border border-border bg-popover p-1.5 shadow-lg flex flex-col gap-1`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`px-2 py-1 text-[11px] font-semibold text-muted-foreground`,children:`选择添加的平台类型：`}),PLATFORM_GROUPS.map(p=>(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex items-center justify-between px-2.5 py-1.5 text-ui-xs text-foreground hover:bg-accent rounded-md transition-colors text-left`,onClick:()=>handleAddPlatformAccount(p.key),children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-medium`,children:p.name}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[10px] text-muted-foreground`,children:p.badge})]},p.key))]})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`${SocialPublisherSettings_module_css_default.systemNavBtn} ${activeNav===`sys_runtime`?SocialPublisherSettings_module_css_default.systemNavBtnActive:``}`,onClick:()=>socialPublisherConfigStore.setActiveNav(`sys_runtime`),children:[(0,react_jsx_runtime.jsx)(Settings2,{className:`size-3.5 shrink-0 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`span`,{className:`truncate`,children:`全局运行环境与生图接口`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`${SocialPublisherSettings_module_css_default.systemNavBtn} ${activeNav===`sys_backup`?SocialPublisherSettings_module_css_default.systemNavBtnActive:``}`,onClick:()=>socialPublisherConfigStore.setActiveNav(`sys_backup`),children:[(0,react_jsx_runtime.jsx)(Database,{className:`size-3.5 shrink-0 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`span`,{className:`truncate`,children:`配置备份、迁移与即时落地`})]})]})]})}const Input=react.forwardRef(function Input({className,type=`text`,style,disabled,...props},ref){return(0,react_jsx_runtime.jsx)(`input`,{type,ref,disabled,style:{display:`flex`,height:32,width:`100%`,borderRadius:6,border:`1px solid var(--dsw-alias-border-l2, rgba(125, 125, 125, 0.25))`,background:`var(--dsw-alias-bg-layer-2, rgba(125, 125, 125, 0.05))`,color:`var(--dsw-alias-label-primary, inherit)`,padding:`4px 10px`,fontSize:13,outline:`none`,boxSizing:`border-box`,transition:`border-color 0.15s ease, box-shadow 0.15s ease`,opacity:disabled?.5:1,cursor:disabled?`not-allowed`:`text`,...style},className:cn(`flex h-8 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50`,className),...props})});function SocialPublisherKeywordTagInput({label,subLabel,tags=[],onChange,placeholder=`输入关键词后按回车添加...`,presetTags,emptyHint=`暂未配置关键词标签`,className}){const[inputValue,setInputValue]=(0,react.useState)(``);const safeTags=Array.isArray(tags)?tags:[];const addTag=text=>{const trimmed=text.trim();if(!trimmed)return;if(!safeTags.includes(trimmed))onChange([...safeTags,trimmed]);setInputValue(``)};const removeTag=tagToRemove=>{onChange(safeTags.filter(t=>t!==tagToRemove))};const clearAll=()=>{onChange([]);setInputValue(``)};const handleKeyDown=e=>{if(e.key===`Enter`||e.key===`,`||e.key===`，`){e.preventDefault();addTag(inputValue)}else if(e.key===`Backspace`&&!inputValue&&safeTags.length>0){const lastTag=safeTags[safeTags.length-1];if(lastTag!==void 0)removeTag(lastTag)}};const handlePaste=e=>{const pasteText=e.clipboardData.getData(`text`);if(!pasteText)return;const tokens=pasteText.split(/[\n,，、\t\r]+/).map(s=>s.trim()).filter(Boolean);if(tokens.length>1){e.preventDefault();onChange(Array.from(new Set([...safeTags,...tokens])));setInputValue(``)}};return(0,react_jsx_runtime.jsxs)(`div`,{className:cn(`rounded-xl border border-border/80 bg-surface/50 p-4 space-y-3 transition-colors`,className),children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-start justify-between gap-2`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-0.5`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`text-ui-xs font-semibold text-foreground flex items-center gap-2`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:label}),(0,react_jsx_runtime.jsxs)(`span`,{className:`text-ui-2xs font-normal text-foreground-subtle bg-background px-1.5 py-0.5 rounded border border-border`,children:[safeTags.length,` 个`]})]}),subLabel&&(0,react_jsx_runtime.jsx)(`p`,{className:`text-ui-2xs text-foreground-subtle leading-tight`,children:subLabel})]}),safeTags.length>0&&(0,react_jsx_runtime.jsxs)(Button,{type:`button`,variant:`ghost`,size:`sm`,onClick:clearAll,className:`h-6 gap-1 px-1.5 text-ui-2xs text-foreground-subtle hover:text-destructive cursor-pointer`,children:[(0,react_jsx_runtime.jsx)(Trash,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`清空`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-wrap items-center gap-2 min-h-9 p-1.5 rounded-lg border border-border/60 bg-background/60`,children:[safeTags.map(tag=>(0,react_jsx_runtime.jsxs)(`div`,{className:`inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-ui-xs font-medium text-foreground shadow-2xs group hover:border-primary/50 transition-colors`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:tag}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>removeTag(tag),className:`text-foreground-subtle hover:text-destructive cursor-pointer p-0.5 rounded transition-colors`,title:`移除 ${tag}`,children:(0,react_jsx_runtime.jsx)(X,{className:`size-3`})})]},tag)),(0,react_jsx_runtime.jsxs)(`div`,{className:`inline-flex items-center gap-1 flex-1 min-w-[140px]`,children:[(0,react_jsx_runtime.jsx)(Input,{type:`text`,placeholder:safeTags.length===0?emptyHint:placeholder,value:inputValue,onChange:e=>setInputValue(e.target.value),onKeyDown:handleKeyDown,onPaste:handlePaste,className:`h-7.5 text-ui-xs px-2.5 border-dashed focus:border-solid bg-transparent shadow-none`}),inputValue.trim()&&(0,react_jsx_runtime.jsxs)(Button,{type:`button`,variant:`outline`,size:`sm`,onClick:()=>addTag(inputValue),className:`h-7.5 px-2 text-ui-xs cursor-pointer gap-0.5 shrink-0`,children:[(0,react_jsx_runtime.jsx)(Plus,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`添加`})]})]})]}),Array.isArray(presetTags)&&presetTags.length>0&&(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5 flex-wrap pt-0.5`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-ui-2xs text-foreground-subtle`,children:`常用推荐:`}),presetTags.map(pt=>{const isAdded=safeTags.includes(pt);return(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,disabled:isAdded,onClick:()=>addTag(pt),className:cn(`text-ui-2xs px-2 py-0.5 rounded border transition-colors cursor-pointer`,isAdded?`opacity-40 border-border text-foreground-subtle cursor-default`:`border-border/70 hover:border-primary/60 text-foreground-subtle hover:text-primary bg-background/50`),children:[`+ `,pt]},pt)})]})]})}function useModelProviders(_options){return{modelProviders:[],providers:[],models:[],loading:false,selectedProvider:null,selectedModel:null}}function getProviderFormLabel(provider){return provider||`Provider`}const SocialPublisherUnifiedModelStatusCard=(0,react.memo)(function SocialPublisherUnifiedModelStatusCard(){const openSettingsTab=useTabStore(state=>state.openSettingsTab);const{modelProviders}=useModelProviders({workspacePath:``});const activeModel=(0,react.useMemo)(()=>{for(const p of modelProviders||[]){if(!p.enabled)continue;for(const m of p.models||[])if((m.config?.properties?.outputFormat?.supportsImage===true||m.personalConfig?.properties?.outputFormat?.supportsImage===true)&&m.config?.enabled!==false)return{providerName:getProviderFormLabel(p),modelId:m.modelId}}return null},[modelProviders]);const handleGoToModelSettings=()=>{setPendingSettingsSectionIntent(`modelProvider`);openSettingsTab()};return(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/[0.03] dark:bg-primary/[0.06] p-3.5 text-ui-xs`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-start gap-2.5`,children:[activeModel?(0,react_jsx_runtime.jsx)(Sparkles,{className:`size-4 text-emerald-500 shrink-0 mt-0.5`}):(0,react_jsx_runtime.jsx)(CircleExclamationPoint,{className:`size-4 text-amber-500 shrink-0 mt-0.5`}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-0.5`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-semibold text-foreground`,children:`AI 生图模型服务`}),activeModel?(0,react_jsx_runtime.jsxs)(`span`,{className:`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium text-[11px] border border-emerald-500/20`,children:[`当前生效：`,activeModel.providerName,` / `,activeModel.modelId]}):(0,react_jsx_runtime.jsx)(`span`,{className:`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium text-[11px] border border-amber-500/20`,children:`未配置生图模型`})]}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-foreground-subtle text-ui-2xs leading-relaxed`,children:`社媒发布模式生图模型现已统一采用【模型设置】中勾选了生图输出类型的模型，不再使用社媒私有接口池。`})]})]}),(0,react_jsx_runtime.jsxs)(Button,{type:`button`,variant:`outline`,size:`sm`,onClick:handleGoToModelSettings,className:`h-7 text-ui-xs gap-1 shrink-0 self-start sm:self-center`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`模型设置`}),(0,react_jsx_runtime.jsx)(ArrowUpRight,{className:`size-3`})]})]})});function Switch({checked,defaultChecked,onCheckedChange,disabled,className,id,title,style}){const[internalChecked,setInternalChecked]=react.useState(defaultChecked??false);const isChecked=checked!==void 0?checked:internalChecked;const trackStyle={position:`relative`,display:`inline-flex`,alignItems:`center`,width:36,height:20,flexShrink:0,cursor:disabled?`not-allowed`:`pointer`,borderRadius:10,border:`none`,padding:2,background:isChecked?`#10b981`:`var(--dsw-alias-border-l2, rgba(125, 125, 125, 0.3))`,transition:`background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1)`,opacity:disabled?.5:1,outline:`none`,boxSizing:`border-box`,...style};const thumbStyle={pointerEvents:`none`,display:`block`,width:16,height:16,borderRadius:`50%`,background:`#ffffff`,boxShadow:`0 1px 3px rgba(0, 0, 0, 0.2)`,transform:isChecked?`translateX(16px)`:`translateX(0px)`,transition:`transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)`};return(0,react_jsx_runtime.jsx)(`button`,{type:`button`,role:`switch`,id,title,"aria-checked":isChecked,disabled,style:trackStyle,onClick:()=>{const next=!isChecked;if(checked===void 0)setInternalChecked(next);onCheckedChange?.(next)},className:cn(`peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50`,isChecked?`bg-primary`:`bg-muted`,className),children:(0,react_jsx_runtime.jsx)(`span`,{style:thumbStyle})})}function SocialPublisherContentBrandSubTab({currentAccount,updateCurrentAccount,isCardFlow,isXhs}){const socialPublisherRpc=useOptionalServices()?.socialPublisherService??null;const[brandSlot,setBrandSlot]=(0,react.useState)(`header`);const[uploading,setUploading]=(0,react.useState)(false);const fileInputRef=(0,react.useRef)(null);const[previewCache,setPreviewCache]=(0,react.useState)({});const accountId=currentAccount.id||`default`;const brandData=currentAccount.brand_images?.[brandSlot]||{};const currentFileName=brandData.file||(brandSlot===`header`?`brand_top.jpg`:`brand_bot.jpg`);const cacheKey=`${accountId}_${brandSlot}`;(0,react.useEffect)(()=>{if(!socialPublisherRpc)return;if(previewCache[cacheKey])return;let isMounted=true;socialPublisherRpc.handleGenericRoute(`/api/gzh-publisher/brand-image`,`GET`,void 0,{slot:brandSlot,account:accountId,file:currentFileName}).then(res=>{if(isMounted&&res?.data?.data_url)setPreviewCache(prev=>({...prev,[cacheKey]:res.data.data_url}))}).catch(()=>{});return()=>{isMounted=false}},[brandSlot,accountId,currentFileName,cacheKey,previewCache,socialPublisherRpc]);if(isCardFlow||isXhs)return(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-start gap-3 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-4 text-ui-xs text-foreground`,children:[(0,react_jsx_runtime.jsx)(Info,{className:`size-4.5 text-rose-500 shrink-0 mt-0.5`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-foreground-subtle leading-relaxed`,children:`当前账号为 3:4 竖版多图卡片流体裁，专注于图文卡片与封面视觉，不插入文章型首尾横幅品牌图。`})]});const activePreviewUrl=previewCache[cacheKey]||`${getApiBaseUrl()}/api/gzh-publisher/brand-image?slot=${brandSlot}&account=${accountId}&file=${encodeURIComponent(currentFileName)}`;const handleUploadBrandImage=async file=>{setUploading(true);try{const reader=new FileReader;reader.onload=async e=>{const base64Data=String(e.target?.result||``);setPreviewCache(prev=>({...prev,[cacheKey]:base64Data}));const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/brand-image?slot=${brandSlot}&account=${accountId}&file=${encodeURIComponent(file.name)}`,{method:`POST`,headers:{"Content-Type":file.type||`image/jpeg`,"x-dsh-gzh-upload":`brand-image`,"x-dsh-gzh-filename":encodeURIComponent(file.name)},body:base64Data},socialPublisherRpc));const data=parsed.data||{};if(parsed.ok&&data.ok){const finalFile=data.file||file.name;const clonedBrandImages=JSON.parse(JSON.stringify(currentAccount.brand_images||{}));updateCurrentAccount({brand_images:{...clonedBrandImages,[brandSlot]:{...clonedBrandImages[brandSlot],file:finalFile}}})}setUploading(false)};reader.readAsDataURL(file)}catch(err){console.warn(`上传品牌图失败:`,err);setUploading(false)}};const updateBrandField=fieldPatch=>{const clonedBrandImages=JSON.parse(JSON.stringify(currentAccount.brand_images||{}));updateCurrentAccount({brand_images:{...clonedBrandImages,[brandSlot]:{...clonedBrandImages[brandSlot],...fieldPatch}}})};return(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-4`,"data-testid":`social-publisher-brand-settings`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-3`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`inline-flex rounded-xl bg-surface/80 p-1 border border-border/70 shadow-2xs`,children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>setBrandSlot(`header`),className:`px-3.5 py-1.5 rounded-lg text-ui-xs font-semibold transition-all cursor-pointer ${brandSlot===`header`?`bg-card text-foreground shadow-xs border border-border/80`:`text-foreground-subtle hover:text-foreground`}`,children:`头部品牌图（文章开头）`}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>setBrandSlot(`footer`),className:`px-3.5 py-1.5 rounded-lg text-ui-xs font-semibold transition-all cursor-pointer ${brandSlot===`footer`?`bg-card text-foreground shadow-xs border border-border/80`:`text-foreground-subtle hover:text-foreground`}`,children:`尾部品牌图（引导关注）`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-ui-xs text-foreground font-medium`,children:`启用该品牌图`}),(0,react_jsx_runtime.jsx)(Switch,{checked:Boolean(brandData.enabled??true),onCheckedChange:checked=>updateBrandField({enabled:checked})})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-wrap items-center gap-5 rounded-xl border border-border/80 bg-surface/50 p-4`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`relative size-24 shrink-0 overflow-hidden rounded-xl border border-card-border bg-background flex items-center justify-center shadow-xs`,children:[(0,react_jsx_runtime.jsx)(`img`,{src:activePreviewUrl,alt:brandSlot===`header`?`头部品牌图`:`尾部品牌图`,className:`size-full object-contain`,onLoad:e=>{e.target.style.display=`block`},onError:e=>{e.target.style.display=`none`}}),(0,react_jsx_runtime.jsx)(Image,{className:`size-8 text-foreground-subtle opacity-40 absolute -z-10`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-2 flex-1 min-w-[200px]`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`text-ui-sm font-semibold text-foreground`,children:[`图片文件: `,currentFileName]}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-ui-xs text-foreground-subtle`,children:`建议上传宽度 ≥ 900px 的清晰长条图，自动适应文章版心宽度。`}),(0,react_jsx_runtime.jsx)(`input`,{type:`file`,ref:fileInputRef,accept:`image/jpeg,image/png,image/webp`,className:`hidden`,onChange:e=>{if(e.target.files?.[0])handleUploadBrandImage(e.target.files[0])}}),(0,react_jsx_runtime.jsxs)(Button,{type:`button`,variant:`outline`,size:`sm`,onClick:()=>fileInputRef.current?.click(),disabled:uploading,className:`h-8 gap-1.5 text-ui-xs`,children:[(0,react_jsx_runtime.jsx)(Upload,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:uploading?`上传中...`:`上传替换图片 (JPG/PNG/WebP)`})]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`grid gap-4 sm:grid-cols-2`,children:[(0,react_jsx_runtime.jsxs)(`label`,{className:`space-y-1.5 text-ui-xs text-foreground`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-medium text-foreground-subtle`,children:`显示宽度比例 (0~100%，0=自适应)`}),(0,react_jsx_runtime.jsx)(Input,{type:`number`,value:brandData.width??(brandSlot===`header`?100:60),onChange:e=>updateBrandField({width:Number(e.target.value)}),className:`h-8.5 font-mono text-ui-xs`})]}),(0,react_jsx_runtime.jsxs)(`label`,{className:`space-y-1.5 text-ui-xs text-foreground`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-medium text-foreground-subtle`,children:`图片圆角大小 (px)`}),(0,react_jsx_runtime.jsx)(Input,{type:`number`,value:brandData.radius??0,onChange:e=>updateBrandField({radius:Number(e.target.value)}),className:`h-8.5 font-mono text-ui-xs`})]}),(0,react_jsx_runtime.jsxs)(`label`,{className:`space-y-1.5 text-ui-xs text-foreground`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-medium text-foreground-subtle`,children:`上方间距 (margin_top px)`}),(0,react_jsx_runtime.jsx)(Input,{type:`number`,value:brandData.margin_top??0,onChange:e=>updateBrandField({margin_top:Number(e.target.value)}),className:`h-8.5 font-mono text-ui-xs`})]}),(0,react_jsx_runtime.jsxs)(`label`,{className:`space-y-1.5 text-ui-xs text-foreground`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`font-medium text-foreground-subtle`,children:`下方间距 (margin_bottom px)`}),(0,react_jsx_runtime.jsx)(Input,{type:`number`,value:brandData.margin_bottom??0,onChange:e=>updateBrandField({margin_bottom:Number(e.target.value)}),className:`h-8.5 font-mono text-ui-xs`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between rounded-lg border border-border/80 bg-surface/50 p-3 sm:col-span-2`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-0.5`,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`text-ui-xs font-semibold text-foreground`,children:`卡片边框与柔和阴影`}),(0,react_jsx_runtime.jsx)(`div`,{className:`text-ui-xs text-foreground-subtle`,children:`在品牌图周围增加一层卡片外框与阴影，更具质感`})]}),(0,react_jsx_runtime.jsx)(Switch,{checked:Boolean(brandData.frame),onCheckedChange:checked=>updateBrandField({frame:checked})})]})]})]})}const PRESET_TOPIC_ANGLES=[`技术落地剖析`,`方法论拆解`,`前沿综述`,`避坑实操指南`,`核心架构演进`];const PRESET_FORBIDDEN_WORDS=[`代写`,`代发`,`保过`,`枪手`,`黑客破解`,`绝对第一`];const PRESET_XHS_TAGS=[`干货分享`,`效率工具`,`自媒体运营`,`程序员日常`,`前沿AI`];const THEME_PALETTES={wenying:{name:`紫金`,primary:`#722ed1`,accent:`#d4b106`,desc:`酒红典雅配金色强调`},olive:{name:`草木`,primary:`#5b8c00`,accent:`#faad14`,desc:`橄榄草木绿配暖黄`},graphite:{name:`石墨`,primary:`#262626`,accent:`#1890ff`,desc:`高级极简石墨深灰`},moyu:{name:`薄荷`,primary:`#13c2c2`,accent:`#52c41a`,desc:`清爽摸鱼薄荷湖绿`},redwhite:{name:`报章`,primary:`#f5222d`,accent:`#fa8c16`,desc:`经典报章红白版面`},zen:{name:`素雅`,primary:`#8c8c8c`,accent:`#595959`,desc:`空灵素雅留白禅意`}};function SocialPublisherAccountDetailView(){const{config,selectedAccountId,loginStatusMap,checkingLogin,loginingAccountId}=useSocialPublisherStore();const[revealSecrets,setRevealSecrets]=(0,react.useState)({});const[newScheduleTime,setNewScheduleTime]=(0,react.useState)(``);const[internalModalOpen,setInternalModalOpen]=(0,react.useState)(false);const accounts=normalizeAccountsList$1(config?.accounts);const currentAccount=accounts.find(a=>a.id===selectedAccountId)||accounts[0]||{id:`default`,name:`默认公众号`,platform:`gzh`,enabled:true,content:{},wechat:{}};const accountId=currentAccount.id||selectedAccountId;const platform=(currentAccount.platform||`gzh`).toLowerCase();const isGzh=platform===`gzh`;const isXhs=platform===`xiaohongshu`||platform===`xhs`;const isZhihu=platform===`zhihu`;const isBaijiahao=platform===`baijiahao`;const content=currentAccount.content||{};const isLoggedIn=loginStatusMap[accountId];const isChecking=checkingLogin===accountId;const isLogining=loginingAccountId===accountId;const updateAccount=patch=>{socialPublisherConfigStore.updateAccount(accountId,patch)};const updateContent=patch=>{updateAccount({content:{...content,...patch}})};const handleCheckLogin=()=>{socialPublisherConfigStore.checkLoginStatus(platform,accountId)};const handleTriggerLogin=async()=>{const res=await socialPublisherConfigStore.triggerLogin(platform,accountId);if(!res.ok)alert(res.message)};const handleDuplicate=()=>{socialPublisherConfigStore.duplicateAccount(accountId)};const handleDelete=()=>{if(confirm(`确认要删除账号「${currentAccount.name||accountId}」吗？`))socialPublisherConfigStore.deleteAccount(accountId)};const scheduleTimes=Array.isArray(currentAccount.schedule_times_article)?currentAccount.schedule_times_article:isGzh?[`07:45`,`12:15`,`21:00`]:isXhs?[`12:15`,`18:00`,`20:30`]:[`08:00`,`14:00`,`19:30`];const handleAddScheduleTime=()=>{const trimmed=newScheduleTime.trim();if(!/^\d{1,2}:\d{2}$/.test(trimmed))return;const formatted=trimmed.padStart(5,`0`);if(!scheduleTimes.includes(formatted))updateAccount({schedule_times_article:[...scheduleTimes,formatted].sort()});setNewScheduleTime(``)};const handleRemoveScheduleTime=t=>{updateAccount({schedule_times_article:scheduleTimes.filter(item=>item!==t)})};const platformBadgeStyle=isGzh?`border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400`:isXhs?`border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-400`:isZhihu?`border-blue-500/25 bg-blue-500/10 text-blue-600 dark:text-blue-400`:isBaijiahao?`border-indigo-500/25 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400`:`border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400`;const platformAvatarBg=isGzh?`bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25`:isXhs?`bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25`:isZhihu?`bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25`:isBaijiahao?`bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25`:`bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25`;return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.stageContainer,"data-testid":`social-publisher-account-detail`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosHero,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosHeroIdentity,children:[(0,react_jsx_runtime.jsx)(`div`,{className:`${SocialPublisherSettings_module_css_default.macosHeroAvatar} ${platformAvatarBg}`,children:(currentAccount.name||`文`).slice(0,1)}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1 min-w-0`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2 flex-wrap`,children:[(0,react_jsx_runtime.jsx)(`h2`,{className:`text-[16px] font-semibold text-foreground tracking-tight truncate`,children:currentAccount.name||`未命名账号`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-medium px-2 py-0.5 rounded-full border ${platformBadgeStyle}`,children:isGzh?`微信公众号`:isXhs?`小红书`:isZhihu?`知乎专栏`:isBaijiahao?`百家号`:`今日头条`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-mono text-muted-foreground px-1.5 py-0.5 rounded bg-muted/50`,children:accountId})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2 text-[11.5px] text-muted-foreground`,children:[(0,react_jsx_runtime.jsxs)(`span`,{children:[`模式: `,currentAccount.publish_mode===`api`?`官方 API 直连`:`智能浏览器自动化`]}),(0,react_jsx_runtime.jsx)(`span`,{children:`·`}),(0,react_jsx_runtime.jsxs)(`span`,{className:`flex items-center gap-1 font-medium`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-1.5 rounded-full ${isLoggedIn===true?`bg-emerald-500`:isLoggedIn===false?`bg-muted-foreground/40`:`bg-amber-400`}`}),(0,react_jsx_runtime.jsx)(`span`,{className:isLoggedIn===true?`text-emerald-600 dark:text-emerald-400`:``,children:isLoggedIn===true?`已授权`:isLoggedIn===false?`未登录`:`待检测`})]})]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosHeroActions,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1.5 rounded border border-border/80 bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer`,onClick:handleCheckLogin,disabled:isChecking,children:[(0,react_jsx_runtime.jsx)(RotateCcw,{className:`size-3 ${isChecking?`animate-spin text-primary`:`text-muted-foreground`}`}),(0,react_jsx_runtime.jsx)(`span`,{children:isChecking?`检测中...`:`检测会话`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1.5 rounded border border-border/80 bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer`,onClick:handleDuplicate,children:[(0,react_jsx_runtime.jsx)(Copy,{className:`size-3 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`span`,{children:`复制配置`})]}),(0,react_jsx_runtime.jsxs)(`label`,{className:`flex items-center gap-2 px-2.5 h-7 rounded border border-border/80 bg-surface/50 cursor-pointer select-none`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-[12px] text-foreground font-medium`,children:`启用`}),(0,react_jsx_runtime.jsx)(`input`,{type:`checkbox`,className:`size-3.5 accent-primary rounded cursor-pointer`,checked:currentAccount.enabled!==false,onChange:e=>updateAccount({enabled:e.target.checked})})]})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`账号身份与登录凭据`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Credentials & Auth`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`账号显示名称`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`在多平台发布矩阵中用于标识的主展示名称`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`text`,className:`h-7 w-60 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:currentAccount.name||``,onChange:e=>updateAccount({name:e.target.value}),placeholder:`例如：科技前沿观察`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`文章作者署名 (Author)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`发文头部呈现的文章作者名`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`text`,className:`h-7 w-60 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:currentAccount.wechat?.author_name||currentAccount.author_name||``,onChange:e=>updateAccount({author_name:e.target.value,wechat:{...currentAccount.wechat,author_name:e.target.value}}),placeholder:`例如：文映学术win00.cn`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`品牌官方名称 (Brand Name)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`文章结尾版权或引导关注展示的主体标识`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`text`,className:`h-7 w-60 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:currentAccount.wechat?.brand_name||currentAccount.brand_name||``,onChange:e=>updateAccount({brand_name:e.target.value,wechat:{...currentAccount.wechat,brand_name:e.target.value}}),placeholder:`例如：前沿科技视界`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`发文自动化模式`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`推荐使用智能浏览器直连模式，免认证服务号即可自动排版与发布`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsxs)(`select`,{className:`h-7 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground font-medium focus:border-primary focus:outline-none`,value:currentAccount.publish_mode||`browser`,onChange:e=>updateAccount({publish_mode:e.target.value}),children:[(0,react_jsx_runtime.jsx)(`option`,{value:`browser`,children:`智能浏览器自动化 (免认证服务号，推荐)`}),isGzh&&(0,react_jsx_runtime.jsx)(`option`,{value:`api`,children:`微信官方 API 接口直连 (需服务号 AppSecret)`})]})})]}),isGzh&&currentAccount.publish_mode===`api`&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`开发者 ID (AppID)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`微信公众平台分配的以 wx 开头的唯一标识`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`text`,className:`h-7 w-60 rounded border border-border/80 bg-background px-2 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`,value:currentAccount.wechat?.appid||``,onChange:e=>updateAccount({wechat:{...currentAccount.wechat,appid:e.target.value}}),placeholder:`wx 开头的 18 位字符串`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`开发者密码 (AppSecret)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`微信公众号后台生成的高级安全密钥`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsxs)(`div`,{className:`relative w-60`,children:[(0,react_jsx_runtime.jsx)(`input`,{type:revealSecrets[accountId]?`text`:`password`,className:`h-7 w-full rounded border border-border/80 bg-background pl-2 pr-7 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`,value:currentAccount.wechat?.appsecret||``,onChange:e=>updateAccount({wechat:{...currentAccount.wechat,appsecret:e.target.value}}),placeholder:`32 位十六进制密钥`}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:`absolute right-1.5 top-1.5 text-muted-foreground hover:text-foreground cursor-pointer`,onClick:()=>setRevealSecrets(p=>({...p,[accountId]:!p[accountId]})),children:revealSecrets[accountId]?(0,react_jsx_runtime.jsx)(EyeOff,{className:`size-3.5`}):(0,react_jsx_runtime.jsx)(Eye,{className:`size-3.5`})})]})})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-2 rounded-full shrink-0 ${isLoggedIn===true?`bg-emerald-500`:isLoggedIn===false?`bg-muted-foreground/40`:`bg-amber-400`}`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[13px] font-medium text-foreground`,children:isLoggedIn===true?`浏览器会话已就绪 · 本地授权有效`:isLoggedIn===false?`当前未检测到有效登录态，请扫码授权`:`正在检测本地会话凭证...`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`基于隔离的用户数据目录持久化 Cookie，任务执行时自动复用`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1.5 rounded bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-2xs cursor-pointer`,onClick:()=>setInternalModalOpen(true),children:[(0,react_jsx_runtime.jsx)(ShieldCheck,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`调起内置浏览器扫码授权`})]}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1 rounded border border-border/80 bg-background px-2 text-[11px] font-medium text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer`,onClick:handleTriggerLogin,title:`通过系统后台进程唤起独立 Chrome`,disabled:isLogining,children:(0,react_jsx_runtime.jsx)(`span`,{children:isLogining?`唤起中...`:`后台独立唤起`})})]})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupFooter,children:`若使用微信公众号智能浏览器自动化模式，发文时将通过无头浏览器自动填报正文与封面，免认证服务号限制。`})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`内容排版与规则偏好`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Typography & Styling`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[isGzh&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`发文形态 (Article Type)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`支持长文排版或小绿书竖版图文卡片`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsxs)(`select`,{className:`h-7 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground font-medium focus:border-primary focus:outline-none`,value:content.article_type||`news`,onChange:e=>updateContent({article_type:e.target.value}),children:[(0,react_jsx_runtime.jsx)(`option`,{value:`news`,children:`公众号长文（经典多图文排版）`}),(0,react_jsx_runtime.jsx)(`option`,{value:`newspic`,children:`小绿书图片消息（3:4 竖版多图卡片）`}),(0,react_jsx_runtime.jsx)(`option`,{value:`both`,children:`长文 + 小绿书一文双发`})]})})]}),isGzh&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`视觉主题调色方案`}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:[`当前选中：`,THEME_PALETTES[content.headline_theme||`wenying`]?.name||`经典`,` ·`,` `,THEME_PALETTES[content.headline_theme||`wenying`]?.desc]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.appleColorStrip,children:Object.entries(THEME_PALETTES).map(([themeKey,item])=>{const isSelected=(content.headline_theme||`wenying`)===themeKey;return(0,react_jsx_runtime.jsx)(`div`,{className:`${SocialPublisherSettings_module_css_default.appleColorChip} ${isSelected?SocialPublisherSettings_module_css_default.appleColorChipActive:``}`,style:{background:`linear-gradient(135deg, ${item.primary} 50%, ${item.accent} 50%)`},onClick:()=>updateContent({headline_theme:themeKey}),title:`${item.name}：${item.desc}`,children:isSelected&&(0,react_jsx_runtime.jsx)(Check,{className:`size-3 text-white drop-shadow-sm`})},themeKey)})})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`正文最低字数要求`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`生成长文或图文正文时的最小字符限制`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`number`,className:`h-7 w-24 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:content.min_words??(isXhs?300:1200),onChange:e=>updateContent({min_words:Number(e.target.value)})})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`正文字号与行高规范`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`微调阅读版面排版视觉比例`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] text-muted-foreground`,children:`字号:`}),(0,react_jsx_runtime.jsx)(`input`,{type:`text`,className:`h-7 w-18 rounded border border-border/80 bg-background px-2 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`,value:content.font_size||`13px`,onChange:e=>updateContent({font_size:e.target.value}),placeholder:`13px`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] text-muted-foreground ml-1`,children:`行高:`}),(0,react_jsx_runtime.jsx)(`input`,{type:`text`,className:`h-7 w-18 rounded border border-border/80 bg-background px-2 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`,value:content.line_height||`20px`,onChange:e=>updateContent({line_height:e.target.value}),placeholder:`20px`})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-4 space-y-4`,children:[(0,react_jsx_runtime.jsx)(SocialPublisherKeywordTagInput,{label:isXhs?`小红书热门话题标签 (#话题#)`:`重点关注选题与热点方向`,subLabel:`任务生成时将从选题池中自动匹配最具深度的主题角度`,tags:content.keywords||[],onChange:tags=>updateContent({keywords:tags}),placeholder:`输入选题按回车添加...`,presetTags:isXhs?PRESET_XHS_TAGS:PRESET_TOPIC_ANGLES}),(0,react_jsx_runtime.jsx)(SocialPublisherKeywordTagInput,{label:`违禁词与敏感屏蔽词库`,subLabel:`内容生成与最终审核时将对命中词汇执行严格拦截与替换`,tags:content.forbidden_words||[],onChange:tags=>updateContent({forbidden_words:tags}),placeholder:`输入屏蔽词按回车添加...`,presetTags:PRESET_FORBIDDEN_WORDS})]})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`配图生成与视觉比例`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Media & Ratio`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`头条封面比例 (Primary Cover Ratio)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`微信多图文头条或各平台首页推荐封面宽高比`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`select`,{className:`h-7 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground font-medium focus:border-primary focus:outline-none`,value:content.headline_cover_ratio||`2.35:1`,onChange:e=>updateContent({headline_cover_ratio:e.target.value}),children:COVER_RATIOS.map(r=>(0,react_jsx_runtime.jsx)(`option`,{value:r.value,children:r.label},r.value))})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`次条封面比例 (Secondary Cover Ratio)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`文章次条缩略图尺寸`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`select`,{className:`h-7 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground font-medium focus:border-primary focus:outline-none`,value:content.secondary_cover_ratio||`1:1`,onChange:e=>updateContent({secondary_cover_ratio:e.target.value}),children:SECONDARY_COVER_RATIOS.map(r=>(0,react_jsx_runtime.jsx)(`option`,{value:r.value,children:r.label},r.value))})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`配图生成篇数 (AI / 搜索配图)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`每篇文章自动插图篇数与全网搜索图数量`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] text-muted-foreground`,children:`AI插图:`}),(0,react_jsx_runtime.jsx)(`input`,{type:`number`,className:`h-7 w-16 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:content.ai_images_per_article??1,onChange:e=>updateContent({ai_images_per_article:Number(e.target.value)})}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] text-muted-foreground ml-2`,children:`搜索插图:`}),(0,react_jsx_runtime.jsx)(`input`,{type:`number`,className:`h-7 w-16 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:content.search_images_per_article??1,onChange:e=>updateContent({search_images_per_article:Number(e.target.value)})})]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`p-3.5 border-t border-border/60`,children:(0,react_jsx_runtime.jsx)(SocialPublisherUnifiedModelStatusCard,{})})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`品牌资产与头尾插图`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Branding & Assets`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:(0,react_jsx_runtime.jsx)(`div`,{className:`p-4`,children:(0,react_jsx_runtime.jsx)(SocialPublisherContentBrandSubTab,{currentAccount,updateCurrentAccount:updateAccount,isCardFlow:isXhs,isXhs})})})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`发布频次与定时策略`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Scheduling & Limits`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`每日发文上限与防冲突间隔`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`单日发文最大篇数及任务防重叠时间窗口`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] text-muted-foreground`,children:`单日上限:`}),(0,react_jsx_runtime.jsx)(`input`,{type:`number`,className:`h-7 w-16 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:content.articles_per_day??(isXhs?2:6),onChange:e=>updateContent({articles_per_day:Number(e.target.value)})}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] text-muted-foreground ml-2`,children:`间隔 (分钟):`}),(0,react_jsx_runtime.jsx)(`input`,{type:`number`,className:`h-7 w-16 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground focus:border-primary focus:outline-none`,value:currentAccount.schedule_conflict_interval_mins??30,onChange:e=>updateAccount({schedule_conflict_interval_mins:Number(e.target.value)})})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-4 border-t border-border/60 space-y-2.5`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between`,children:[(0,react_jsx_runtime.jsxs)(`span`,{className:`text-[12.5px] font-medium text-foreground`,children:[`定时群发黄金时间点 (`,scheduleTimes.length,` 个已设定)`]}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] text-muted-foreground`,children:`建议按早/午/晚高峰排布`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex flex-wrap items-center gap-2 pt-1`,children:[scheduleTimes.map(t=>(0,react_jsx_runtime.jsxs)(`span`,{className:`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-border/80 bg-surface/70 text-[12px] font-mono text-foreground shadow-2xs`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:t}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:`text-muted-foreground hover:text-foreground cursor-pointer`,onClick:()=>handleRemoveScheduleTime(t),children:(0,react_jsx_runtime.jsx)(X,{className:`size-3`})})]},t)),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5`,children:[(0,react_jsx_runtime.jsx)(`input`,{type:`text`,placeholder:`09:00`,className:`h-7 w-18 rounded border border-border/80 bg-background px-2 text-[12px] font-mono text-foreground focus:border-primary focus:outline-none`,value:newScheduleTime,onChange:e=>setNewScheduleTime(e.target.value),onKeyDown:e=>{if(e.key===`Enter`){e.preventDefault();handleAddScheduleTime()}}}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center gap-1 px-2.5 rounded border border-border/80 bg-surface hover:bg-accent text-foreground text-[12px] font-medium cursor-pointer shadow-2xs`,onClick:handleAddScheduleTime,children:[(0,react_jsx_runtime.jsx)(Plus,{className:`size-3`}),(0,react_jsx_runtime.jsx)(`span`,{children:`添加`})]})]})]})]})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:(0,react_jsx_runtime.jsx)(`span`,{className:`text-destructive font-semibold`,children:`危险操作`})}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,style:{borderColor:`rgba(239, 68, 68, 0.25)`},children:(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`text-[13px] font-semibold text-destructive flex items-center gap-1.5`,children:[(0,react_jsx_runtime.jsx)(TriangleExclamationPoint,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`删除当前账号档案`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:[`从本设备永久移除「`,currentAccount.name||accountId,`」的所有配置与排版规则，操作不可撤销`]})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center gap-1.5 rounded border border-destructive/40 bg-destructive/10 px-3 text-[12px] font-semibold text-destructive hover:bg-destructive/20 transition-colors shrink-0 shadow-2xs cursor-pointer`,onClick:handleDelete,children:[(0,react_jsx_runtime.jsx)(Trash,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`删除账号`})]})})]})})]}),(0,react_jsx_runtime.jsx)(SocialPublisherLoginModal,{open:internalModalOpen,onOpenChange:setInternalModalOpen,platform,accountId,accountName:currentAccount.name,onLoginSuccess:()=>{socialPublisherConfigStore.checkLoginStatus(platform,accountId);socialPublisherConfigStore.fetchFromBackend()}})]})}function SocialPublisherRuntimeTab({config,setConfig}){const runtime=config.runtime||{};return(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-6`,"data-testid":`social-publisher-runtime-tab`,children:[Boolean(runtime.dry_run)&&(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2.5 p-3 rounded-lg border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[12px]`,children:[(0,react_jsx_runtime.jsx)(CircleExclamationPoint,{className:`size-4 shrink-0`}),(0,react_jsx_runtime.jsx)(`span`,{className:`font-medium`,children:`当前处于演练模式（Dry Run）：排版流水线正常执行，但不会对外部平台产生真实发文，也不会扣除外部生图配额。`})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`本地工作区与执行器路径`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Local Environment`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`任务工作区路径 (Project Root)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`生成草稿、中间图文与下载文件的本地根目录`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`text`,placeholder:`留空使用插件内置 tasks/default`,value:runtime.project_root||``,onChange:e=>setConfig(p=>({...p,runtime:{...runtime,project_root:e.target.value}})),className:`h-7 w-72 rounded border border-border/80 bg-background px-2 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`Python 解释器路径`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`本地 Python 3.10+ 环境，用于支持高级排版解析器`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`text`,placeholder:`python 或绝对路径`,value:runtime.python_path||`python`,onChange:e=>setConfig(p=>({...p,runtime:{...runtime,python_path:e.target.value}})),className:`h-7 w-72 rounded border border-border/80 bg-background px-2 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`本地 Chrome / Edge 浏览器路径`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`自动化发文驱动所调用的浏览器内核，留空将自动探测`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`text`,placeholder:`留空自动检测本机浏览器（Chrome/Edge）`,value:runtime.chrome_path||``,onChange:e=>setConfig(p=>({...p,runtime:{...runtime,chrome_path:e.target.value}})),className:`h-7 w-72 rounded border border-border/80 bg-background px-2 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`})})]})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`网络与流水线运行策略`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Execution Policy`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`单次网络请求超时 (毫秒)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`请求平台接口及下载网络配图的最长等待时限`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`input`,{type:`number`,value:runtime.request_timeout_ms??6e4,onChange:e=>setConfig(p=>({...p,runtime:{...runtime,request_timeout_ms:Number(e.target.value)}})),className:`h-7 w-28 rounded border border-border/80 bg-background px-2 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none`})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`演练模式 (Dry Run)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`全流程排版照常执行，但不实际联网向公网发布与扣减额度`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(Switch,{checked:Boolean(runtime.dry_run),onCheckedChange:c=>setConfig(p=>({...p,runtime:{...runtime,dry_run:c}}))})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`断点续跑素材缓存 (Upload Cache)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`记录各文章已上传图文媒体 ID，异常中断后重新发起免重复上传`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(Switch,{checked:Boolean(runtime.use_upload_cache??true),onCheckedChange:c=>setConfig(p=>({...p,runtime:{...runtime,use_upload_cache:c}}))})})]})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`自动化浏览器驱动与接管`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Stealth & Takeover`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`无头静默模式 (Headless)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`后台发布时不弹出前台窗口，静默在后台完成排版上传`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(Switch,{checked:Boolean(runtime.headless??runtime.zhihu_headless??true),onCheckedChange:c=>setConfig(p=>({...p,runtime:{...runtime,headless:c,zhihu_headless:c,gzh_headless:c,xhs_headless:c,baijiahao_headless:c,toutiao_headless:c}}))})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`人机验证弹窗接管`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`遇到滑块、旋转或文字点选验证码时，自动唤醒前台窗口供人工交互`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(Switch,{checked:Boolean(runtime.baijiahao_reveal_on_challenge??runtime.toutiao_reveal_on_challenge),onCheckedChange:c=>setConfig(p=>({...p,runtime:{...runtime,baijiahao_reveal_on_challenge:c,toutiao_reveal_on_challenge:c}}))})})]})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`AI 生图模型服务统一接入`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Image Generation Model`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:(0,react_jsx_runtime.jsx)(`div`,{className:`p-3.5`,children:(0,react_jsx_runtime.jsx)(SocialPublisherUnifiedModelStatusCard,{})})})]})]})}const ACCOUNT_ID_REGEX=/^[a-zA-Z0-9_-]{1,64}$/;const PROVIDER_ID_REGEX=/^[a-zA-Z0-9_-]{1,64}$/;function clone(val){if(val===void 0||val===null)return val;return JSON.parse(JSON.stringify(val))}function clientValidateImportConfig(rawInput){const errors=[];const warnings=[];let rawObj=rawInput;if(typeof rawInput===`string`){const trimmed=rawInput.trim();if(!trimmed)return{valid:false,errors:[`导入内容不能为空，请粘贴配置 JSON 或选择配置文件`],warnings:[]};if(trimmed.startsWith(`<!`)||trimmed.startsWith(`<html`)||trimmed.includes(`<head>`)||trimmed.includes(`<!DOCTYPE`))return{valid:false,errors:[`检测到导入的内容为 HTML 网页文档，而非 JSON 格式的配置文件。`,`可能原因：先前在旧版本中通过浏览器下载时，本地服务未就绪导致下载了 Web 服务器的首页或 404 错误页。`,`解决办法：请在上方点击「下载配置文件」重新导出，或直接「复制 JSON」后在此处粘贴。`],warnings:[]};try{rawObj=JSON.parse(trimmed)}catch(parseErr){return{valid:false,errors:[`JSON 语法解析失败: ${parseErr.message||`内容不是合法的 JSON 格式`}`],warnings:[]}}}if(!rawObj||typeof rawObj!==`object`||Array.isArray(rawObj))return{valid:false,errors:[`配置内容必须是一个 JSON 对象（顶层需为大括号 {}）`],warnings:[]};const incoming=rawObj;let candidateConfig=incoming;if(`config`in incoming&&incoming.config&&typeof incoming.config===`object`&&!Array.isArray(incoming.config))candidateConfig=incoming.config;const resultData={};if(`accounts`in candidateConfig){let rawAccounts=candidateConfig.accounts;if(Array.isArray(rawAccounts)){const dict={};for(const item of rawAccounts)if(item&&typeof item===`object`){const id=String(item.id||item.account_id||`acc_${Object.keys(dict).length+1}`).trim();dict[id]=item}rawAccounts=dict}if(typeof rawAccounts!==`object`||rawAccounts===null)errors.push(`accounts 字段必须是一个对象字典或账号数组`);else{const validAccounts={};let hasBlankSecrets=false;for(const[id,acc]of Object.entries(rawAccounts)){if(!ACCOUNT_ID_REGEX.test(id)){errors.push(`账号 ID「${id}」格式不符合规范（仅允许数字、字母、下划线与短横线，长度 1-64）`);continue}if(!acc||typeof acc!==`object`||Array.isArray(acc)){errors.push(`账号「${id}」的数据不完整`);continue}const accObj=acc;const platform=String(accObj.platform||`gzh`).toLowerCase();const normalizedPlatform=platform===`xiaohongshu`||platform===`xhs`?`xiaohongshu`:platform===`wechat`||platform===`gzh`?`gzh`:platform===`zhihu`?`zhihu`:platform===`baijiahao`?`baijiahao`:platform===`toutiao`?`toutiao`:`gzh`;const appSecret=String(accObj.app_secret??``).trim();if(!appSecret)hasBlankSecrets=true;validAccounts[id]={...accObj,id,platform:normalizedPlatform,name:String(accObj.name||id).trim(),enabled:accObj.enabled!==false,publish_mode:accObj.publish_mode||`api`,appid:String(accObj.appid??``).trim(),app_secret:appSecret,author_name:String(accObj.author_name??`科技前沿观察`).trim(),brand_name:String(accObj.brand_name??`前沿科技视界`).trim(),publish_immediately:Boolean(accObj.publish_immediately)}}resultData.accounts=validAccounts;if(hasBlankSecrets)warnings.push(`部分社媒账号未包含 AppSecret 密钥（可能来自安全脱敏导出），导入时将自动保留您当前本地已有的真实有效凭据。`)}}if(`default_account`in candidateConfig&&typeof candidateConfig.default_account===`string`)resultData.default_account=candidateConfig.default_account.trim();if(`image_providers`in candidateConfig){let rawProviders=candidateConfig.image_providers;if(Array.isArray(rawProviders)){const dict={};for(const item of rawProviders)if(item&&typeof item===`object`){const id=String(item.id||item.name||`provider_${Object.keys(dict).length+1}`).trim();dict[id]=item}rawProviders=dict}if(typeof rawProviders!==`object`||rawProviders===null)errors.push(`image_providers 字段必须是一个对象字典或接口数组`);else{const validProviders={};let hasBlankApiKey=false;for(const[id,prov]of Object.entries(rawProviders)){if(!PROVIDER_ID_REGEX.test(id)){errors.push(`生图接口 ID「${id}」格式不符合规范`);continue}if(!prov||typeof prov!==`object`||Array.isArray(prov)){errors.push(`生图接口「${id}」的配置数据不完整`);continue}const provObj=prov;const apiKey=String(provObj.api_key??``).trim();if(!apiKey)hasBlankApiKey=true;validProviders[id]={...provObj,id,name:String(provObj.name||id).trim(),enabled:provObj.enabled!==false,base_url:String(provObj.base_url||`https://api.a6api.com`).trim(),api_key:apiKey,model:String(provObj.model||`gpt-image-2`).trim(),priority:typeof provObj.priority===`number`?provObj.priority:0}}resultData.image_providers=validProviders;if(hasBlankApiKey)warnings.push(`部分生图接口未包含 API Key（可能来自安全脱敏导出），导入时将自动保留您当前本地已有的真实接口密钥。`)}}if(`typography`in candidateConfig&&candidateConfig.typography&&typeof candidateConfig.typography===`object`)resultData.typography=clone(candidateConfig.typography);if(`image_api`in candidateConfig&&candidateConfig.image_api&&typeof candidateConfig.image_api===`object`)resultData.image_api=clone(candidateConfig.image_api);if(`image_spec`in candidateConfig&&candidateConfig.image_spec&&typeof candidateConfig.image_spec===`object`)resultData.image_spec=clone(candidateConfig.image_spec);if(`runtime`in candidateConfig&&candidateConfig.runtime&&typeof candidateConfig.runtime===`object`)resultData.runtime=clone(candidateConfig.runtime);if(`wechat`in candidateConfig&&candidateConfig.wechat&&typeof candidateConfig.wechat===`object`)resultData.wechat=clone(candidateConfig.wechat);if(`content`in candidateConfig&&candidateConfig.content&&typeof candidateConfig.content===`object`)resultData.content=clone(candidateConfig.content);if(!(Object.keys(resultData).length>0)&&errors.length===0)errors.push(`未在导入数据中发现有效的社媒发布配置项（如 accounts、image_providers、runtime、typography 等）`);const accountKeys=Object.keys(resultData.accounts??{});const providerKeys=Object.keys(resultData.image_providers??{});let gzhCount=0;let zhihuCount=0;let xhsCount=0;let baijiahaoCount=0;let toutiaoCount=0;for(const acc of Object.values(resultData.accounts??{})){const plat=acc.platform;if(plat===`zhihu`)zhihuCount++;else if(plat===`xiaohongshu`)xhsCount++;else if(plat===`baijiahao`)baijiahaoCount++;else if(plat===`toutiao`)toutiaoCount++;else gzhCount++}const summary={account_count:accountKeys.length,gzh_accounts:gzhCount,zhihu_accounts:zhihuCount,xhs_accounts:xhsCount,baijiahao_accounts:baijiahaoCount,toutiao_accounts:toutiaoCount,provider_count:providerKeys.length,has_typography:Boolean(resultData.typography),has_image_api:Boolean(resultData.image_api||resultData.image_spec),has_runtime:Boolean(resultData.runtime)};return{valid:errors.length===0,errors,warnings,summary,data:errors.length===0?resultData:void 0}}function clientMergeConfigData(currentConfig,incomingData,mode=`merge`){const current=clone(currentConfig||{});const incoming=clone(incomingData||{});const currentAccountsDict={};for(const acc of normalizeAccountsList$1(current.accounts))currentAccountsDict[acc.id||`default`]=acc;const currentProvidersDict={};for(const prov of normalizeProvidersList(current.image_providers))currentProvidersDict[prov.id||`default_provider`]=prov;if(incoming.accounts&&typeof incoming.accounts===`object`)if(mode===`overwrite`){const newAccountsDict={};for(const[id,incAcc]of Object.entries(incoming.accounts)){const mergedAcc=clone(incAcc);if(!mergedAcc.app_secret&&currentAccountsDict[id]?.app_secret)mergedAcc.app_secret=currentAccountsDict[id].app_secret;newAccountsDict[id]=mergedAcc}current.accounts=Object.values(newAccountsDict)}else{for(const[id,incAcc]of Object.entries(incoming.accounts))if(!currentAccountsDict[id])currentAccountsDict[id]=clone(incAcc);else{const mergedAcc={...currentAccountsDict[id],...clone(incAcc)};if(!incAcc.app_secret&&currentAccountsDict[id].app_secret)mergedAcc.app_secret=currentAccountsDict[id].app_secret;currentAccountsDict[id]=mergedAcc}current.accounts=Object.values(currentAccountsDict)}if(incoming.default_account)current.default_account=incoming.default_account;if(incoming.image_providers&&typeof incoming.image_providers===`object`)if(mode===`overwrite`){const newProvidersDict={};for(const[id,incProv]of Object.entries(incoming.image_providers)){const mergedProv=clone(incProv);if(!mergedProv.api_key&&currentProvidersDict[id]?.api_key)mergedProv.api_key=currentProvidersDict[id].api_key;newProvidersDict[id]=mergedProv}current.image_providers=Object.values(newProvidersDict)}else{for(const[id,incProv]of Object.entries(incoming.image_providers))if(!currentProvidersDict[id])currentProvidersDict[id]=clone(incProv);else{const mergedProv={...currentProvidersDict[id],...clone(incProv)};if(!incProv.api_key&&currentProvidersDict[id].api_key)mergedProv.api_key=currentProvidersDict[id].api_key;currentProvidersDict[id]=mergedProv}current.image_providers=Object.values(currentProvidersDict)}if(incoming.typography)current.typography={...current.typography||{},...clone(incoming.typography)};if(incoming.image_api){const mergedImageApi={...current.image_api||{},...clone(incoming.image_api)};if(!incoming.image_api.api_key&&current.image_api?.api_key)mergedImageApi.api_key=current.image_api.api_key;current.image_api=mergedImageApi}if(incoming.image_spec)current.image_spec={...current.image_spec||{},...clone(incoming.image_spec)};if(incoming.runtime)current.runtime={...current.runtime||{},...clone(incoming.runtime)};return current}function clientExportConfigData(liveConfig,options={}){const{includeSecrets=false,scope=`all`,version=`0.2.0`}=options;const cfg=clone(liveConfig||{});const partial={};if(scope===`all`||scope===`accounts`){const exportedAccounts={};for(const acc of normalizeAccountsList$1(cfg.accounts)){const clonedAcc=clone(acc);if(!includeSecrets)clonedAcc.app_secret=``;exportedAccounts[acc.id||`default`]=clonedAcc}partial.accounts=exportedAccounts;partial.default_account=cfg.default_account||`default`}if(scope===`all`||scope===`image_providers`){const exportedProviders={};for(const prov of normalizeProvidersList(cfg.image_providers)){const clonedP=clone(prov);if(!includeSecrets)clonedP.api_key=``;exportedProviders[prov.id||`default_provider`]=clonedP}partial.image_providers=exportedProviders}if(scope===`all`||scope===`visual_rules`){partial.typography=clone(cfg.typography);partial.image_api=clone(cfg.image_api);partial.image_spec=clone(cfg.image_spec);if(!includeSecrets&&partial.image_api)partial.image_api.api_key=``}if(scope===`all`||scope===`runtime`)partial.runtime=clone(cfg.runtime);return{$schema:`https://deepseek.com/schemas/dsh-social-publisher-config.json`,meta:{version,exported_at:new Date().toISOString(),plugin:`dsh-social-publisher`,include_secrets:includeSecrets,scope,account_count:partial.accounts?Object.keys(partial.accounts).length:void 0,provider_count:partial.image_providers?Object.keys(partial.image_providers).length:void 0},config:partial}}const SCOPE_OPTIONS=[{label:`全量配置 (所有账号、接口池、排版规则与运行时)`,value:`all`},{label:`仅账号档案 (accounts)`,value:`accounts`},{label:`仅生图接口池 (image_providers)`,value:`image_providers`},{label:`仅排版与配图视觉规则 (typography & image_spec)`,value:`visual_rules`},{label:`仅运行环境设置 (runtime)`,value:`runtime`}];function SocialPublisherBackupTab({config:_config,onConfigSaved,setStatusMessage}){const socialPublisherRpc=useOptionalServices()?.socialPublisherService??null;const[exportScope,setExportScope]=(0,react.useState)(`all`);const[maskSecrets,setMaskSecrets]=(0,react.useState)(true);const[exportLoading,setExportLoading]=(0,react.useState)(false);const[copied,setCopied]=(0,react.useState)(false);const[importJson,setImportJson]=(0,react.useState)(``);const[validating,setValidating]=(0,react.useState)(false);const[validationResult,setValidationResult]=(0,react.useState)(null);const[importing,setImporting]=(0,react.useState)(false);const fileInputRef=(0,react.useRef)(null);const fetchExportData=(0,react.useCallback)(async()=>{setExportLoading(true);try{const includeSecrets=!maskSecrets;try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/config/export?scope=${exportScope}&include_secrets=${includeSecrets}&download=false`,{},socialPublisherRpc));if(parsed.ok&&parsed.data&&typeof parsed.data===`object`){const raw=parsed.data.config||parsed.data;if(raw&&typeof raw===`object`)return parsed.data}}catch{}return clientExportConfigData(_config,{scope:exportScope,includeSecrets})}catch(err){setStatusMessage({type:`error`,text:`获取导出数据失败: ${err.message}`});return null}finally{setExportLoading(false)}},[exportScope,maskSecrets,setStatusMessage,socialPublisherRpc,_config]);const handleCopyExport=async()=>{const data=await fetchExportData();if(!data)return;try{await navigator.clipboard.writeText(JSON.stringify(data,null,2));setCopied(true);setTimeout(()=>setCopied(false),2e3);setStatusMessage({type:`success`,text:`已将导出配置复制到剪贴板！`})}catch(e){setStatusMessage({type:`error`,text:`复制失败: ${e.message}`})}};const handleDownloadExport=async()=>{setExportLoading(true);try{const data=await fetchExportData();if(!data)return;if(typeof data===`string`&&(data.includes(`<html`)||data.startsWith(`<!`)))throw new Error(`检测到异常网页内容，已自动阻止导出非 JSON 文件`);const jsonString=JSON.stringify(data,null,2);const blob=new Blob([jsonString],{type:`application/json;charset=utf-8`});const url=URL.createObjectURL(blob);const a=document.createElement(`a`);const dateStr=new Date().toISOString().slice(0,10).replace(/-/g,``);a.href=url;a.download=`wincast-social-publisher-config-${exportScope}-${dateStr}.json`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);setStatusMessage({type:`success`,text:`配置文件导出成功并已开始下载！`})}catch(err){setStatusMessage({type:`error`,text:`导出下载失败: ${err.message}`})}finally{setExportLoading(false)}};const runValidation=(0,react.useCallback)(async text=>{if(!text.trim()){setValidationResult(null);return}const localResult=clientValidateImportConfig(text);setValidationResult(localResult);if(!localResult.valid)return;if(socialPublisherRpc){setValidating(true);try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/config/validate`,{method:`POST`,headers:{"Content-Type":`application/json`},body:text},socialPublisherRpc));if(parsed.ok&&parsed.data?.valid)setValidationResult(prev=>({...prev,...parsed.data,valid:true}))}catch{}finally{setValidating(false)}}},[socialPublisherRpc]);(0,react.useEffect)(()=>{const timer=setTimeout(()=>{if(importJson.trim())runValidation(importJson);else setValidationResult(null)},300);return()=>clearTimeout(timer)},[importJson,runValidation]);const handleFile=file=>{const reader=new FileReader;reader.onload=e=>{const content=String(e.target?.result||``);setImportJson(content);runValidation(content)};reader.readAsText(file,`utf-8`)};const executeImport=async mode=>{if(!importJson.trim())return;const validated=validationResult?.valid?validationResult:clientValidateImportConfig(importJson);if(!validated.valid||!validated.data){setStatusMessage({type:`error`,text:`配置结构校验未通过，请检查错误提示后再执行导入`});return}setImporting(true);setStatusMessage(null);const mergedConfig=clientMergeConfigData(_config,validated.data,mode);onConfigSaved(mergedConfig);try{const payload=serializePublisherConfigPayload(mergedConfig);if((await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/config/save`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify(payload)},socialPublisherRpc))).ok)setStatusMessage({type:`success`,text:mode===`merge`?`已成功增量合并导入配置并即时同步落盘！`:`已成功全量覆盖导入配置并即时同步落盘！`});else setStatusMessage({type:`success`,text:`配置已成功${mode===`merge`?`增量合并`:`全量覆盖`}导入并在当前界面即时生效！（后台离线，已保留于本地）`})}catch{setStatusMessage({type:`success`,text:`配置已成功${mode===`merge`?`增量合并`:`全量覆盖`}导入并在当前界面即时生效！`})}finally{setImporting(false)}};const summary=validationResult?.summary;return(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-6`,"data-testid":`social-publisher-backup-tab`,children:[(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`配置导出与脱敏备份`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Export & Backup`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`选择导出范围 (Scope)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`可选择仅备份账号、生图接口、排版规则或全量配置`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(`select`,{className:`h-7 rounded border border-border/80 bg-background px-2 text-[12px] text-foreground font-medium focus:border-primary focus:outline-none`,value:exportScope,onChange:e=>setExportScope(e.target.value),children:SCOPE_OPTIONS.map(opt=>(0,react_jsx_runtime.jsx)(`option`,{value:opt.value,children:opt.label},opt.value))})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`安全脱敏导出 (Mask Secrets)`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`自动置空微信 AppSecret 与生图 API 密钥，适合公开分享或团队归档`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:(0,react_jsx_runtime.jsx)(Switch,{checked:maskSecrets,onCheckedChange:c=>setMaskSecrets(c)})})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`生成与获取备份文件`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`支持纯客户端内存 Blob 快速下载或复制格式化 JSON`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1.5 rounded border border-border/80 bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer`,onClick:handleCopyExport,disabled:exportLoading,children:[copied?(0,react_jsx_runtime.jsx)(Check,{className:`size-3 text-emerald-500`}):(0,react_jsx_runtime.jsx)(Copy,{className:`size-3 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`span`,{children:copied?`已复制`:`复制 JSON`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1.5 rounded bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-2xs cursor-pointer`,onClick:handleDownloadExport,disabled:exportLoading,children:[(0,react_jsx_runtime.jsx)(Download,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`下载配置文件`})]})]})]})]})]}),(0,react_jsx_runtime.jsxs)(`section`,{className:SocialPublisherSettings_module_css_default.macosGroup,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupHeader,children:[(0,react_jsx_runtime.jsx)(`span`,{children:`配置导入、结构预检与落地`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-[11px] font-normal text-muted-foreground`,children:`Import & Restore`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosGroupCard,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`选择配置文件或载入快照`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`支持选择本地 JSON 备份文件或一键读取当前生效的本地配置`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:[(0,react_jsx_runtime.jsx)(`input`,{type:`file`,ref:fileInputRef,accept:`.json`,style:{display:`none`},onChange:e=>{if(e.target.files?.[0])handleFile(e.target.files[0])}}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1.5 rounded border border-border/80 bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer`,onClick:()=>fileInputRef.current?.click(),children:[(0,react_jsx_runtime.jsx)(FileCode,{className:`size-3.5 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`span`,{children:`选择文件`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1.5 rounded border border-border/80 bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer`,onClick:async()=>{const data=await fetchExportData();if(data){const jsonStr=JSON.stringify(data,null,2);setImportJson(jsonStr);runValidation(jsonStr);setStatusMessage({type:`success`,text:`已为您成功填入本机当前社媒发布配置！`})}},children:[(0,react_jsx_runtime.jsx)(RefreshCw,{className:`size-3 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`span`,{children:`载入本机配置`})]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowInfo,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowLabel,children:`执行导入与落地应用`}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowHint,children:`增量合并保留本地已有凭据并追加新项；全量覆盖将彻底替换当前所有设置`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.macosRowControl,children:[(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1 rounded border border-border/80 bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent transition-colors shadow-2xs cursor-pointer disabled:opacity-50`,onClick:()=>executeImport(`merge`),disabled:!validationResult?.valid||importing,title:`保留本地已有凭据与设置，追加新增账号/接口（推荐）`,children:(0,react_jsx_runtime.jsx)(`span`,{children:`增量合并 (推荐)`})}),(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:`flex h-7 items-center justify-center gap-1 rounded border border-destructive/40 bg-destructive/10 px-2.5 text-[12px] font-medium text-destructive hover:bg-destructive/20 transition-colors shadow-2xs cursor-pointer disabled:opacity-50`,onClick:()=>executeImport(`overwrite`),disabled:!validationResult?.valid||importing,title:`完全使用导入的内容替换本地现有配置`,children:(0,react_jsx_runtime.jsx)(`span`,{children:`全量覆盖`})})]})]}),validationResult&&(0,react_jsx_runtime.jsxs)(`div`,{className:`p-3.5 border-t border-border/60 text-[12px] space-y-2.5`,style:{background:validationResult.valid?`rgba(16, 185, 129, 0.04)`:`rgba(239, 68, 68, 0.04)`},children:[(0,react_jsx_runtime.jsx)(`div`,{className:`flex items-center gap-2 font-semibold`,children:validationResult.valid?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(CircleCheck,{className:`size-4 text-emerald-500 shrink-0`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-emerald-600 dark:text-emerald-400`,children:`配置结构校验通过，可安全执行导入`})]}):(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(CircleX,{className:`size-4 text-destructive shrink-0`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-destructive`,children:`配置校验未通过，请检查错误提示`})]})}),summary&&(0,react_jsx_runtime.jsxs)(`div`,{className:`grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[11.5px]`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`p-2 rounded border border-border/60 bg-surface/50`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`block text-muted-foreground`,children:`社媒账号`}),(0,react_jsx_runtime.jsxs)(`span`,{className:`font-semibold text-foreground`,children:[summary.account_count,` 个`]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-2 rounded border border-border/60 bg-surface/50`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`block text-muted-foreground`,children:`生图接口池`}),(0,react_jsx_runtime.jsxs)(`span`,{className:`font-semibold text-foreground`,children:[summary.provider_count,` 个`]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-2 rounded border border-border/60 bg-surface/50`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`block text-muted-foreground`,children:`排版与配图规则`}),(0,react_jsx_runtime.jsx)(`span`,{className:`font-semibold text-foreground`,children:summary.has_typography?`包含`:`无`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-2 rounded border border-border/60 bg-surface/50`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`block text-muted-foreground`,children:`运行环境`}),(0,react_jsx_runtime.jsx)(`span`,{className:`font-semibold text-foreground`,children:summary.has_runtime?`包含`:`无`})]})]}),(validationResult.errors&&validationResult.errors.length>0||validationResult.error)&&(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1 text-destructive text-[11.5px]`,children:[validationResult.errors?.map((err,i)=>(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-start gap-1.5`,children:[(0,react_jsx_runtime.jsx)(CircleX,{className:`size-3.5 shrink-0 mt-0.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:err})]},i)),validationResult.error&&!validationResult.errors?.length&&(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-start gap-1.5`,children:[(0,react_jsx_runtime.jsx)(CircleX,{className:`size-3.5 shrink-0 mt-0.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:validationResult.error})]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`p-3.5 border-t border-border/60 relative`,children:[(0,react_jsx_runtime.jsx)(`textarea`,{className:`h-36 w-full rounded border border-border/80 bg-background p-2.5 font-mono text-[12px] text-foreground focus:border-primary focus:outline-none resize-y`,placeholder:`在此粘贴导出的配置 JSON 或将 .json 配置文件拖拽至此...`,value:importJson,onChange:e=>setImportJson(e.target.value),onDragOver:e=>e.preventDefault(),onDrop:e=>{e.preventDefault();if(e.dataTransfer.files?.[0])handleFile(e.dataTransfer.files[0])}}),validating&&(0,react_jsx_runtime.jsx)(`div`,{className:`absolute right-6 bottom-6 text-[11px] text-muted-foreground bg-surface px-2 py-0.5 rounded border border-border/80`,children:`正在校验结构中...`})]})]})]})]})}function SocialPublisherSectionInner(){const socialPublisherRpc=useOptionalServices()?.socialPublisherService??null;const{config,activeNav,saveStatus,saveError,loading}=useSocialPublisherStore();(0,react.useEffect)(()=>{socialPublisherConfigStore.init(socialPublisherRpc);return()=>{socialPublisherConfigStore.flushPendingSave()}},[socialPublisherRpc]);(0,react.useEffect)(()=>{const handleKeyDown=e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()===`s`){e.preventDefault();socialPublisherConfigStore.executeSave()}};window.addEventListener(`keydown`,handleKeyDown);return()=>window.removeEventListener(`keydown`,handleKeyDown)},[]);const accountsList=normalizeAccountsList$1(config?.accounts);const activeCount=accountsList.filter(a=>a.enabled!==false).length;return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.settingsContainer,"data-testid":`social-publisher-section`,"data-full-bleed":`true`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center justify-between px-6 py-2.5 border-b border-border/60 bg-surface/40 flex-shrink-0`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2.5`,children:[(0,react_jsx_runtime.jsx)(`h1`,{className:`text-ui-base font-semibold text-foreground tracking-tight`,children:`社媒多平台发布设置`}),(0,react_jsx_runtime.jsxs)(`span`,{className:`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-border/80 bg-surface/80 text-[11px] font-medium text-muted-foreground`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`size-1.5 rounded-full bg-emerald-500`}),(0,react_jsx_runtime.jsxs)(`span`,{children:[`本地服务正常 · `,activeCount,`/`,accountsList.length,` 账号就绪`]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-3`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-1.5 text-ui-xs text-muted-foreground select-none`,children:[saveStatus===`saving`&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(RotateCcw,{className:`size-3.5 animate-spin text-primary`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-primary font-medium`,children:`正在保存...`})]}),saveStatus===`saved`&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(CircleCheck,{className:`size-3.5 text-emerald-500`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-emerald-600 dark:text-emerald-400 font-medium`,children:`所有配置已自动保存`})]}),saveStatus===`error`&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(CircleExclamationPoint,{className:`size-3.5 text-destructive`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-destructive font-medium`,children:saveError||`保存失败`})]}),saveStatus===`idle`&&(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(CircleCheck,{className:`size-3.5 text-muted-foreground`}),(0,react_jsx_runtime.jsx)(`span`,{children:`就绪`})]})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,className:`flex h-7 items-center gap-1 rounded border border-border/80 bg-background px-2 text-[11px] font-medium text-foreground hover:bg-accent transition-colors`,onClick:()=>socialPublisherConfigStore.fetchFromBackend(),title:`从本地服务磁盘重新拉取`,disabled:loading,children:[(0,react_jsx_runtime.jsx)(RefreshCw,{className:`size-3 text-muted-foreground ${loading?`animate-spin`:``}`}),(0,react_jsx_runtime.jsx)(`span`,{children:`刷新`})]})]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.masterDetailLayout,children:[(0,react_jsx_runtime.jsx)(SocialPublisherAccountRail,{}),(0,react_jsx_runtime.jsxs)(`main`,{className:SocialPublisherSettings_module_css_default.detailStage,children:[activeNav.startsWith(`acc_`)&&(0,react_jsx_runtime.jsx)(SocialPublisherAccountDetailView,{}),activeNav===`sys_runtime`&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.stageContainer,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`pb-5 border-b border-border/80`,children:[(0,react_jsx_runtime.jsx)(`h2`,{className:`text-ui-lg font-bold text-foreground`,children:`全局运行环境与生图接口池`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-ui-xs text-foreground-subtle`,children:`配置 Python 解释器、Chrome 驱动路径、人机验证弹窗接管与 AI 生图 Provider 接口池`})]}),(0,react_jsx_runtime.jsx)(SocialPublisherRuntimeTab,{config,setConfig:updater=>{if(typeof updater===`function`)socialPublisherConfigStore.updateConfig(updater);else socialPublisherConfigStore.updateConfig(()=>updater)}})]}),activeNav===`sys_backup`&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialPublisherSettings_module_css_default.stageContainer,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`pb-5 border-b border-border/80`,children:[(0,react_jsx_runtime.jsx)(`h2`,{className:`text-ui-lg font-bold text-foreground`,children:`配置备份、迁移与即时落地`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-ui-xs text-foreground-subtle`,children:`与 WinCode 保持一致的 JSON 备份导出、增量导入与全量覆盖，支持一键载入本机历史配置`})]}),(0,react_jsx_runtime.jsx)(SocialPublisherBackupTab,{config,onConfigSaved:newCfg=>{socialPublisherConfigStore.updateConfig(()=>newCfg,true)},setStatusMessage:msg=>{if(msg?.type===`error`)alert(msg.text)}})]})]})]})]})}function SocialPublisherSection(){return(0,react_jsx_runtime.jsx)(ScopedErrorBoundary,{scope:`SocialPublisherSection`,children:(0,react_jsx_runtime.jsx)(SocialPublisherSectionInner,{})})}var HeroWorkModePillSwitcher_module_css_default={"active":`ifRnVq_active`,"pillContainer":`ifRnVq_pillContainer`,"pillIcon":`ifRnVq_pillIcon`,"pillItem":`ifRnVq_pillItem`};const HeroWorkModePillSwitcher=(0,react.memo)(function HeroWorkModePillSwitcher({className}){const isSocial=useAppWorkMode()===`social`;const handleSelectGeneral=(0,react.useCallback)(()=>{setAppWorkMode(`general`)},[]);const handleSelectSocial=(0,react.useCallback)(()=>{setAppWorkMode(`social`)},[]);return(0,react_jsx_runtime.jsxs)(`div`,{className:className?`${HeroWorkModePillSwitcher_module_css_default.pillContainer} ${className}`:HeroWorkModePillSwitcher_module_css_default.pillContainer,role:`tablist`,"aria-label":`工作模式切换`,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,role:`tab`,"aria-selected":!isSocial,className:`${HeroWorkModePillSwitcher_module_css_default.pillItem} ${!isSocial?HeroWorkModePillSwitcher_module_css_default.active:``}`,onClick:handleSelectGeneral,children:[(0,react_jsx_runtime.jsx)(Sparkles,{size:14,className:HeroWorkModePillSwitcher_module_css_default.pillIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`通用任务`})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,role:`tab`,"aria-selected":isSocial,className:`${HeroWorkModePillSwitcher_module_css_default.pillItem} ${isSocial?HeroWorkModePillSwitcher_module_css_default.active:``}`,onClick:handleSelectSocial,children:[(0,react_jsx_runtime.jsx)(Share2,{size:14,className:HeroWorkModePillSwitcher_module_css_default.pillIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`社媒发布`})]})]})});var SocialArticleBottomActionBar_module_css_default={"dockLeft":`oC5mVG_dockLeft`,"dockRight":`oC5mVG_dockRight`,"dockRoot":`oC5mVG_dockRoot`,"dockRow":`oC5mVG_dockRow`,"primeTimeBar":`oC5mVG_primeTimeBar`,"primeTimeBtn":`oC5mVG_primeTimeBtn`,"primeTimeLeft":`oC5mVG_primeTimeLeft`,"primeTimeList":`oC5mVG_primeTimeList`,"publishBtn":`oC5mVG_publishBtn`,"pulse":`oC5mVG_pulse`,"statusCapsule":`oC5mVG_statusCapsule`,"statusDot":`oC5mVG_statusDot`,"statusDotSuccess":`oC5mVG_statusDotSuccess`,"statusDotWarn":`oC5mVG_statusDotWarn`,"toolButton":`oC5mVG_toolButton`,"toolButtonSuccess":`oC5mVG_toolButtonSuccess`};function SocialArticleBottomActionBar({currentArticle,currentIndex:_currentIndex,totalArticlesCount,primeTimeSuggestions,copied,copyConfig,saveStatus=`idle`,onOpenTypography,onCopyContent,onPublishCurrentOnly,onConfirmPublishAll,onResignManifest,isResigning,showPublishActions=true}){const capability=(0,react.useMemo)(()=>getPlatformCapability(currentArticle?.platform,currentArticle?.articleType),[currentArticle?.platform,currentArticle?.articleType]);const isMultiArticles=totalArticlesCount>1;return(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleBottomActionBar_module_css_default.dockRoot,children:[showPublishActions&&capability.showPrimeTime&&primeTimeSuggestions.length>0&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleBottomActionBar_module_css_default.primeTimeBar,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleBottomActionBar_module_css_default.primeTimeLeft,children:[(0,react_jsx_runtime.jsx)(Clock,{size:12}),(0,react_jsx_runtime.jsx)(`span`,{children:`黄金发文时段推荐：`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:SocialArticleBottomActionBar_module_css_default.primeTimeList,children:primeTimeSuggestions.map((item,idx)=>(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>onConfirmPublishAll(`schedule`,item.timeVal),className:SocialArticleBottomActionBar_module_css_default.primeTimeBtn,title:`点击以 [${item.timeVal}] 排期发布`,children:(0,react_jsx_runtime.jsx)(`span`,{children:item.label})},idx))})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleBottomActionBar_module_css_default.dockRow,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleBottomActionBar_module_css_default.dockLeft,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:SocialArticleBottomActionBar_module_css_default.statusCapsule,children:[saveStatus===`saving`&&(0,react_jsx_runtime.jsxs)(`span`,{style:{display:`flex`,alignItems:`center`,gap:6,color:`#f59e0b`,fontWeight:500},children:[(0,react_jsx_runtime.jsx)(`span`,{className:`${SocialArticleBottomActionBar_module_css_default.statusDot} ${SocialArticleBottomActionBar_module_css_default.statusDotWarn}`}),(0,react_jsx_runtime.jsx)(`span`,{children:`正在自动保存`})]}),saveStatus===`saved`&&(0,react_jsx_runtime.jsxs)(`span`,{style:{display:`flex`,alignItems:`center`,gap:6,color:`#059669`,fontWeight:500},children:[(0,react_jsx_runtime.jsx)(`span`,{className:`${SocialArticleBottomActionBar_module_css_default.statusDot} ${SocialArticleBottomActionBar_module_css_default.statusDotSuccess}`}),(0,react_jsx_runtime.jsx)(`span`,{children:`草稿已同步`})]}),saveStatus===`idle`&&(0,react_jsx_runtime.jsxs)(`span`,{style:{display:`flex`,alignItems:`center`,gap:6,color:`var(--dsw-alias-label-secondary, #6b7280)`},children:[(0,react_jsx_runtime.jsx)(`span`,{className:SocialArticleBottomActionBar_module_css_default.statusDot,style:{background:`#9ca3af`}}),(0,react_jsx_runtime.jsx)(`span`,{children:`草稿就绪`})]})]}),(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onCopyContent,className:`${SocialArticleBottomActionBar_module_css_default.toolButton} ${copied?SocialArticleBottomActionBar_module_css_default.toolButtonSuccess:``}`,title:`一键复制当前平台格式内容至剪贴板`,children:[copied?(0,react_jsx_runtime.jsx)(Check,{size:14,style:{color:`#059669`}}):(0,react_jsx_runtime.jsx)(Copy,{size:14}),(0,react_jsx_runtime.jsx)(`span`,{children:copied?`已复制`:copyConfig.buttonLabel})]}),onOpenTypography&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onOpenTypography,className:SocialArticleBottomActionBar_module_css_default.toolButton,title:`在左侧边栏展开微信公众号排版素材小组件面板`,children:[(0,react_jsx_runtime.jsx)(Layers,{size:14,style:{color:`#059669`}}),(0,react_jsx_runtime.jsx)(`span`,{children:`去排版`})]}),onResignManifest&&(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onResignManifest,disabled:isResigning,className:SocialArticleBottomActionBar_module_css_default.toolButton,title:`当修改文案或触发防篡改拦截时，点击重新核验磁盘文件签名`,children:[(0,react_jsx_runtime.jsx)(RefreshCw,{size:13,className:isResigning?`animate-spin`:``}),(0,react_jsx_runtime.jsx)(`span`,{children:isResigning?`核验中...`:`核验签名`})]})]}),showPublishActions&&(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2.5 flex-wrap ml-auto`,children:[isMultiArticles&&currentArticle&&(0,react_jsx_runtime.jsxs)(Button,{type:`button`,size:`sm`,variant:`ghost`,onClick:()=>onPublishCurrentOnly(capability.supportsDirectPublish?`publish_now`:`draft`),className:`h-8 gap-1 px-3 rounded-lg text-ui-xs font-medium text-foreground-muted hover:text-foreground hover:bg-surface-hover border border-border/40 hover:border-border active:scale-[0.982] transition-all cursor-pointer`,title:`仅将当前正在浏览的单篇提交发布，其余篇目暂存本地`,children:[(0,react_jsx_runtime.jsx)(`span`,{children:capability.supportsDirectPublish?`仅发当前篇`:`仅存当前篇草稿`}),(0,react_jsx_runtime.jsx)(ChevronRight,{className:`size-3 text-foreground-subtle`})]}),capability.supportsSchedule&&(0,react_jsx_runtime.jsxs)(Button,{type:`button`,size:`sm`,variant:`outline`,onClick:()=>onConfirmPublishAll(`schedule`),className:`h-8 gap-1.5 px-3 rounded-lg text-ui-xs font-medium cursor-pointer shadow-2xs border-border/60 hover:border-border hover:bg-surface-hover text-foreground active:scale-[0.982] transition-all`,children:[(0,react_jsx_runtime.jsx)(Calendar,{className:`size-3.5 text-foreground-muted`}),(0,react_jsx_runtime.jsx)(`span`,{children:capability.scheduleButtonLabel||`定时排期`})]}),currentArticle?.platform===`zhihu`?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(Button,{type:`button`,size:`sm`,variant:`outline`,onClick:()=>onConfirmPublishAll(`draft`),className:`h-8 px-3 rounded-lg text-ui-xs font-medium cursor-pointer shadow-2xs active:scale-[0.982] transition-all`,children:(0,react_jsx_runtime.jsx)(`span`,{children:`存为草稿`})}),(0,react_jsx_runtime.jsxs)(Button,{type:`button`,size:`sm`,onClick:()=>onConfirmPublishAll(`publish_now`),className:`h-8 gap-2 px-3.5 rounded-lg text-ui-xs font-semibold text-white bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 shadow-sm shadow-sky-600/20 active:scale-[0.982] transition-all cursor-pointer border border-sky-400/30`,children:[(0,react_jsx_runtime.jsx)(Send,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`发布专栏`}),isMultiArticles&&(0,react_jsx_runtime.jsxs)(`span`,{className:`px-1.5 py-0.2 rounded text-[10px] font-mono bg-black/20 text-white/90`,children:[totalArticlesCount,` 篇`]}),(0,react_jsx_runtime.jsx)(ArrowRight,{className:`size-3 opacity-80`})]})]}):currentArticle?.platform===`xiaohongshu`?(0,react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment,{children:[(0,react_jsx_runtime.jsx)(Button,{type:`button`,size:`sm`,variant:`outline`,onClick:()=>onConfirmPublishAll(`draft`),className:`h-8 px-3 rounded-lg text-ui-xs font-medium cursor-pointer shadow-2xs active:scale-[0.982] transition-all`,children:(0,react_jsx_runtime.jsx)(`span`,{children:`存草稿`})}),(0,react_jsx_runtime.jsxs)(Button,{type:`button`,size:`sm`,onClick:()=>onConfirmPublishAll(`publish_now`),className:`h-8 gap-2 px-3.5 rounded-lg text-ui-xs font-semibold text-white bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 shadow-sm shadow-rose-600/20 active:scale-[0.982] transition-all cursor-pointer border border-rose-400/30`,children:[(0,react_jsx_runtime.jsx)(Send,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`发布笔记`}),isMultiArticles&&(0,react_jsx_runtime.jsxs)(`span`,{className:`px-1.5 py-0.2 rounded text-[10px] font-mono bg-black/20 text-white/90`,children:[totalArticlesCount,` 篇`]}),(0,react_jsx_runtime.jsx)(ArrowRight,{className:`size-3 opacity-80`})]})]}):(0,react_jsx_runtime.jsxs)(Button,{type:`button`,size:`sm`,onClick:()=>onConfirmPublishAll(`draft`),className:`h-8 gap-2 px-3.5 rounded-lg text-ui-xs font-semibold text-white bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-sm shadow-emerald-600/20 active:scale-[0.982] transition-all cursor-pointer border border-emerald-400/30`,children:[(0,react_jsx_runtime.jsx)(Send,{className:`size-3.5`}),(0,react_jsx_runtime.jsx)(`span`,{children:`推送到公众号草稿箱`}),isMultiArticles&&(0,react_jsx_runtime.jsxs)(`span`,{className:`px-1.5 py-0.2 rounded text-[10px] font-mono bg-black/20 text-white/90`,children:[`多图文 `,totalArticlesCount,` 篇`]}),(0,react_jsx_runtime.jsx)(ArrowRight,{className:`size-3 opacity-80`})]})]})]})]})}var StudioHeader_module_css_default={"brand":`K3WtwG_brand`,"brandIcon":`K3WtwG_brandIcon`,"divider":`K3WtwG_divider`,"dot":`K3WtwG_dot`,"dotAmber":`K3WtwG_dotAmber`,"dotIdle":`K3WtwG_dotIdle`,"dotPulse":`K3WtwG_dotPulse`,"dotPulseAmber":`K3WtwG_dotPulseAmber`,"dotPulsePrimary":`K3WtwG_dotPulsePrimary`,"dotSuccess":`K3WtwG_dotSuccess`,"header":`K3WtwG_header`,"left":`K3WtwG_left`,"modeBadge":`K3WtwG_modeBadge`,"modeDryRun":`K3WtwG_modeDryRun`,"modeOfficial":`K3WtwG_modeOfficial`,"right":`K3WtwG_right`,"spin":`K3WtwG_spin`,"stage":`K3WtwG_stage`,"syncError":`K3WtwG_syncError`,"syncIcon":`K3WtwG_syncIcon`,"syncSpin":`K3WtwG_syncSpin`,"syncState":`K3WtwG_syncState`,"syncSuccess":`K3WtwG_syncSuccess`};const DEFAULT_STAGE={text:`准备就绪`,dotClass:StudioHeader_module_css_default.dotIdle};const STAGE_LABELS={idle:DEFAULT_STAGE,topics:{text:`选题构思`,dotClass:StudioHeader_module_css_default.dotAmber},generating:{text:`正文排版构建中`,dotClass:StudioHeader_module_css_default.dotPulsePrimary},review:{text:`待审校确认`,dotClass:StudioHeader_module_css_default.dotAmber},publishing:{text:`发布中`,dotClass:StudioHeader_module_css_default.dotPulsePrimary},published:{text:`已完成发布`,dotClass:StudioHeader_module_css_default.dotSuccess}};function StudioHeader({workflow,physicalSaveStatus=`idle`}){const stage=(workflow.stage?STAGE_LABELS[workflow.stage]:void 0)??DEFAULT_STAGE;const isDryRun=Boolean(workflow.isDryRun);const showModeBadge=workflow.stage===`review`||workflow.stage===`publishing`||workflow.stage===`published`;return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`studio-header`,className:StudioHeader_module_css_default.header,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:StudioHeader_module_css_default.left,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:StudioHeader_module_css_default.brand,children:[(0,react_jsx_runtime.jsx)(LayoutPanelLeft,{className:StudioHeader_module_css_default.brandIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`社媒发布工作台`})]}),(0,react_jsx_runtime.jsx)(`span`,{className:StudioHeader_module_css_default.divider}),(0,react_jsx_runtime.jsxs)(`div`,{className:StudioHeader_module_css_default.stage,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`${StudioHeader_module_css_default.dot} ${stage.dotClass}`}),(0,react_jsx_runtime.jsx)(`span`,{children:stage.text})]}),showModeBadge&&(isDryRun?(0,react_jsx_runtime.jsx)(`span`,{className:`${StudioHeader_module_css_default.modeBadge} ${StudioHeader_module_css_default.modeDryRun}`,title:`当前处于离线演练模式，仅生成模拟回执，不调用真实浏览器向线上平台发布`,children:`离线演练`}):(0,react_jsx_runtime.jsx)(`span`,{className:`${StudioHeader_module_css_default.modeBadge} ${StudioHeader_module_css_default.modeOfficial}`,title:`当前处于真实线上发布模式，确认后将直接推送到对应平台官方后台`,children:`正式发布`}))]}),(0,react_jsx_runtime.jsxs)(`div`,{className:StudioHeader_module_css_default.right,children:[physicalSaveStatus===`saving`&&(0,react_jsx_runtime.jsxs)(`div`,{className:`${StudioHeader_module_css_default.syncState} ${StudioHeader_module_css_default.syncLoading}`,children:[(0,react_jsx_runtime.jsx)(LoaderCircle,{className:`${StudioHeader_module_css_default.syncIcon} ${StudioHeader_module_css_default.syncSpin}`}),(0,react_jsx_runtime.jsx)(`span`,{children:`沙箱物理同步中`})]}),physicalSaveStatus===`synced`&&(0,react_jsx_runtime.jsxs)(`div`,{className:`${StudioHeader_module_css_default.syncState} ${StudioHeader_module_css_default.syncSuccess}`,children:[(0,react_jsx_runtime.jsx)(Check,{className:StudioHeader_module_css_default.syncIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`沙箱物理已同步`})]}),physicalSaveStatus===`error`&&(0,react_jsx_runtime.jsx)(`span`,{className:StudioHeader_module_css_default.syncError,children:`物理落盘失败`})]})]})}var StudioTabNav_module_css_default={"dot":`_0ZrV9a_dot`,"dotAmber":`_0ZrV9a_dotAmber`,"dotPrimary":`_0ZrV9a_dotPrimary`,"dotSuccess":`_0ZrV9a_dotSuccess`,"overviewBtn":`_0ZrV9a_overviewBtn`,"overviewBtnActive":`_0ZrV9a_overviewBtnActive`,"overviewDivider":`_0ZrV9a_overviewDivider`,"overviewIcon":`_0ZrV9a_overviewIcon`,"overviewSection":`_0ZrV9a_overviewSection`,"scrollArea":`_0ZrV9a_scrollArea`,"scrollArrowBtn":`_0ZrV9a_scrollArrowBtn`,"scrollArrowLeft":`_0ZrV9a_scrollArrowLeft`,"scrollArrowRight":`_0ZrV9a_scrollArrowRight`,"scrollRail":`_0ZrV9a_scrollRail`,"tabDotPulse":`_0ZrV9a_tabDotPulse`,"tabIcon":`_0ZrV9a_tabIcon`,"tabItem":`_0ZrV9a_tabItem`,"tabItemActive":`_0ZrV9a_tabItemActive`,"tabLabel":`_0ZrV9a_tabLabel`,"tabNav":`_0ZrV9a_tabNav`,"tabTrack":`_0ZrV9a_tabTrack`};function getArticleTabLabel(art,idx,allArticles){const isNewspic=art.articleType===`newspic`;const isXhs=art.platform===`xiaohongshu`;const isGzh=art.platform===`gzh`;if(isNewspic){const sameNewspics=allArticles.filter(a=>a.articleType===`newspic`);if(sameNewspics.length>1){const n=sameNewspics.findIndex(a=>a.id===art.id)+1;return`小绿书 #${n>0?n:idx+1}`}return`小绿书`}if(isGzh){const sameGzh=allArticles.filter(a=>a.platform===`gzh`&&a.articleType!==`newspic`);if(sameGzh.length>1){const slotNum=typeof art.index===`number`&&art.index>0?art.index:sameGzh.findIndex(a=>a.id===art.id)+1;return slotNum===1?`头条`:`#${slotNum} 次条`}return`公众号`}if(isXhs){const sameXhs=allArticles.filter(a=>a.platform===`xiaohongshu`);if(sameXhs.length>1){const xIdx=sameXhs.findIndex(a=>a.id===art.id)+1;return`小红书 #${xIdx>0?xIdx:idx+1}`}return`小红书`}return{zhihu:`知乎`,toutiao:`头条`,baijiahao:`百家号`}[art.platform]??art.platformName??`#${idx+1}`}function StudioTabNav({articles,currentIndex,showOverview,hasGzh,onSelectIndex,onSelectOverview,imageProgress}){const showOverviewButton=hasGzh&&articles.length>1;const scrollContainerRef=(0,react.useRef)(null);const activeTabRef=(0,react.useRef)(null);const[canScrollLeft,setCanScrollLeft]=(0,react.useState)(false);const[canScrollRight,setCanScrollRight]=(0,react.useState)(false);const checkScrollState=(0,react.useCallback)(()=>{const el=scrollContainerRef.current;if(!el)return;const hasOverflow=el.scrollWidth>el.clientWidth+2;setCanScrollLeft(el.scrollLeft>4);setCanScrollRight(hasOverflow&&el.scrollLeft<el.scrollWidth-el.clientWidth-4)},[]);(0,react.useEffect)(()=>{checkScrollState();const el=scrollContainerRef.current;if(!el)return;const resizeObserver=new ResizeObserver(()=>{checkScrollState()});resizeObserver.observe(el);return()=>{resizeObserver.disconnect()}},[checkScrollState,articles.length]);const handleWheel=e=>{const el=scrollContainerRef.current;if(!el)return;if(e.deltaY!==0&&Math.abs(e.deltaX)===0){el.scrollLeft+=e.deltaY;checkScrollState();e.preventDefault()}};(0,react.useEffect)(()=>{if(!showOverview&&activeTabRef.current)activeTabRef.current.scrollIntoView?.({behavior:`smooth`,block:`nearest`,inline:`nearest`})},[currentIndex,showOverview]);const handleScrollStep=direction=>{const el=scrollContainerRef.current;if(!el)return;el.scrollBy({left:direction===`left`?-140:140,behavior:`smooth`})};return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`studio-tab-nav`,className:StudioTabNav_module_css_default.tabNav,children:[showOverviewButton&&(0,react_jsx_runtime.jsxs)(`div`,{className:StudioTabNav_module_css_default.overviewSection,children:[(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:onSelectOverview,className:`${StudioTabNav_module_css_default.overviewBtn} ${showOverview?StudioTabNav_module_css_default.overviewBtnActive:``}`,children:[(0,react_jsx_runtime.jsx)(Layers,{className:StudioTabNav_module_css_default.overviewIcon}),(0,react_jsx_runtime.jsx)(`span`,{children:`合辑总览`})]}),(0,react_jsx_runtime.jsx)(`span`,{className:StudioTabNav_module_css_default.overviewDivider})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:StudioTabNav_module_css_default.scrollArea,children:[canScrollLeft&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>handleScrollStep(`left`),className:`${StudioTabNav_module_css_default.scrollArrowBtn} ${StudioTabNav_module_css_default.scrollArrowLeft}`,title:`向左浏览篇目`,children:(0,react_jsx_runtime.jsx)(ChevronLeft,{size:13})}),(0,react_jsx_runtime.jsx)(`div`,{ref:scrollContainerRef,onScroll:checkScrollState,onWheel:handleWheel,className:StudioTabNav_module_css_default.scrollRail,children:(0,react_jsx_runtime.jsx)(`div`,{className:StudioTabNav_module_css_default.tabTrack,children:articles.map((art,idx)=>{const isCur=!showOverview&&currentIndex===idx;const isNewspic=art.articleType===`newspic`;const isXhs=art.platform===`xiaohongshu`;const label=getArticleTabLabel(art,idx,articles);const artIndex=art.index||idx+1;const isArticleStreaming=Boolean(art.isStreaming||art.status===`streaming`);const isArticlePending=Boolean(art.status===`pending`);const isArticleDone=!isArticleStreaming&&!isArticlePending&&(art.status===`completed`||Boolean(art.filePath)||(art.content?.length??0)>=60&&!art.content.includes(`正文排版落盘产物生成中`));const hasCover=Boolean(art.coverUrl);const imageCount=art.images?.length??0;const targetImageCount=isXhs||isNewspic?resolveTargetCardCount(art):1;const isImageGenerating=isArticleDone&&!(isXhs||isNewspic?imageCount>=targetImageCount:Boolean(hasCover||imageCount>=targetImageCount))&&Boolean(imageProgress?.isGenerating&&(imageProgress.currentArticleIndex===artIndex||imageProgress.currentArticleIndex===0));return(0,react_jsx_runtime.jsxs)(`button`,{ref:isCur?activeTabRef:void 0,type:`button`,onClick:()=>onSelectIndex(idx),className:`${StudioTabNav_module_css_default.tabItem} ${isCur?StudioTabNav_module_css_default.tabItemActive:``}`,children:[isArticleStreaming?(0,react_jsx_runtime.jsx)(`span`,{className:`${StudioTabNav_module_css_default.dot} ${StudioTabNav_module_css_default.dotPrimary}`}):isImageGenerating?(0,react_jsx_runtime.jsx)(`span`,{className:`${StudioTabNav_module_css_default.dot} ${StudioTabNav_module_css_default.dotAmber}`}):(0,react_jsx_runtime.jsx)(`span`,{className:`${StudioTabNav_module_css_default.dot} ${StudioTabNav_module_css_default.dotSuccess}`}),isNewspic||isXhs?(0,react_jsx_runtime.jsx)(Smartphone,{className:StudioTabNav_module_css_default.tabIcon}):(0,react_jsx_runtime.jsx)(FileText,{className:StudioTabNav_module_css_default.tabIcon}),(0,react_jsx_runtime.jsx)(`span`,{className:StudioTabNav_module_css_default.tabLabel,children:label})]},art.id||idx)})})}),canScrollRight&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,onClick:()=>handleScrollStep(`right`),className:`${StudioTabNav_module_css_default.scrollArrowBtn} ${StudioTabNav_module_css_default.scrollArrowRight}`,title:`向右浏览篇目`,children:(0,react_jsx_runtime.jsx)(ChevronRight,{size:13})})]})]})}function resolveSafeMediaPreviewUrl(params){const{rawUrlOrPath}=params;if(!rawUrlOrPath||typeof rawUrlOrPath!==`string`)return void 0;if(rawUrlOrPath.startsWith(`http://`)||rawUrlOrPath.startsWith(`https://`)||rawUrlOrPath.startsWith(`data:image/`)||rawUrlOrPath.startsWith(`blob:`))return rawUrlOrPath;return buildLocalMediaPreviewUrl(rawUrlOrPath)}function XhsInteractiveCanvas({article,workspacePath,workspaceIdentity,sessionId,taskId:_taskId,onUpdateArticle}){const[selectedCardIdx,setSelectedCardIdx]=(0,react.useState)(0);const[draggedCardIdx,setDraggedCardIdx]=(0,react.useState)(null);const allImages=(0,react.useMemo)(()=>{const list=[];if(article.coverUrl)list.push(article.coverUrl);for(const img of article.images||[])if(!list.includes(img))list.push(img);return list},[article.coverUrl,article.images]);const resolvedImageUrls=(0,react.useMemo)(()=>{return allImages.map(raw=>resolveSafeMediaPreviewUrl({rawUrlOrPath:raw,workspacePath,workspaceIdentity,sessionId,scriptsDir:article.scriptsDir})||raw)},[allImages,workspacePath,workspaceIdentity,sessionId,article.scriptsDir]);const handleDragStart=idx=>{setDraggedCardIdx(idx)};const handleDragOver=(e,targetIdx)=>{e.preventDefault();if(draggedCardIdx===null||draggedCardIdx===targetIdx)return;const nextImages=[...allImages];const[moved]=nextImages.splice(draggedCardIdx,1);if(moved){nextImages.splice(targetIdx,0,moved);setDraggedCardIdx(targetIdx);if(onUpdateArticle)onUpdateArticle({...article,coverUrl:nextImages[0]||article.coverUrl,images:nextImages})}};const handleDragEnd=()=>{setDraggedCardIdx(null)};const handleRegenerateImage=(0,react.useCallback)(idx=>{window.dispatchEvent(new CustomEvent(`wincode:social-studio-regenerate-image`,{detail:{articleIndex:article.index||1,slotId:`slot_${idx+1}`,kind:idx===0?`pic_cover`:`pic_card`,ratio:`3:4`,article}}))},[article]);return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`xhs-interactive-canvas`,className:`flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto h-full min-h-0 select-none`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex-1 flex flex-col items-center justify-center p-4 min-h-0`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`relative w-full max-w-[360px] aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl border border-border/80 bg-surface-subtle group`,children:[resolvedImageUrls[selectedCardIdx]?(0,react_jsx_runtime.jsx)(`img`,{src:resolvedImageUrls[selectedCardIdx],alt:`卡片 ${selectedCardIdx+1}`,className:`w-full h-full object-cover select-none pointer-events-none`}):(0,react_jsx_runtime.jsxs)(`div`,{className:`w-full h-full flex flex-col items-center justify-center gap-2 p-6 text-foreground-muted bg-surface/80`,children:[(0,react_jsx_runtime.jsx)(Image,{className:`size-10 stroke-1 opacity-60 animate-pulse`}),(0,react_jsx_runtime.jsx)(`p`,{className:`text-ui-xs font-medium`,children:`3:4 竖版海报卡片生成中`})]}),selectedCardIdx===0&&(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute top-6 left-4 right-4 p-3 rounded-lg bg-black/75 backdrop-blur-md border border-white/10 text-white shadow-lg`,children:[(0,react_jsx_runtime.jsx)(`span`,{className:`text-ui-2xs font-semibold px-1.5 py-0.5 rounded bg-primary text-primary-foreground mr-2`,children:`爆款首图`}),(0,react_jsx_runtime.jsx)(`span`,{className:`text-ui-sm font-bold tracking-tight`,children:article.title||`未命名小红书笔记`})]}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity`,children:(0,react_jsx_runtime.jsxs)(Button,{size:`sm`,variant:`secondary`,className:`h-7 px-2 text-ui-2xs gap-1 bg-surface/90 backdrop-blur shadow-sm hover:bg-surface-hover`,onClick:()=>handleRegenerateImage(selectedCardIdx),children:[(0,react_jsx_runtime.jsx)(Sparkles,{className:`size-3 text-primary`}),`重新设计`]})}),resolvedImageUrls.length>0&&(0,react_jsx_runtime.jsxs)(`div`,{className:`absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/60 text-white text-ui-2xs font-mono backdrop-blur-sm`,children:[selectedCardIdx+1,` / `,resolvedImageUrls.length]})]}),resolvedImageUrls.length>1&&(0,react_jsx_runtime.jsx)(`div`,{className:`flex gap-2 mt-4 p-1.5 bg-surface-subtle rounded-xl border border-border/60 overflow-x-auto max-w-full custom-scrollbar`,children:resolvedImageUrls.map((url,idx)=>(0,react_jsx_runtime.jsxs)(`div`,{draggable:true,onDragStart:()=>handleDragStart(idx),onDragOver:e=>handleDragOver(e,idx),onDragEnd:handleDragEnd,onClick:()=>setSelectedCardIdx(idx),className:cn(`relative w-14 aspect-[3/4] rounded-lg overflow-hidden border cursor-pointer transition-all flex-shrink-0 group/item`,selectedCardIdx===idx?`border-primary ring-2 ring-primary/20 shadow-md scale-105`:`border-border/60 hover:border-foreground-muted opacity-80 hover:opacity-100`,draggedCardIdx===idx&&`opacity-40`),children:[(0,react_jsx_runtime.jsx)(`img`,{src:url,alt:`缩略图 ${idx+1}`,className:`w-full h-full object-cover`}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute top-0.5 left-0.5 p-0.5 bg-black/60 rounded text-white text-[9px] font-mono leading-none`,children:idx===0?`封面`:idx+1}),(0,react_jsx_runtime.jsx)(`div`,{className:`absolute inset-0 flex items-center justify-center opacity-0 group-hover/item:opacity-100 bg-black/30 transition-opacity`,children:(0,react_jsx_runtime.jsx)(GripVertical,{className:`size-3.5 text-white`})})]},idx))})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`w-full lg:w-[420px] flex flex-col gap-4 p-4 bg-surface rounded-2xl border border-border/70 overflow-hidden shadow-sm`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`flex items-center gap-2 border-b border-border/60 pb-3`,children:[(0,react_jsx_runtime.jsx)(FileText,{className:`size-4 text-primary`}),(0,react_jsx_runtime.jsx)(`h4`,{className:`text-ui-sm font-semibold text-foreground`,children:`小红书文案与热门话题`}),(0,react_jsx_runtime.jsxs)(`span`,{className:`text-ui-2xs text-foreground-muted ml-auto font-mono`,children:[article.content?article.content.length:0,` 字`]})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar`,children:[(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1.5`,children:[(0,react_jsx_runtime.jsx)(`label`,{className:`text-ui-2xs font-medium text-foreground-muted`,children:`爆款标题 (≤20字)`}),(0,react_jsx_runtime.jsx)(`input`,{type:`text`,maxLength:20,value:article.title||``,onChange:e=>{if(onUpdateArticle)onUpdateArticle({...article,title:e.target.value})},className:`w-full px-3 py-2 rounded-lg bg-surface-subtle border border-border/60 text-ui-sm font-bold focus:outline-none focus:ring-1 focus:ring-primary`,placeholder:`输入小红书爆款标题...`})]}),(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1.5 flex-1`,children:[(0,react_jsx_runtime.jsx)(`label`,{className:`text-ui-2xs font-medium text-foreground-muted`,children:`文案正文`}),(0,react_jsx_runtime.jsx)(`textarea`,{rows:12,value:article.content||``,onChange:e=>{if(onUpdateArticle)onUpdateArticle({...article,content:e.target.value})},className:`w-full px-3 py-2 rounded-lg bg-surface-subtle border border-border/60 text-ui-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-primary resize-none custom-scrollbar`,placeholder:`正文内容...`})]}),article.tags&&article.tags.length>0&&(0,react_jsx_runtime.jsxs)(`div`,{className:`space-y-1.5`,children:[(0,react_jsx_runtime.jsxs)(`label`,{className:`text-ui-2xs font-medium text-foreground-muted flex items-center gap-1`,children:[(0,react_jsx_runtime.jsx)(Hash,{className:`size-3 text-primary`}),`推荐热门话题`]}),(0,react_jsx_runtime.jsx)(`div`,{className:`flex flex-wrap gap-1.5`,children:article.tags.map((tag,i)=>(0,react_jsx_runtime.jsxs)(`span`,{className:`px-2 py-0.5 rounded-full bg-primary/10 text-primary text-ui-2xs font-medium`,children:[`#`,tag]},i))})]})]})]})]})}function useSocialStudioArticleSync({workflow,workspacePath,currentIndex,localArticles:_localArticles,setLocalArticles,triggerAutoSave,currentArticle,draftMapRef}){const socialPublisherRpc=useOptionalServices()?.socialPublisherService??null;const[currentSignedHash,setCurrentSignedHash]=(0,react.useState)(workflow.manifestFingerprint||``);const[physicalSaveStatus,setPhysicalSaveStatus]=(0,react.useState)(`idle`);const[isResigning,setIsResigning]=(0,react.useState)(false);const syncTimerRef=(0,react.useRef)(null);(0,react.useEffect)(()=>{if(workflow.manifestFingerprint)setCurrentSignedHash(workflow.manifestFingerprint)},[workflow.manifestFingerprint]);const syncPhysicalArticle=(0,react.useCallback)((index,contentToSync,titleToSync,digestToSync,targetArticle)=>{const targetTaskId=workflow.taskId||workflow.activeTaskId;if(!targetTaskId)return;if(syncTimerRef.current)clearTimeout(syncTimerRef.current);setPhysicalSaveStatus(`saving`);syncTimerRef.current=setTimeout(async()=>{try{const effArt=targetArticle??currentArticle;const targetKey=effArt?.accountId?`${effArt.platform}_${effArt.accountId}`:void 0;const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/article/update`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({taskId:targetTaskId,articleIndex:effArt?.index||index,title:titleToSync,digest:digestToSync,content:contentToSync,workspacePath,targetKey,platform:effArt?.platform,articleType:effArt?.articleType,filePath:effArt?.filePath})},socialPublisherRpc));if(parsed.ok&&parsed.data?.ok){if(parsed.data.manifestFingerprint)setCurrentSignedHash(parsed.data.manifestFingerprint);setPhysicalSaveStatus(`synced`)}else setPhysicalSaveStatus(`error`)}catch{setPhysicalSaveStatus(`error`)}finally{syncTimerRef.current=null}},350)},[workflow.taskId,workflow.activeTaskId,workspacePath,socialPublisherRpc,currentArticle]);return{currentSignedHash,physicalSaveStatus,isResigning,handleResignManifest:(0,react.useCallback)(async()=>{const targetTaskId=workflow.taskId||workflow.activeTaskId;if(!targetTaskId){toast(`未检测到有效任务 ID，无法重新核验`);return}setIsResigning(true);try{const parsed=await safeParseJson(await publisherApiFetch(`/api/gzh-publisher/sandbox/resign`,{method:`POST`,headers:{"Content-Type":`application/json`},body:JSON.stringify({taskId:targetTaskId,workspacePath})},socialPublisherRpc));if(parsed.ok&&parsed.data?.ok&&parsed.data.manifestFingerprint){setCurrentSignedHash(parsed.data.manifestFingerprint);setPhysicalSaveStatus(`synced`);toast(`已核验磁盘物理文件并刷新签名指纹（${parsed.data.manifestFingerprint.slice(0,8)}...）`)}else toast(parsed.data?.error||`核验签名失败`)}catch(err){toast(`核验异常: ${err.message||String(err)}`)}finally{setIsResigning(false)}},[workflow.taskId,workflow.activeTaskId,workspacePath,socialPublisherRpc]),handleTitleChange:(0,react.useCallback)(newTitle=>{const art=currentArticle;const key=art?.filePath||art?.id||String(art?.index??currentIndex);if(draftMapRef?.current)draftMapRef.current.set(key,{...draftMapRef.current.get(key),title:newTitle});setLocalArticles(prev=>prev.map((a,idx)=>idx===currentIndex?{...a,title:newTitle}:a));syncPhysicalArticle(art?.index||currentIndex+1,void 0,newTitle,void 0,art)},[currentIndex,currentArticle,draftMapRef,setLocalArticles,syncPhysicalArticle]),handleDigestChange:(0,react.useCallback)(newDigest=>{const art=currentArticle;const key=art?.filePath||art?.id||String(art?.index??currentIndex);if(draftMapRef?.current)draftMapRef.current.set(key,{...draftMapRef.current.get(key),digest:newDigest});setLocalArticles(prev=>prev.map((a,idx)=>idx===currentIndex?{...a,digest:newDigest}:a));syncPhysicalArticle(art?.index||currentIndex+1,void 0,void 0,newDigest,art)},[currentIndex,currentArticle,draftMapRef,setLocalArticles,syncPhysicalArticle]),handleContentChange:(0,react.useCallback)(newContent=>{const art=currentArticle;const key=art?.filePath||art?.id||String(art?.index??currentIndex);if(draftMapRef?.current)draftMapRef.current.set(key,{...draftMapRef.current.get(key),content:newContent});setLocalArticles(prev=>prev.map((a,idx)=>idx===currentIndex?{...a,content:newContent}:a));const targetKey=art?.filePath||art?.id;if(targetKey)triggerAutoSave(newContent,targetKey);syncPhysicalArticle(art?.index||currentIndex+1,newContent,void 0,void 0,art)},[currentIndex,currentArticle,draftMapRef,triggerAutoSave,setLocalArticles,syncPhysicalArticle])}}var SocialStudioCanvas_module_css_default={"canvasRoot":`_9dECtW_canvasRoot`,"contentContainer":`_9dECtW_contentContainer`,"emptyDot":`_9dECtW_emptyDot`,"emptyIconBox":`_9dECtW_emptyIconBox`,"emptyState":`_9dECtW_emptyState`,"emptySubtitle":`_9dECtW_emptySubtitle`,"emptyTitle":`_9dECtW_emptyTitle`,"pulse":`_9dECtW_pulse`,"scrollArea":`_9dECtW_scrollArea`};const SocialStudioCanvas=(0,react.memo)(function SocialStudioCanvas({workflow,workspacePath,workspaceIdentity,sessionId}){const articles=(0,react.useMemo)(()=>Array.isArray(workflow.articles)?workflow.articles:[],[workflow.articles]);const hasGzh=articles.some(a=>a.platform===`gzh`);const[currentIndex,setCurrentIndex]=(0,react.useState)(0);const[showOverview,setShowOverview]=(0,react.useState)(false);const[localArticles,setLocalArticles]=(0,react.useState)(articles);const[copied,setCopied]=(0,react.useState)(false);const[userManuallySelectedTab,setUserManuallySelectedTab]=(0,react.useState)(false);const[saveStatus,setSaveStatus]=(0,react.useState)(`idle`);const saveDebounceTimerRef=(0,react.useRef)(null);const pendingSaveRef=(0,react.useRef)(null);const draftMapRef=(0,react.useRef)(new Map);const taskScope=workflow.taskId||workflow.activeTaskId||sessionId||`task`;const getArticleKey=(0,react.useCallback)((art,fallbackIdx)=>{if(art.filePath)return art.filePath;if(art.id)return`${taskScope}::${art.id}`;return`${taskScope}::${art.index??fallbackIdx}`},[taskScope]);(0,react.useEffect)(()=>{if(!Array.isArray(workflow.articles)||workflow.articles.length===0)return;let isCancelled=false;Promise.all(workflow.articles.map(async(art,idx)=>{const storageKey=getArticleKey(art,idx);let persistentContent;if(storageKey)try{const saved=await getPersistentArticleContent(storageKey);if(saved&&saved.trim())persistentContent=saved}catch{}const key=getArticleKey(art,idx);const draft=draftMapRef.current.get(key);let merged={...art};if(persistentContent)merged.content=persistentContent;if(draft)merged={...merged,...draft};return merged})).then(hydrated=>{if(!isCancelled)setLocalArticles(hydrated)});return()=>{isCancelled=true}},[workflow.articles,getArticleKey]);(0,react.useEffect)(()=>{if(currentIndex>=localArticles.length){const maxIdx=localArticles.length-1;setCurrentIndex(maxIdx>=0?maxIdx:0)}},[localArticles.length,currentIndex]);(0,react.useEffect)(()=>{if(userManuallySelectedTab)return;const streamIdx=workflow.activeStreamingIndex;if(typeof streamIdx===`number`&&streamIdx>0&&localArticles.length>0){const targetIdx=localArticles.findIndex(a=>a.index===streamIdx);if(targetIdx!==-1&&targetIdx!==currentIndex){setCurrentIndex(targetIdx);setShowOverview(false)}}},[workflow.activeStreamingIndex,userManuallySelectedTab,localArticles,currentIndex]);const imgCurrent=workflow.imageProgress?.current;const imgTotal=workflow.imageProgress?.total;const imgPercentage=workflow.imageProgress?.percentage;const imgIsGenerating=workflow.imageProgress?.isGenerating;const articlesImagesKey=(workflow.articles||[]).map(a=>`${a.id||a.index}:${(a.images||[]).join(`,`)}|${a.coverUrl||``}`).join(`;`);const isInitialMountRef=(0,react.useRef)(true);const prevProgressKeyRef=(0,react.useRef)(``);(0,react.useEffect)(()=>{const currentKey=`${imgCurrent??0}-${imgPercentage??0}-${imgIsGenerating?1:0}-${articlesImagesKey}`;if(isInitialMountRef.current){isInitialMountRef.current=false;prevProgressKeyRef.current=currentKey;return}if(prevProgressKeyRef.current!==currentKey){prevProgressKeyRef.current=currentKey;invalidateMediaCache()}},[imgCurrent,imgTotal,imgPercentage,imgIsGenerating,articlesImagesKey]);const currentArticle=localArticles[currentIndex]??localArticles[0]??null;const flushPendingSave=(0,react.useCallback)(async pending=>{if(!pending.key||!pending.content)return;await putPersistentArticleContent(pending.key,pending.content);cacheArticleContent(pending.key,pending.content);setSaveStatus(`saved`)},[]);(0,react.useEffect)(()=>{return()=>{if(saveDebounceTimerRef.current){clearTimeout(saveDebounceTimerRef.current);saveDebounceTimerRef.current=null}if(pendingSaveRef.current){flushPendingSave(pendingSaveRef.current);pendingSaveRef.current=null}}},[flushPendingSave]);const{currentSignedHash,physicalSaveStatus,isResigning,handleResignManifest,handleTitleChange,handleDigestChange,handleContentChange}=useSocialStudioArticleSync({workflow,workspacePath,currentIndex,localArticles,setLocalArticles,triggerAutoSave:(0,react.useCallback)((contentToSave,targetKey)=>{if(!targetKey||!contentToSave)return;pendingSaveRef.current={key:targetKey,content:contentToSave};if(saveDebounceTimerRef.current)clearTimeout(saveDebounceTimerRef.current);setSaveStatus(`saving`);saveDebounceTimerRef.current=setTimeout(async()=>{if(pendingSaveRef.current){await flushPendingSave(pendingSaveRef.current);pendingSaveRef.current=null}saveDebounceTimerRef.current=null},250)},[flushPendingSave]),currentArticle,draftMapRef});const handleImageChanged=(0,react.useCallback)((slotIndex,newImageUrl)=>{if(!currentArticle)return;const updatedImages=[...currentArticle.images||[]];while(updatedImages.length<slotIndex)updatedImages.push(``);updatedImages[slotIndex-1]=newImageUrl;const key=getArticleKey(currentArticle,currentIndex);const updatedArticle={...currentArticle,images:updatedImages};draftMapRef.current.set(key,{...draftMapRef.current.get(key),images:updatedImages});setLocalArticles(prev=>prev.map((art,idx)=>idx===currentIndex?updatedArticle:art))},[currentArticle,currentIndex]);const handleAddCard=(0,react.useCallback)(()=>{if(!currentArticle)return;const currentQuota=currentArticle.targetCardImageCount||4;const maxLimit=currentArticle.platform===`xiaohongshu`?18:20;if(currentQuota>=maxLimit){toast(`卡片数量已达上限 (${maxLimit} 张)`);return}const newQuota=currentQuota+1;const key=getArticleKey(currentArticle,currentIndex);const updatedArticle={...currentArticle,targetCardImageCount:newQuota};draftMapRef.current.set(key,{...draftMapRef.current.get(key),targetCardImageCount:newQuota});setLocalArticles(prev=>prev.map((art,idx)=>idx===currentIndex?updatedArticle:art));toast(`已增加第 #${newQuota} 张视觉卡片槽位`)},[currentArticle,currentIndex]);const handleDeleteCard=(0,react.useCallback)(slotIndex=>{if(!currentArticle)return;const currentQuota=currentArticle.targetCardImageCount||4;if(currentQuota<=1){toast(`至少保留 1 张视觉卡片`);return}const newQuota=currentQuota-1;const updatedImages=(currentArticle.images||[]).filter((_,idx)=>idx!==slotIndex-1);const key=getArticleKey(currentArticle,currentIndex);const updatedArticle={...currentArticle,targetCardImageCount:newQuota,images:updatedImages};draftMapRef.current.set(key,{...draftMapRef.current.get(key),targetCardImageCount:newQuota,images:updatedImages});setLocalArticles(prev=>prev.map((art,idx)=>idx===currentIndex?updatedArticle:art));toast(`已移除第 #${slotIndex} 张卡片`)},[currentArticle,currentIndex]);const handleArticleChange=(0,react.useCallback)(updatedArticle=>{const key=getArticleKey(updatedArticle,currentIndex);draftMapRef.current.set(key,{...draftMapRef.current.get(key),...updatedArticle});setLocalArticles(prev=>prev.map((art,idx)=>idx===currentIndex?updatedArticle:art))},[currentIndex]);const handleCopyCurrentArticle=async()=>{if(!currentArticle)return;if(await copySocialArticleContent(currentArticle)){setCopied(true);toast(`已复制文章文案至剪贴板`);setTimeout(()=>setCopied(false),2e3)}else toast(`写入剪贴板失败，请重试`)};const handlePublishCurrentOnly=(action,scheduleTime)=>{if(!currentArticle)return;const pName=currentArticle.platformName??currentArticle.platform??`微信公众号`;const targetTaskId=workflow.taskId||workflow.activeTaskId||``;const signedHash=currentSignedHash||workflow.manifestFingerprint||``;const sigMeta=targetTaskId||signedHash?` (taskId: ${targetTaskId||`auto`}, articleIndex: ${currentIndex+1}${signedHash?`, signedHash: ${signedHash}`:``})`:``;let singleActionDesc;let toastDesc;if(action===`schedule`){const schedText=scheduleTime?`在 [${scheduleTime}] 定时排期发布`:`自动排期发布`;singleActionDesc=`定时排期发布至【${pName}】（调用 gzh_publish_draft，明确传入 publish_action: "schedule", schedule_time: "${scheduleTime||`auto`}", article_index: ${currentIndex+1}）`;toastDesc=`${schedText}至【${pName}】`}else if(action===`publish_now`){singleActionDesc=`公开发布至【${pName}】（调用 gzh_publish_draft，明确传入 publish_action: "publish_now", article_index: ${currentIndex+1}）`;toastDesc=`公开发布至【${pName}】`}else{singleActionDesc=`存入【${pName}】官方草稿箱（调用 gzh_publish_draft，明确传入 publish_action: "draft", article_index: ${currentIndex+1}）`;toastDesc=`存入【${pName}】官方草稿箱`}const promptText=`【单篇发布确认·版本已终局锁定】已审校确认第 ${currentIndex+1} 篇《${currentArticle.title}》内容无误${sigMeta}；当前稿件已锁定严禁二次修改，请立即单独执行【${singleActionDesc}】并核验状态。`;window.dispatchEvent(new CustomEvent(`wincode:social-publisher-send-prompt`,{detail:{text:promptText,workspacePath,workspaceIdentity,sessionId}}));toast(`已发送单篇发布指令：《${currentArticle.title}》→ ${toastDesc}`)};const handleConfirmPublishAll=(action,scheduleTime)=>{const totalCount=localArticles.length;const targetTaskId=workflow.taskId||workflow.activeTaskId||``;const signedHash=currentSignedHash||workflow.manifestFingerprint||``;const sigMeta=targetTaskId||signedHash?` (taskId: ${targetTaskId||`auto`}${signedHash?`, signedHash: ${signedHash}`:``})`:``;let actionDesc;let toastDesc;if(action===`schedule`){const schedText=scheduleTime?`在 [${scheduleTime}] 定时排期发布`:`自动排期发布`;actionDesc=`微信公众号多图文组合定时排期发布（调用 gzh_publish_draft，明确传入 publish_action: "schedule", schedule_time: "${scheduleTime||`auto`}"）`;toastDesc=`一键${schedText} (共 ${totalCount} 篇)`}else if(action===`publish_now`){actionDesc=`多图文组合公开发布（调用 gzh_publish_draft，明确传入 publish_action: "publish_now"）`;toastDesc=`一键公开发布至各平台 (共 ${totalCount} 篇)`}else{actionDesc=`多图文组合发布至微信官方草稿箱（调用 gzh_publish_draft，明确传入 publish_action: "draft"）`;toastDesc=`一键存入各平台官方草稿箱 (共 ${totalCount} 篇)`}const promptText=`【多图文组合发布·版本已终局锁定】已审校确认当前任务全部 ${totalCount} 篇图文内容无误${sigMeta}；当前稿件已锁定严禁二次修改，请立即一次性执行【${actionDesc}】，严禁拆分成单篇上传，并核验发布状态。`;window.dispatchEvent(new CustomEvent(`wincode:social-publisher-send-prompt`,{detail:{text:promptText,workspacePath,workspaceIdentity,sessionId}}));toast(`已向会话发送发布确认指令：${toastDesc}`)};const isReviewOrLater=[`review`,`publishing`,`published`].includes(workflow.stage)||Boolean(workflow.isContentFullyProduced);return(0,react_jsx_runtime.jsxs)(`div`,{"data-testid":`social-studio-canvas`,className:SocialStudioCanvas_module_css_default.canvasRoot,children:[(0,react_jsx_runtime.jsx)(StudioHeader,{workflow,physicalSaveStatus}),localArticles.length>0&&(0,react_jsx_runtime.jsx)(StudioTabNav,{articles:localArticles,currentIndex,showOverview,hasGzh,imageProgress:workflow.imageProgress,onSelectIndex:idx=>{setCurrentIndex(idx);setShowOverview(false);setUserManuallySelectedTab(true);window.dispatchEvent(new CustomEvent(`wincode:social-studio-current-article`,{detail:{index:idx,article:localArticles[idx],isOverview:false}}))},onSelectOverview:()=>{setShowOverview(true);setUserManuallySelectedTab(true);window.dispatchEvent(new CustomEvent(`wincode:social-studio-current-article`,{detail:{index:-1,article:null,isOverview:true}}))}}),(0,react_jsx_runtime.jsxs)(`div`,{className:SocialStudioCanvas_module_css_default.scrollArea,children:[localArticles.length===0&&(0,react_jsx_runtime.jsxs)(`div`,{className:SocialStudioCanvas_module_css_default.emptyState,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialStudioCanvas_module_css_default.emptyIconBox,children:(0,react_jsx_runtime.jsx)(`span`,{className:SocialStudioCanvas_module_css_default.emptyDot})}),(0,react_jsx_runtime.jsx)(`p`,{className:SocialStudioCanvas_module_css_default.emptyTitle,children:`正文排版编译准备中`}),(0,react_jsx_runtime.jsx)(`p`,{className:SocialStudioCanvas_module_css_default.emptySubtitle,children:`任务执行就绪后将在此处自动加载高保真画纸`})]}),showOverview&&hasGzh&&localArticles.length>0&&(0,react_jsx_runtime.jsx)(`div`,{className:SocialStudioCanvas_module_css_default.contentContainer,children:(0,react_jsx_runtime.jsx)(WechatMultiArticleOverview,{articles:localArticles,workspacePath,workspaceIdentity,sessionId,scriptsDir:workflow.scriptsDir||localArticles.find(a=>a.scriptsDir)?.scriptsDir,onSelectArticle:idx=>{setCurrentIndex(idx);setShowOverview(false)}})}),!showOverview&&currentArticle&&(0,react_jsx_runtime.jsx)(`div`,{className:SocialStudioCanvas_module_css_default.contentContainer,children:currentArticle.platform===`xiaohongshu`?(0,react_jsx_runtime.jsx)(XhsInteractiveCanvas,{article:currentArticle,workspacePath,workspaceIdentity,sessionId,taskId:workflow.taskId,onUpdateArticle:handleArticleChange}):(0,react_jsx_runtime.jsx)(SocialArticlePlatformPreview,{article:currentArticle,workspacePath,workspaceIdentity,sessionId,taskId:workflow.taskId,editable:isReviewOrLater||Boolean(currentArticle&&!currentArticle.isStreaming&&currentArticle.status===`completed`),onTitleChange:handleTitleChange,onDigestChange:handleDigestChange,onContentChange:handleContentChange,onImageChanged:handleImageChanged,onAddCard:handleAddCard,onDeleteCard:handleDeleteCard,onArticleChange:handleArticleChange})})]}),(isReviewOrLater||Boolean(currentArticle&&!currentArticle.isStreaming&&currentArticle.status===`completed`))&&currentArticle&&localArticles.length>0&&(0,react_jsx_runtime.jsx)(SocialArticleBottomActionBar,{currentArticle,currentIndex,totalArticlesCount:localArticles.length,primeTimeSuggestions:[],copied,copyConfig:{buttonLabel:`复制当前篇`,toastTip:`已复制`},saveStatus,onOpenTypography:()=>{window.dispatchEvent(new CustomEvent(`wincode:social-open-typography`))},onCopyContent:handleCopyCurrentArticle,onPublishCurrentOnly:handlePublishCurrentOnly,onConfirmPublishAll:handleConfirmPublishAll,onResignManifest:handleResignManifest,isResigning,showPublishActions:false})]})});var SocialSplitStudioContainer_module_css_default={"body":`TRG0bG_body`,"canvasPaneFull":`TRG0bG_canvasPaneFull`,"container":`TRG0bG_container`};const EMPTY_SESSION_LIST_SNAPSHOT={byId:{}};function SocialSplitStudioContainer(props){const{children,hero}=props;const isCompanionChat=useIsCompanionChat();const mode=useAppWorkMode();const ctx=getGlobalCtx();const listStore=ctx?.sessions?.list;const sessionListSnapshot=(0,react.useSyncExternalStore)(cb=>listStore?.subscribe?.(cb)??(()=>{}),()=>listStore?.getSnapshot?.()??EMPTY_SESSION_LIST_SNAPSHOT);const activeSessionId=(0,react.useMemo)(()=>{if(!sessionListSnapshot?.byId)return void 0;return Object.values(sessionListSnapshot.byId).find(s=>(s.retainedBy?.mainView??0)>0)?.id},[sessionListSnapshot]);const activeSession=activeSessionId?sessionListSnapshot?.byId?.[activeSessionId]:void 0;const isSocialSession=activeSession?.projectionValues?.agentPreset===`social`||activeSession?.agentPreset===`social`;const cwd=sessionListSnapshot?.byId?.[activeSessionId]?.cwd||``;const{workflow,hasArticles}=useSocialWorkflow(activeSessionId);const isSocial=mode===`social`||isSocialSession||hasArticles;const[viewMode,setViewMode]=(0,react.useState)(`canvas`);const openedSidebarRef=(0,react.useRef)(false);(0,react.useEffect)(()=>{if(isSocial&&hasArticles&&!openedSidebarRef.current&&activeSessionId&&ctx?.sidebarRight){openedSidebarRef.current=true;try{ctx.sidebarRight.openTabIn?.(activeSessionId,SOCIAL_COMPANION_CHAT_KIND)}catch{try{ctx.sidebarRight.openTab?.(SOCIAL_COMPANION_CHAT_KIND)}catch{}}}},[isSocial,hasArticles,activeSessionId,ctx]);(0,react.useEffect)(()=>{openedSidebarRef.current=false;setViewMode(`canvas`)},[activeSessionId]);if(isCompanionChat||!isSocial||hero||!hasArticles)return(0,react_jsx_runtime.jsx)(react_jsx_runtime.Fragment,{children});if(viewMode===`dismissed`)return(0,react_jsx_runtime.jsxs)(`div`,{style:{position:`relative`,width:`100%`,height:`100%`,display:`flex`,flexDirection:`column`},children:[children,(0,react_jsx_runtime.jsxs)(`button`,{type:`button`,onClick:()=>setViewMode(`canvas`),style:{position:`absolute`,top:`56px`,right:`24px`,zIndex:50,display:`inline-flex`,alignItems:`center`,gap:`6px`,padding:`6px 14px`,borderRadius:`20px`,background:`var(--dsw-alias-bg-base, #ffffff)`,border:`1px solid rgba(16, 185, 129, 0.4)`,color:`#059669`,fontSize:`12px`,fontWeight:600,boxShadow:`0 4px 12px rgba(0, 0, 0, 0.12)`,cursor:`pointer`,transition:`all 0.18s ease`},title:`重新打开社媒排版与审校画布`,children:[(0,react_jsx_runtime.jsx)(LayoutPanelLeft,{size:14}),(0,react_jsx_runtime.jsxs)(`span`,{children:[`打开排版画布 (`,workflow.articles.length,`篇)`]})]})]});return(0,react_jsx_runtime.jsx)(`div`,{className:SocialSplitStudioContainer_module_css_default.container,"data-testid":`social-split-studio-container`,children:(0,react_jsx_runtime.jsxs)(`div`,{className:SocialSplitStudioContainer_module_css_default.body,children:[(0,react_jsx_runtime.jsx)(`div`,{className:SocialSplitStudioContainer_module_css_default.canvasPaneFull,children:(0,react_jsx_runtime.jsx)(SocialStudioCanvas,{workflow,workspacePath:cwd,sessionId:activeSessionId})}),(0,react_jsx_runtime.jsx)(`div`,{style:{display:`none`},"aria-hidden":`true`,children})]})})}var SocialPublisherToolView_module_css_default={"inspectBtn":`_4FWUG_inspectBtn`,"output":`_4FWUG_output`,"phaseBadge":`_4FWUG_phaseBadge`,"summary":`_4FWUG_summary`};const PHASE_LABELS={preflight:{running:`预检平台账号登录态...`,completed:`平台账号登录态正常`},topics:{running:`全网热点分析与查重评估...`,completed:`选题策划与查重通过`},writing:{running:`平台图文智能排版与生成...`,completed:`图文规范排版完成`},images:{running:`定制视觉蓝图与 AI 插图绘制...`,completed:`AI 封面与插图绘制完成`},validating:{running:`排版与合规机器硬性校验...`,completed:`机器合规校验通过`},publishing:{running:`同步推送官方草稿箱...`,completed:`已同步至官方草稿箱`},ready:{running:`社媒矩阵流水线执行中...`,completed:`社媒内容矩阵创作就绪（可在右侧或中央审校）`}};function resolvePhaseFromArgs(raw){if(!raw)return`writing`;try{const parsed=JSON.parse(raw);const action=String(parsed[`action`]||parsed[`mode`]||``).toLowerCase();if(action===`publish`||action.includes(`publish`))return`publishing`;if(action===`validate`)return`validating`;if(action===`image`||action.includes(`image`)||action.includes(`pic`))return`images`;if(action===`topic`||action.includes(`topic`)||action.includes(`discover`))return`topics`;if(action===`preflight`||action.includes(`login`))return`preflight`;if(action===`produce`||action.includes(`write`)||action.includes(`build`))return`writing`}catch{const lower=raw.toLowerCase();if(lower.includes(`publish`))return`publishing`;if(lower.includes(`validate`))return`validating`;if(lower.includes(`image`))return`images`;if(lower.includes(`topic`))return`topics`;if(lower.includes(`login`)||lower.includes(`preflight`))return`preflight`}return`writing`}const noop=()=>void 0;function SocialPublisherToolView(props){return props.phase===`preparing`?(0,react_jsx_runtime.jsx)(PreparingSocialPublisherRow,{...props}):(0,react_jsx_runtime.jsx)(StartedSocialPublisherRow,{...props})}function PreparingSocialPublisherRow({toolName}){return(0,react_jsx_runtime.jsx)(`div`,{"data-tool":toolName,"data-state":`preparing`,"aria-label":`准备社媒发布任务...`,children:(0,react_jsx_runtime.jsx)(_winkoo_client_ui_primitives.DisclosureRow,{title:`初始化社媒矩阵内容生产流水线...`,icon:(0,react_jsx_runtime.jsx)(Share2,{size:14,style:{color:`#10b981`}}),open:false,expandable:false,onToggle:noop,running:true})})}function StartedSocialPublisherRow({block,inspect,toolName}){const settled=`kind`in block;const state=!settled?`running`:block.error?.code===`interrupted`?`stopped`:block.isError?`error`:`ok`;const args=(settled?block.call?.argsRaw:block.argsRaw)??``;const details=(settled?block.content.map(item=>item.type===`text`?item.text:JSON.stringify(item)).join(`
+`):``)||(settled&&block.error?`${block.error.name}: ${block.error.code}`:``);const[expanded,setExpanded]=(0,react.useState)(false);const phase=(0,react.useMemo)(()=>resolvePhaseFromArgs(args),[args]);return(0,react_jsx_runtime.jsx)(`div`,{"data-tool":toolName,"data-state":state,children:(0,react_jsx_runtime.jsxs)(_winkoo_client_ui_primitives.DisclosureRow,{title:(0,react.useMemo)(()=>{if(state===`running`)return PHASE_LABELS[phase]?.running??`社媒矩阵流水线执行中...`;if(state===`error`)return`社媒发布流水线异常`;if(state===`stopped`)return`社媒发布流水线已中断`;return PHASE_LABELS[phase]?.completed??`社媒内容矩阵创作就绪`},[phase,state]),icon:(0,react_jsx_runtime.jsx)(Share2,{size:14,style:{color:state===`error`?`#ef4444`:`#10b981`}}),open:expanded&&details!==``,expandable:details!==``,expandOnRowClick:true,keepContentWhenOpen:true,running:state===`running`,onToggle:()=>setExpanded(prev=>!prev),collapsedContent:(0,react_jsx_runtime.jsx)(`span`,{className:SocialPublisherToolView_module_css_default.summary,children:(0,react_jsx_runtime.jsx)(`span`,{className:SocialPublisherToolView_module_css_default.phaseBadge,children:phase})}),children:[(0,react_jsx_runtime.jsx)(`pre`,{className:SocialPublisherToolView_module_css_default.output,children:details}),inspect&&(0,react_jsx_runtime.jsx)(`button`,{type:`button`,className:SocialPublisherToolView_module_css_default.inspectBtn,onClick:inspect,children:`查看轨迹详情`})]})})}const LOCALE_NS=`socialPublisher`;let globalCtx=null;function getGlobalCtx(){return globalCtx}const inject=[`slots`,`locale`,`sidebarRight`,`sidebarRightTabs`,`sessions`,`conversation`,`uiWorkspace`];function apply(ctx){globalCtx=ctx;ctx.effect(()=>ctx.locale.register(LOCALE_NS,{zh,en,ja:en,es:en,fr:en,de:en,ru:en,pt:en}),`ui-social-publisher: dictionaries`);const t=ctx.locale.bind(LOCALE_NS);ctx.slots.inject(`settings.section`,()=>ctx.slots.register({name:`settings.section`,id:`social-publisher`,order:85,locale:LOCALE_NS,label:()=>t(`nav`)},SocialPublisherSection));ctx.slots.inject(`conversation.input.dock`,()=>ctx.slots.register({name:`conversation.input.dock`,id:`social-publisher-composer`,order:15,locale:LOCALE_NS,inject:sessionId=>{const conversation=(ctx.sessions?.scope?.(sessionId))?.get?.(`conversation`)??ctx.conversation;return{onSendPrompt:async text=>{if(conversation&&typeof conversation.send===`function`)await conversation.send(text)}}}},SocialPublisherInputDock));ctx.slots.inject(`conversation.chat.turnTail`,()=>ctx.slots.register({name:`conversation.chat.turnTail`,id:`social-publisher-turn-tail`,order:25,locale:LOCALE_NS},SocialWorkflowTurnTail));ctx.effect(()=>ctx.sidebarRightTabs.register({id:SOCIAL_ARTICLE_TAB_ID,kind:`social-article`,title:()=>t(`tab.articleReview`)}),`ui-social-publisher: sidebar right tab definition`);ctx.slots.inject(`sidebar.right.pane.tab`,()=>ctx.slots.register({name:`sidebar.right.pane.tab`,key:SOCIAL_ARTICLE_TAB_ID,locale:LOCALE_NS},SocialArticleRightTab));ctx.slots.inject(`sidebar.right.pane.tab.title`,()=>ctx.slots.register({name:`sidebar.right.pane.tab.title`,key:SOCIAL_ARTICLE_TAB_ID,locale:LOCALE_NS},SocialArticleRightTabTitle));ctx.effect(()=>ctx.sidebarRightTabs.register({id:SOCIAL_COMPANION_CHAT_TAB_ID,kind:`social-chat`,title:()=>{const snapshot=ctx.sessions?.list?.getSnapshot?.();return(snapshot?.byId?Object.values(snapshot.byId).find(s=>(s.retainedBy?.mainView??0)>0):void 0)?.title||`伴随对话`}}),`ui-social-publisher: sidebar right companion chat tab definition`);ctx.slots.inject(`sidebar.right.pane.tab`,()=>ctx.slots.register({name:`sidebar.right.pane.tab`,key:SOCIAL_COMPANION_CHAT_TAB_ID,locale:LOCALE_NS,children:{"sidebar.social.companion.chat":{kind:`single`,scope:`session`}}},SocialCompanionChatTab));ctx.slots.inject(`sidebar.social.companion.chat`,()=>ctx.slots.register({name:`sidebar.social.companion.chat`},CompanionConversationPanel));ctx.slots.inject(`sidebar.right.pane.tab.title`,()=>ctx.slots.register({name:`sidebar.right.pane.tab.title`,key:SOCIAL_COMPANION_CHAT_TAB_ID,locale:LOCALE_NS},SocialCompanionChatTabTitle));ctx.slots.inject(`conversation.hero.mode.switcher`,()=>ctx.slots.register({name:`conversation.hero.mode.switcher`,locale:LOCALE_NS},HeroWorkModePillSwitcher));ctx.slots.inject(`conversation.hero.frame`,()=>ctx.slots.register({name:`conversation.hero.frame`,id:`social-split-studio`,order:5,locale:LOCALE_NS},SocialSplitStudioContainer));ctx.slots.inject(`tool.call.toolview`,()=>ctx.slots.register({name:`tool.call.toolview`,key:`social_publisher`,locale:LOCALE_NS},SocialPublisherToolView))}exports.LOCALE_NS=LOCALE_NS;exports.apply=apply;exports.getGlobalCtx=getGlobalCtx;exports.inject=inject;return module.exports},meta:()=>({stylesheets:{"src/client/features/core/SocialPublisherComposerCard.module.css":{text:context=>`.K-e6oG_card{box-sizing:border-box;-webkit-backdrop-filter:blur(24px)saturate(180%);background:#ffffffb8;border:1px solid #ffffffa6;border-radius:18px;flex-direction:column;gap:12px;width:100%;max-width:820px;margin:0 auto;padding:16px 20px;transition:all .25s cubic-bezier(.16,1,.3,1);animation:.2s cubic-bezier(.16,1,.3,1) K-e6oG_cardFadeIn;display:flex;position:relative;box-shadow:0 12px 36px -4px #00000014,inset 0 1.5px 1px #ffffffe6}body[data-ds-dark-theme] .K-e6oG_card{background:#23242ac7;border:1px solid #ffffff1f;box-shadow:0 16px 48px -4px #00000080,inset 0 1.5px 1px #ffffff29}@keyframes K-e6oG_cardFadeIn{0%{opacity:0;transform:translateY(4px)scale(.99)}to{opacity:1;transform:translateY(0)scale(1)}}.K-e6oG_header{border-bottom:1px solid #7d7d7d1a;justify-content:space-between;align-items:center;padding-bottom:10px;display:flex}body[data-ds-dark-theme] .K-e6oG_header{border-bottom:1px solid #ffffff14}.K-e6oG_headerLeft{align-items:center;gap:8px;display:flex}.K-e6oG_headerIcon{color:#059669;background:#10b98124;border:1px solid #10b9814d;border-radius:8px;flex-shrink:0;justify-content:center;align-items:center;width:26px;height:26px;display:inline-flex}body[data-ds-dark-theme] .K-e6oG_headerIcon{color:#34d399;background:#10b98133}.K-e6oG_headerTitle{letter-spacing:-.01em;color:var(--dsw-alias-label-primary,#111827);font-size:13.5px;font-weight:600}.K-e6oG_badgeStudio{color:#059669;user-select:none;background:#10b9811a;border:1px solid #10b98140;border-radius:9999px;align-items:center;padding:2px 8px;font-size:11px;font-weight:500;display:inline-flex}body[data-ds-dark-theme] .K-e6oG_badgeStudio{color:#34d399;background:#10b9812e}.K-e6oG_geoButton{color:var(--dsw-alias-label-secondary,#4b5563);cursor:pointer;user-select:none;background:#7d7d7d14;border:1px solid #7d7d7d26;border-radius:9999px;align-items:center;gap:4px;padding:2px 8px;font-size:11px;transition:all .15s;display:inline-flex}.K-e6oG_geoButton:hover{color:var(--dsw-alias-label-primary,#111827);background:#7d7d7d29}.K-e6oG_headerRight{align-items:center;gap:8px;display:flex}.K-e6oG_dryRunPill{cursor:default;user-select:none;border-radius:9999px;align-items:center;gap:5px;padding:3px 10px;font-size:11px;font-weight:500;transition:all .15s;display:inline-flex}.K-e6oG_dryRunAmber{color:#d97706;background:#f59e0b1f;border:1px solid #f59e0b59}body[data-ds-dark-theme] .K-e6oG_dryRunAmber{color:#fbbf24;background:#f59e0b2e}.K-e6oG_dryRunEmerald{color:#059669;background:#10b9811f;border:1px solid #10b98159}body[data-ds-dark-theme] .K-e6oG_dryRunEmerald{color:#34d399;background:#10b9812e}.K-e6oG_platformCountLabel{color:var(--dsw-alias-label-secondary,#6b7280);font-size:11.5px}.K-e6oG_platformCountLabel strong{color:#059669;font-weight:600}body[data-ds-dark-theme] .K-e6oG_platformCountLabel strong{color:#34d399}.K-e6oG_closeBtn{cursor:pointer;width:24px;height:24px;color:var(--dsw-alias-label-tertiary,#9ca3af);background:0 0;border:none;border-radius:6px;justify-content:center;align-items:center;transition:all .15s;display:inline-flex}.K-e6oG_closeBtn:hover{color:var(--dsw-alias-label-primary,#111827);background:#7d7d7d1f}.K-e6oG_platformGrid{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;display:grid}.K-e6oG_platformBtn{cursor:pointer;user-select:none;box-sizing:border-box;height:36px;color:var(--dsw-alias-label-secondary,#4b5563);background:#7d7d7d0d;border:1px solid #7d7d7d1f;border-radius:10px;justify-content:center;align-items:center;gap:6px;padding:0 10px;font-size:12px;font-weight:500;transition:all .18s cubic-bezier(.16,1,.3,1);display:flex;position:relative}.K-e6oG_platformBtn:hover{color:var(--dsw-alias-label-primary,#111827);background:#7d7d7d1a}.K-e6oG_platformBtnActive{color:#059669;background:#10b98129;border:1px solid #10b98173;font-weight:600;box-shadow:0 2px 8px #10b98126,inset 0 1px 1px #fff9}body[data-ds-dark-theme] .K-e6oG_platformBtnActive{color:#34d399;background:#10b98138;box-shadow:0 2px 8px #10b98140,inset 0 1px 1px #ffffff26}.K-e6oG_platformBtn:active{transform:scale(.97)}.K-e6oG_accountBar{-webkit-backdrop-filter:blur(8px);background:#7d7d7d0a;border:1px solid #7d7d7d1a;border-radius:12px;flex-direction:column;gap:6px;padding:8px 12px;display:flex}body[data-ds-dark-theme] .K-e6oG_accountBar{background:#ffffff08;border:1px solid #ffffff14}.K-e6oG_accountBarTop{justify-content:space-between;align-items:center;font-size:11.5px;display:flex}.K-e6oG_accountBarTitle{color:var(--dsw-alias-label-secondary,#4b5563);text-overflow:ellipsis;white-space:nowrap;align-items:center;gap:6px;display:flex;overflow:hidden}.K-e6oG_accountSettingsToggle{color:var(--dsw-alias-label-tertiary,#6b7280);cursor:pointer;background:0 0;border:none;flex-shrink:0;align-items:center;gap:4px;font-size:11px;transition:color .15s;display:inline-flex}.K-e6oG_accountSettingsToggle:hover{color:#059669}body[data-ds-dark-theme] .K-e6oG_accountSettingsToggle:hover{color:#34d399}.K-e6oG_accountDrawerPanel{border-top:1px solid #7d7d7d1a;flex-direction:column;gap:8px;max-height:180px;margin-top:4px;padding-top:8px;display:flex;overflow-y:auto}body[data-ds-dark-theme] .K-e6oG_accountDrawerPanel{border-top:1px solid #ffffff14}.K-e6oG_accountGroupCard{background:#7d7d7d0a;border:1px solid #7d7d7d14;border-radius:10px;flex-direction:column;gap:6px;padding:8px 10px;display:flex}body[data-ds-dark-theme] .K-e6oG_accountGroupCard{background:#ffffff08;border:1px solid #ffffff0f}.K-e6oG_accountChip{color:var(--dsw-alias-label-primary,#111827);cursor:pointer;background:#7d7d7d0d;border:1px solid #7d7d7d26;border-radius:6px;align-items:center;gap:6px;padding:3px 8px;font-size:11px;transition:all .15s;display:inline-flex}.K-e6oG_accountChipActive{color:#059669;background:#10b98124;border-color:#10b98166;font-weight:500}body[data-ds-dark-theme] .K-e6oG_accountChipActive{color:#34d399}.K-e6oG_composerInputArea{flex-direction:column;gap:6px;display:flex}.K-e6oG_inputAreaHeader{justify-content:space-between;align-items:center;padding:0 2px;display:flex}.K-e6oG_inputAreaTitle{color:var(--dsw-alias-label-primary,#111827);font-size:12px;font-weight:500}.K-e6oG_inputAreaHint{color:var(--dsw-alias-label-caption,#9ca3af);font-size:11px}.K-e6oG_textarea{resize:none;width:100%;height:88px;color:var(--dsw-alias-label-primary,#111827);box-sizing:border-box;background:#7d7d7d08;border:1px solid #7d7d7d29;border-radius:12px;padding:10px 14px;font-family:inherit;font-size:13px;line-height:1.6;transition:all .2s}.K-e6oG_textarea::placeholder{color:var(--dsw-alias-label-caption,#9ca3af)}.K-e6oG_textarea:focus{background:#ffffff80;border-color:#10b98180;outline:none;box-shadow:0 0 0 3px #10b98124}body[data-ds-dark-theme] .K-e6oG_textarea{background:#ffffff08;border:1px solid #ffffff1a}body[data-ds-dark-theme] .K-e6oG_textarea:focus{background:#ffffff0f}.K-e6oG_sparksBar{flex-wrap:wrap;align-items:center;gap:6px;padding-top:2px;display:flex}.K-e6oG_sparksLabel{color:var(--dsw-alias-label-secondary,#6b7280);user-select:none;align-items:center;gap:4px;font-size:11.5px;font-weight:500;display:inline-flex}.K-e6oG_sparkChip{cursor:pointer;user-select:none;color:var(--dsw-alias-label-secondary,#374151);background:#7d7d7d0d;border:1px solid #7d7d7d1f;border-radius:9999px;align-items:center;padding:3px 10px;font-size:11px;font-weight:500;transition:all .15s;display:inline-flex}.K-e6oG_sparkChip:hover{color:#059669;background:#10b9811a;border-color:#10b98159;transform:translateY(-1px)}body[data-ds-dark-theme] .K-e6oG_sparkChip{color:#d1d5db}body[data-ds-dark-theme] .K-e6oG_sparkChip:hover{color:#34d399}.K-e6oG_sparkChip:active{transform:scale(.97)}.K-e6oG_errorMessage{color:#ef4444;align-items:center;gap:6px;font-size:11.5px;display:flex}.K-e6oG_footer{justify-content:space-between;align-items:center;gap:12px;padding-top:4px;display:flex}.K-e6oG_footerLeft{align-items:center;gap:10px;min-width:0;display:flex;position:relative}.K-e6oG_footerRight{flex-shrink:0;align-items:center;gap:8px;display:flex}.K-e6oG_modeHint{color:var(--dsw-alias-label-caption,#6b7280);white-space:nowrap;text-overflow:ellipsis;align-items:center;gap:5px;font-size:11px;display:inline-flex;overflow:hidden}.K-e6oG_submitBtn{cursor:pointer;user-select:none;color:#fff;background:linear-gradient(135deg,#10b981 0%,#059669 100%);border:1px solid #ffffff40;border-radius:10px;justify-content:center;align-items:center;gap:6px;height:34px;padding:0 18px;font-size:12.5px;font-weight:500;transition:all .18s cubic-bezier(.16,1,.3,1);display:inline-flex;box-shadow:0 2px 10px #10b98159}.K-e6oG_submitBtn:hover{opacity:.94;box-shadow:0 4px 14px #10b98173}.K-e6oG_submitBtn:active{transform:scale(.97)}.K-e6oG_submitBtn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none;pointer-events:none}.K-e6oG_workspacePickerBtn{cursor:pointer;user-select:none;height:30px;color:var(--dsw-alias-label-primary,#111827);box-sizing:border-box;background:#7d7d7d0f;border:1px solid #7d7d7d24;border-radius:10px;align-items:center;gap:6px;padding:0 10px;font-size:11.5px;font-weight:500;transition:all .15s;display:inline-flex}.K-e6oG_workspacePickerBtn:hover{background:#7d7d7d1f}.K-e6oG_workspacePickerBtn:active{transform:scale(.97)}.K-e6oG_workspacePopover{z-index:1000;background:var(--dsw-specific-menu,#fffffff2);-webkit-backdrop-filter:blur(24px)saturate(180%);border:1px solid var(--dsw-alias-border-l2,#7d7d7d33);box-sizing:border-box;border-radius:14px;width:290px;padding:8px;animation:.15s cubic-bezier(.16,1,.3,1) K-e6oG_popoverFadeIn;position:absolute;bottom:calc(100% + 8px);left:0;box-shadow:0 12px 32px #0000002e,inset 0 1px 1.5px #fffc}body[data-ds-dark-theme] .K-e6oG_workspacePopover{background:#23242af2;border:1px solid #ffffff24;box-shadow:0 16px 40px #0009,inset 0 1px 1px #ffffff26}@keyframes K-e6oG_popoverFadeIn{0%{opacity:0;transform:translateY(4px)scale(.98)}to{opacity:1;transform:translateY(0)scale(1)}}.K-e6oG_workspaceSearchRow{box-sizing:border-box;background:#7d7d7d0f;border:1px solid #7d7d7d1a;border-radius:8px;align-items:center;gap:8px;margin-bottom:6px;padding:6px 10px;display:flex}body[data-ds-dark-theme] .K-e6oG_workspaceSearchRow{background:#ffffff0d;border:1px solid #ffffff14}.K-e6oG_workspaceSearchInput{width:100%;color:var(--dsw-alias-label-primary,#111827);background:0 0;border:none;outline:none;font-family:inherit;font-size:11.5px}.K-e6oG_workspaceSearchInput::placeholder{color:var(--dsw-alias-label-caption,#9ca3af)}.K-e6oG_workspaceList{flex-direction:column;gap:2px;max-height:190px;display:flex;overflow-y:auto}.K-e6oG_workspaceItem{cursor:pointer;user-select:none;text-align:left;width:100%;color:var(--dsw-alias-label-secondary,#374151);box-sizing:border-box;background:0 0;border:none;border-radius:8px;justify-content:space-between;align-items:center;padding:6px 10px;font-size:11.5px;transition:all .15s;display:flex}.K-e6oG_workspaceItem:hover{color:var(--dsw-alias-label-primary,#111827);background:#7d7d7d1a}.K-e6oG_workspaceItemActive{font-weight:500;color:#059669!important;background:#10b9811f!important}body[data-ds-dark-theme] .K-e6oG_workspaceItemActive{color:#34d399!important}.K-e6oG_workspaceActionItem{cursor:pointer;text-align:left;width:100%;color:var(--dsw-alias-label-primary,#111827);box-sizing:border-box;background:0 0;border:none;border-radius:8px;align-items:center;gap:8px;margin-top:4px;padding:6px 10px;font-size:11.5px;display:flex}body[data-ds-dark-theme] .K-e6oG_workspaceActionItem{border-top:1px solid #ffffff14}.K-e6oG_workspaceActionItem:hover{background:#7d7d7d14}body[data-app-work-mode=social] [data-composer-hero] [class*=heroWorkspaceRow]{display:none!important}body[data-app-work-mode=social] [data-composer-hero] [data-composer-card]{display:none!important}`},"src/client/settings/SocialPublisherLoginModal.module.css":{text:context=>`.It1jRG_modalRoot{z-index:100000;-webkit-backdrop-filter:blur(8px);box-sizing:border-box;background-color:#000000b8;justify-content:center;align-items:center;padding:24px;animation:.2s ease-out It1jRG_modalFadeIn;display:flex;position:fixed;inset:0}.It1jRG_modalContainer{background:var(--dsw-alias-bg-layer-1,#fff);border:1px solid var(--dsw-alias-border-l2,#7d7d7d33);box-sizing:border-box;border-radius:16px;flex-direction:column;width:100%;max-width:1080px;height:88vh;min-height:580px;max-height:920px;animation:.2s ease-out It1jRG_modalZoomIn;display:flex;position:relative;overflow:hidden;box-shadow:0 25px 60px -15px #00000073}.It1jRG_header{border-bottom:1px solid var(--dsw-alias-border-l1,#7d7d7d26);background:var(--dsw-alias-bg-layer-2,#f9fafb);flex-direction:column;flex-shrink:0;display:flex}.It1jRG_headerTop{justify-content:space-between;align-items:center;gap:12px;padding:10px 18px;display:flex}.It1jRG_headerNavGroup{align-items:center;gap:6px;display:flex}.It1jRG_headerNavBtn{border:1px solid var(--dsw-alias-border-l1,#7d7d7d33);background:var(--dsw-alias-bg-layer-1,#fff);width:28px;height:28px;color:var(--dsw-alias-label-primary,#333);cursor:pointer;user-select:none;border-radius:6px;justify-content:center;align-items:center;font-size:14px;font-weight:600;line-height:1;transition:all .15s;display:flex}.It1jRG_headerNavBtn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,#0000000f);border-color:var(--dsw-alias-border-l2,#7d7d7d59)}.It1jRG_headerNavBtn:disabled{opacity:.35;cursor:not-allowed}.It1jRG_headerTitle{color:var(--dsw-alias-label-primary,#111827);user-select:none;align-items:center;gap:8px;font-size:13.5px;font-weight:600;display:flex}.It1jRG_headerActions{align-items:center;gap:8px;display:flex}.It1jRG_externalLinkBtn{border:1px solid var(--dsw-alias-border-l1,#7d7d7d33);background:var(--dsw-alias-bg-layer-1,#fff);height:28px;color:var(--dsw-alias-label-secondary,#4b5563);cursor:pointer;border-radius:6px;align-items:center;gap:5px;padding:0 10px;font-size:12px;font-weight:500;transition:all .15s;display:flex}.It1jRG_externalLinkBtn:hover{background:var(--dsw-alias-interactive-bg-hover,#0000000d);color:var(--dsw-alias-label-primary,#111827)}.It1jRG_closeBtn{width:28px;height:28px;color:var(--dsw-alias-label-tertiary,#9ca3af);cursor:pointer;background:0 0;border:1px solid #0000;border-radius:6px;justify-content:center;align-items:center;transition:all .15s;display:flex}.It1jRG_closeBtn:hover{color:#ef4444;background:#ef44441a}.It1jRG_headerSub{background:var(--dsw-alias-bg-layer-1,#fff);border-top:1px solid var(--dsw-alias-border-l1,#7d7d7d1a);justify-content:space-between;align-items:center;gap:12px;padding:6px 18px;font-size:11.5px;display:flex}.It1jRG_partitionBadge{color:#059669;background:#10b9811a;border:1px solid #10b98133;border-radius:9999px;flex-shrink:0;align-items:center;gap:6px;padding:2px 10px;font-size:11px;font-weight:600;display:inline-flex}.It1jRG_urlText{color:var(--dsw-alias-label-tertiary,#6b7280);text-overflow:ellipsis;white-space:nowrap;align-items:center;gap:4px;max-width:520px;display:flex;overflow:hidden}.It1jRG_webviewWrapper{background:#fff;flex-direction:column;flex:auto;width:100%;height:100%;min-height:480px;display:flex;position:relative;overflow:hidden}.It1jRG_webviewTag{-webkit-app-region:no-drag;background-color:#fff;border:0;flex:auto;width:100%;min-width:0;height:100%;min-height:0;display:flex}.It1jRG_footer{border-top:1px solid var(--dsw-alias-border-l1,#7d7d7d26);background:var(--dsw-alias-bg-layer-2,#f9fafb);flex-shrink:0;justify-content:space-between;align-items:center;gap:16px;padding:12px 20px;display:flex}.It1jRG_statusContainer{color:var(--dsw-alias-label-primary,#111827);flex:1;align-items:center;gap:8px;min-width:0;font-size:12.5px;font-weight:500;display:flex}.It1jRG_statusIcon{color:var(--dsw-alias-interactive-primary,#0969da);flex-shrink:0}.It1jRG_statusMessage{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.It1jRG_footerActions{flex-shrink:0;align-items:center;gap:10px;display:flex}.It1jRG_syncBtn{border:1px solid var(--dsw-alias-border-l2,#7d7d7d40);background:var(--dsw-alias-bg-layer-1,#fff);height:32px;color:var(--dsw-alias-label-primary,#111827);cursor:pointer;border-radius:8px;align-items:center;gap:6px;padding:0 14px;font-size:12.5px;font-weight:600;transition:all .15s;display:flex}.It1jRG_syncBtn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,#0000000d);border-color:var(--dsw-alias-interactive-primary,#0969da)}.It1jRG_syncBtn:disabled{opacity:.5;cursor:not-allowed}.It1jRG_cancelBtn{height:32px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:1px solid #0000;border-radius:8px;justify-content:center;align-items:center;padding:0 14px;font-size:12.5px;font-weight:500;transition:all .15s;display:flex}.It1jRG_cancelBtn:hover{background:var(--dsw-alias-interactive-bg-hover,#0000000d);color:var(--dsw-alias-label-primary,#111827)}.It1jRG_successOverlay{z-index:50;backdrop-filter:blur(8px);text-align:center;background:#fffffff5;flex-direction:column;justify-content:center;align-items:center;padding:24px;animation:.2s ease-out It1jRG_modalFadeIn;display:flex;position:absolute;inset:0}.It1jRG_successTitle{color:#111827;margin-top:14px;margin-bottom:6px;font-size:18px;font-weight:700}.It1jRG_successSubtitle{color:#4b5563;font-size:13px}body[data-ds-dark-theme] .It1jRG_modalContainer{background:var(--dsw-alias-bg-layer-1,#18191c);border-color:var(--dsw-alias-border-l2,#ffffff24)}body[data-ds-dark-theme] .It1jRG_header,body[data-ds-dark-theme] .It1jRG_footer{background:var(--dsw-alias-bg-layer-2,#202125);border-color:var(--dsw-alias-border-l1,#ffffff14)}body[data-ds-dark-theme] .It1jRG_headerSub{background:var(--dsw-alias-bg-layer-1,#18191c);border-color:var(--dsw-alias-border-l1,#ffffff14)}body[data-ds-dark-theme] .It1jRG_headerNavBtn,body[data-ds-dark-theme] .It1jRG_externalLinkBtn,body[data-ds-dark-theme] .It1jRG_syncBtn{background:var(--dsw-alias-bg-layer-1,#18191c);border-color:var(--dsw-alias-border-l1,#ffffff1f);color:var(--dsw-alias-label-primary,#f3f4f6)}body[data-ds-dark-theme] .It1jRG_successOverlay{background:#18191cf5}body[data-ds-dark-theme] .It1jRG_successTitle{color:#f3f4f6}body[data-ds-dark-theme] .It1jRG_successSubtitle{color:#9ca3af}@keyframes It1jRG_modalFadeIn{0%{opacity:0}to{opacity:1}}@keyframes It1jRG_modalZoomIn{0%{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}`},"src/client/features/core/components/SocialArticleImageCreatingPlaceholder.module.css":{text:context=>`.xvj3kG_headlinerPlaceholder{aspect-ratio:2.35;user-select:none;background:var(--dsw-alias-bg-layer-2,#00000005);border:1px dashed var(--dsw-alias-border-l2,#0000001f);box-sizing:border-box;border-radius:12px;justify-content:center;align-items:center;width:100%;padding:20px;display:flex;position:relative;overflow:hidden}body[data-ds-dark-theme] .xvj3kG_headlinerPlaceholder{background:#ffffff08;border-color:#ffffff1a}.xvj3kG_placeholderInner{text-align:left;align-items:center;gap:14px;max-width:420px;display:flex}.xvj3kG_placeholderIconWrap{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:10px;flex-shrink:0;justify-content:center;align-items:center;width:42px;height:42px;display:flex;box-shadow:0 1px 3px #0000000a}body[data-ds-dark-theme] .xvj3kG_placeholderIconWrap{background:#1e1f24f2;border-color:#ffffff1a}.xvj3kG_placeholderIcon{width:20px;height:20px;color:var(--dsw-alias-label-secondary,#6b7280);opacity:.7}.xvj3kG_placeholderTextCol{flex-direction:column;gap:3px;min-width:0;display:flex}.xvj3kG_placeholderTitle{color:var(--dsw-alias-label-primary,#111827);letter-spacing:-.01em;margin:0;font-size:13px;font-weight:600}body[data-ds-dark-theme] .xvj3kG_placeholderTitle{color:#f3f4f6}.xvj3kG_placeholderDesc{color:var(--dsw-alias-label-tertiary,#9ca3af);font-size:11px;font-family:var(--ds-font-family-code,monospace);margin:0;line-height:1.4}.xvj3kG_placeholderBadge{font-size:10px;font-family:var(--ds-font-family-code,monospace);background:var(--dsw-alias-bg-base,#ffffffbf);color:var(--dsw-alias-label-secondary,#6b7280);border:1px solid var(--dsw-alias-border-l1,#00000014);-webkit-backdrop-filter:blur(4px);border-radius:4px;padding:2px 7px;position:absolute;bottom:10px;right:12px}body[data-ds-dark-theme] .xvj3kG_placeholderBadge{color:#9ca3af;background:#1e1f24d9;border-color:#ffffff1a}.xvj3kG_secondaryPlaceholder{background:var(--dsw-alias-bg-layer-2,#00000005);border:1px dashed var(--dsw-alias-border-l2,#0000001f);user-select:none;box-sizing:border-box;border-radius:12px;justify-content:space-between;align-items:center;padding:12px 16px;display:flex}.xvj3kG_secondaryBadge{font-size:10px;font-family:var(--ds-font-family-code,monospace);background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-secondary,#6b7280);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:4px;margin-right:6px;padding:2px 6px;display:inline-block}.xvj3kG_secondaryIconWrap{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:8px;flex-shrink:0;justify-content:center;align-items:center;width:50px;height:50px;display:flex}`},"src/client/features/core/wechat-canvas/WechatImageRegenerateModal.module.css":{text:context=>`.j9sfga_backdrop{z-index:9999;-webkit-backdrop-filter:blur(8px);user-select:none;box-sizing:border-box;background:#000000bf;justify-content:center;align-items:center;padding:16px;display:flex;position:fixed;inset:0}.j9sfga_modalContainer{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l2,#0000001f);box-sizing:border-box;border-radius:16px;flex-direction:column;gap:16px;width:100%;max-width:520px;padding:20px;display:flex;box-shadow:0 24px 50px -12px #00000040}body[data-ds-dark-theme] .j9sfga_modalContainer{background:#18191e;border-color:#ffffff1f;box-shadow:0 24px 60px #0009}.j9sfga_header{border-bottom:1px solid var(--dsw-alias-border-l1,#00000014);justify-content:space-between;align-items:center;padding-bottom:12px;display:flex}body[data-ds-dark-theme] .j9sfga_header{border-bottom-color:#ffffff14}.j9sfga_headerTitle{color:var(--dsw-alias-label-primary,#111827);margin:0;font-size:14px;font-weight:700}body[data-ds-dark-theme] .j9sfga_headerTitle{color:#f3f4f6}.j9sfga_headerSubtitle{color:var(--dsw-alias-label-tertiary,#9ca3af);margin:2px 0 0;font-size:11px}.j9sfga_closeBtn{width:28px;height:28px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:none;border-radius:6px;justify-content:center;align-items:center;transition:background .15s;display:inline-flex}.j9sfga_closeBtn:hover:not(:disabled){background:var(--dsw-alias-bg-layer-2,#0000000f);color:var(--dsw-alias-label-primary,#111827)}body[data-ds-dark-theme] .j9sfga_closeBtn:hover:not(:disabled){color:#fff;background:#ffffff1a}.j9sfga_intentBox{color:var(--dsw-alias-label-secondary,#4b5563);background:#10b9810f;border:1px solid #10b98126;border-radius:8px;padding:10px 12px;font-size:11px;line-height:1.5}body[data-ds-dark-theme] .j9sfga_intentBox{color:#d1d5db;background:#10b9811a}.j9sfga_textarea{border:1px solid var(--dsw-alias-border-l2,#0000001f);background:var(--dsw-alias-bg-base,#fff);width:100%;color:var(--dsw-alias-label-primary,#111827);box-sizing:border-box;resize:vertical;border-radius:10px;outline:none;padding:10px 12px;font-size:12px;line-height:1.5;transition:border-color .15s}.j9sfga_textarea:focus{border-color:#10b981}body[data-ds-dark-theme] .j9sfga_textarea{color:#f3f4f6;background:#141519;border-color:#ffffff26}.j9sfga_keywordPill{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);border:1px solid var(--dsw-alias-border-l1,#00000014);cursor:pointer;border-radius:6px;align-items:center;padding:2px 8px;font-size:10px;transition:all .15s;display:inline-flex}.j9sfga_keywordPill:hover{color:#059669;background:#10b9811a;border-color:#10b98133}body[data-ds-dark-theme] .j9sfga_keywordPill{color:#9ca3af;background:#25262e;border-color:#ffffff1a}.j9sfga_footer{border-top:1px solid var(--dsw-alias-border-l1,#0000000f);justify-content:space-between;align-items:center;padding-top:10px;display:flex}body[data-ds-dark-theme] .j9sfga_footer{border-top-color:#ffffff14}`},"src/client/features/core/wechat-canvas/WechatContainerGizmo.module.css":{text:context=>`.up_dVW_gizmo{z-index:30;background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l2,#0000001f);-webkit-backdrop-filter:blur(8px);user-select:none;box-sizing:border-box;border-radius:8px;justify-content:space-between;align-items:center;padding:4px 8px;font-size:12px;display:flex;position:absolute;top:-38px;left:0;right:0;box-shadow:0 4px 14px #0000001a}body[data-ds-dark-theme] .up_dVW_gizmo{background:#1e1f24f2;border-color:#ffffff1f;box-shadow:0 6px 18px #0006}.up_dVW_gizmoLabel{color:var(--dsw-alias-label-primary,#111827);border-right:1px solid var(--dsw-alias-border-l1,#00000014);align-items:center;gap:6px;padding-right:8px;font-size:11px;font-weight:600;display:flex}body[data-ds-dark-theme] .up_dVW_gizmoLabel{color:#f3f4f6;border-right-color:#ffffff14}.up_dVW_gizmoActions{align-items:center;gap:2px;display:flex}.up_dVW_gizmoBtn{width:24px;height:24px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:none;border-radius:4px;justify-content:center;align-items:center;transition:all .15s;display:inline-flex}.up_dVW_gizmoBtn:hover{background:var(--dsw-alias-bg-layer-2,#0000000f);color:var(--dsw-alias-label-primary,#111827)}body[data-ds-dark-theme] .up_dVW_gizmoBtn{color:#9ca3af}body[data-ds-dark-theme] .up_dVW_gizmoBtn:hover{color:#fff;background:#ffffff14}.up_dVW_gizmoBtn:disabled{opacity:.3;cursor:not-allowed}.up_dVW_gizmoBtnDanger:hover{color:#ef4444;background:#ef44441a}body[data-ds-dark-theme] .up_dVW_gizmoBtnDanger:hover{color:#f87171;background:#ef444433}.up_dVW_icon{width:14px;height:14px}.up_dVW_paletteWrapper{display:inline-flex;position:relative}.up_dVW_palettePopover{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l2,#0000001f);z-index:50;box-sizing:border-box;border-radius:8px;align-items:center;gap:5px;margin-top:4px;padding:6px 8px;display:flex;position:absolute;top:100%;left:0;box-shadow:0 8px 24px #0000001f}body[data-ds-dark-theme] .up_dVW_palettePopover{background:#1e1f24fa;border-color:#ffffff26;box-shadow:0 8px 32px #00000080}.up_dVW_colorDot{cursor:pointer;border:1px solid #00000026;border-radius:50%;outline:none;width:16px;height:16px;padding:0;transition:transform .15s}.up_dVW_colorDot:hover{transform:scale(1.25)}`},"src/client/features/core/wechat-canvas/WechatGapInserter.module.css":{text:context=>`.uy4m9a_gapRoot{user-select:none;z-index:10;justify-content:center;align-items:center;height:22px;margin:2px 0;display:flex;position:relative}.uy4m9a_hoverTrigger{cursor:pointer;opacity:0;justify-content:center;align-items:center;width:100%;height:100%;transition:opacity .18s;display:flex}.uy4m9a_gapRoot:hover .uy4m9a_hoverTrigger{opacity:1}.uy4m9a_gapLine{background:#10b98159;flex:1;height:1px;transition:background .15s}.uy4m9a_hoverTrigger:hover .uy4m9a_gapLine{background:#10b981a6}.uy4m9a_actionsGroup{flex-shrink:0;align-items:center;gap:6px;margin:0 8px;display:inline-flex}.uy4m9a_actionButton{font-size:11px;font-weight:500;font-family:var(--ds-font-family-code,monospace);cursor:pointer;border-radius:9999px;align-items:center;gap:4px;padding:2px 10px;transition:all .15s;display:inline-flex;box-shadow:0 1px 3px #0000000d}.uy4m9a_blankBtn{background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-secondary,#4b5563);border:1px dashed #10b98180}body[data-ds-dark-theme] .uy4m9a_blankBtn{color:#9ca3af;background:#1e1f24f2;border-color:#10b98166}.uy4m9a_blankBtn:hover{color:#059669;background:#10b98114;border-color:#10b981;transform:scale(1.02)}.uy4m9a_templateBtn{color:#fff;background:#059669;border:1px solid #059669}body[data-ds-dark-theme] .uy4m9a_templateBtn{color:#fff;background:#059669;border-color:#10b981}.uy4m9a_templateBtn:hover{background:#047857;border-color:#047857;transform:scale(1.02);box-shadow:0 2px 6px #0596694d}.uy4m9a_plusIcon{color:#059669;width:11px;height:11px}.uy4m9a_sparkleIcon{color:#fff;width:11px;height:11px}.uy4m9a_gapRootActive{z-index:20;height:28px;margin:6px 0}.uy4m9a_activeAnchorContainer{justify-content:center;align-items:center;width:100%;display:flex}.uy4m9a_anchorLine{background:linear-gradient(90deg,#10b98126,#10b981,#10b98126);flex:1;height:2px;animation:2s ease-in-out infinite uy4m9a_pulseLine}.uy4m9a_anchorBadge{color:#fff;background:#065f46;border:1px solid #34d39999;border-radius:9999px;flex-shrink:0;align-items:center;gap:6px;margin:0 8px;padding:3px 10px;font-size:11px;font-weight:600;display:inline-flex;box-shadow:0 2px 10px #05966959}.uy4m9a_anchorPinIcon{color:#34d399;width:12px;height:12px}.uy4m9a_anchorLabel{letter-spacing:.02em}.uy4m9a_cancelAnchorBtn{color:#fff;cursor:pointer;background:#fff3;border:none;border-radius:9999px;align-items:center;gap:2px;margin-left:2px;padding:1px 6px;font-size:10px;transition:all .15s;display:inline-flex}.uy4m9a_cancelAnchorBtn:hover{background:#ef4444d9;transform:scale(1.05)}.uy4m9a_cancelIcon{width:10px;height:10px}@keyframes uy4m9a_pulseLine{0%,to{opacity:.7}50%{opacity:1}}`},"src/client/features/core/wechat-canvas/WechatEditableNode.module.css":{text:context=>`.gijDoG_editableNode{color:var(--dsw-alias-label-primary,#24292f);user-select:text;word-break:break-word;box-sizing:border-box;outline:none;font-size:15px;line-height:1.8}body[data-ds-dark-theme] .gijDoG_editableNode{color:#e5e7eb}.gijDoG_editableNode img{cursor:zoom-in;border-radius:8px;max-width:100%;height:auto;margin:10px 0;display:block;box-shadow:0 2px 8px #0000000f}.gijDoG_editableNode h1,.gijDoG_editableNode h2,.gijDoG_editableNode h3{color:var(--dsw-alias-label-primary,#111827);margin:16px 0 8px;font-weight:700;line-height:1.4}body[data-ds-dark-theme] .gijDoG_editableNode h1,body[data-ds-dark-theme] .gijDoG_editableNode h2,body[data-ds-dark-theme] .gijDoG_editableNode h3{color:#f9fafb}.gijDoG_editableNode p{margin:8px 0}.gijDoG_editableNode section{box-sizing:border-box}.gijDoG_cursorText{cursor:text}.gijDoG_cursorPointer{cursor:pointer}`},"src/client/features/core/wechat-canvas/WechatBatchImageReplaceModal.module.css":{text:context=>`.ilh_eG_backdrop{z-index:9999;-webkit-backdrop-filter:blur(8px);user-select:none;box-sizing:border-box;background:#000000bf;justify-content:center;align-items:center;padding:16px;display:flex;position:fixed;inset:0}.ilh_eG_modalContainer{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l2,#0000001f);box-sizing:border-box;border-radius:16px;flex-direction:column;width:100%;max-width:640px;max-height:85vh;display:flex;overflow:hidden;box-shadow:0 24px 50px -12px #00000040}body[data-ds-dark-theme] .ilh_eG_modalContainer{background:#18191e;border-color:#ffffff1f;box-shadow:0 24px 60px #0009}.ilh_eG_header{border-bottom:1px solid var(--dsw-alias-border-l1,#00000014);background:var(--dsw-alias-bg-layer-2,#fafafa);box-sizing:border-box;justify-content:space-between;align-items:center;padding:14px 20px;display:flex}body[data-ds-dark-theme] .ilh_eG_header{background:#202127;border-bottom-color:#ffffff14}.ilh_eG_headerTitle{color:var(--dsw-alias-label-primary,#111827);margin:0;font-size:15px;font-weight:700}body[data-ds-dark-theme] .ilh_eG_headerTitle{color:#f3f4f6}.ilh_eG_headerSubtitle{color:var(--dsw-alias-label-tertiary,#9ca3af);margin:2px 0 0;font-size:11px}.ilh_eG_closeBtn{width:28px;height:28px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;background:0 0;border:none;border-radius:6px;justify-content:center;align-items:center;transition:background .15s;display:inline-flex}.ilh_eG_closeBtn:hover{background:var(--dsw-alias-bg-layer-2,#0000000f);color:var(--dsw-alias-label-primary,#111827)}body[data-ds-dark-theme] .ilh_eG_closeBtn:hover{color:#fff;background:#ffffff1a}.ilh_eG_bodyArea{background:var(--dsw-alias-bg-layer-2,#fafafa);box-sizing:border-box;flex-direction:column;flex:1;gap:16px;padding:20px;display:flex;overflow-y:auto}body[data-ds-dark-theme] .ilh_eG_bodyArea{background:#121316}.ilh_eG_dropZone{border:2px dashed var(--dsw-alias-border-l2,#00000026);text-align:center;cursor:pointer;background:var(--dsw-alias-bg-base,#fff);border-radius:12px;padding:24px;transition:all .15s}.ilh_eG_dropZoneHover{background:#10b9810d;border-color:#10b981}body[data-ds-dark-theme] .ilh_eG_dropZone{background:#1c1d23;border-color:#ffffff26}body[data-ds-dark-theme] .ilh_eG_dropZoneHover{background:#10b9811a;border-color:#10b981}.ilh_eG_imageItem{border:1px solid var(--dsw-alias-border-l1,#00000014);background:var(--dsw-alias-bg-base,#fff);box-sizing:border-box;border-radius:12px;align-items:center;gap:12px;padding:10px 14px;display:flex}body[data-ds-dark-theme] .ilh_eG_imageItem{background:#1c1d23;border-color:#ffffff14}.ilh_eG_thumbImg{object-fit:cover;border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:8px;flex-shrink:0;width:52px;height:52px}.ilh_eG_iconBtn{border:1px solid var(--dsw-alias-border-l1,#0000001a);background:var(--dsw-alias-bg-base,#fff);width:26px;height:26px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;border-radius:6px;justify-content:center;align-items:center;transition:all .15s;display:inline-flex}.ilh_eG_iconBtn:hover:not(:disabled){color:#10b981;border-color:#10b981}.ilh_eG_iconBtn:disabled{opacity:.3;cursor:not-allowed}body[data-ds-dark-theme] .ilh_eG_iconBtn{color:#9ca3af;background:#25262e;border-color:#ffffff1a}.ilh_eG_footer{border-top:1px solid var(--dsw-alias-border-l1,#00000014);background:var(--dsw-alias-bg-layer-2,#fafafa);box-sizing:border-box;justify-content:space-between;align-items:center;padding:12px 20px;display:flex}body[data-ds-dark-theme] .ilh_eG_footer{background:#202127;border-top-color:#ffffff14}.ilh_eG_confirmBtn{color:#fff;cursor:pointer;background:#10b981;border:none;border-radius:8px;padding:6px 16px;font-size:13px;font-weight:600;transition:background .15s}.ilh_eG_confirmBtn:hover:not(:disabled){background:#059669}.ilh_eG_confirmBtn:disabled{opacity:.4;cursor:not-allowed}`},"src/client/features/core/wechat-canvas/WechatCanvasLightbox.module.css":{text:context=>`.yASF6a_backdrop{z-index:9999;-webkit-backdrop-filter:blur(8px);box-sizing:border-box;user-select:none;background:#000000d9;justify-content:center;align-items:center;padding:16px;display:flex;position:fixed;inset:0}.yASF6a_closeButton{color:#fff;cursor:pointer;background:#ffffff26;border:1px solid #fff3;border-radius:8px;justify-content:center;align-items:center;padding:6px;transition:all .15s;display:flex;position:absolute;top:16px;right:16px}.yASF6a_closeButton:hover{color:#fff;background:#ffffff4d}.yASF6a_image{object-fit:contain;border-radius:12px;max-width:100%;max-height:90vh;box-shadow:0 16px 48px #0009}`},"src/client/features/core/wechat-canvas/WechatInteractiveCanvas.module.css":{text:context=>`.ffA5ya_container{box-sizing:border-box;user-select:text;justify-content:center;width:100%;padding:24px 16px 48px;display:flex}.ffA5ya_paperCard{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);box-sizing:border-box;border-radius:16px;flex-direction:column;gap:16px;width:100%;max-width:680px;padding:28px 32px 36px;transition:all .2s cubic-bezier(.16,1,.3,1);display:flex;box-shadow:0 4px 20px -2px #0000000f,0 2px 6px -1px #00000008}body[data-ds-dark-theme] .ffA5ya_paperCard{background:#1e1f24f2;border-color:#ffffff1a;box-shadow:0 8px 32px #0006}.ffA5ya_titleArea{border-bottom:1px solid var(--dsw-alias-border-l1,#0000000f);flex-direction:column;gap:8px;padding-bottom:14px;display:flex}body[data-ds-dark-theme] .ffA5ya_titleArea{border-bottom-color:#ffffff0f}.ffA5ya_titleInput{width:100%;color:var(--dsw-alias-label-primary,#111827);box-sizing:border-box;background:0 0;border:none;border-bottom:1px solid #0000;outline:none;padding:4px 0;font-family:inherit;font-size:22px;font-weight:700;line-height:1.4;transition:border-color .15s}.ffA5ya_titleInput:hover{border-bottom-color:var(--dsw-alias-border-l2,#00000026)}.ffA5ya_titleInput:focus{border-bottom-color:#10b981}body[data-ds-dark-theme] .ffA5ya_titleInput{color:#f3f4f6}.ffA5ya_metaRow{font-size:11px;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-label-tertiary,#9ca3af);user-select:none;align-items:center;gap:8px;display:flex}.ffA5ya_metaDot{color:var(--dsw-alias-border-l3,#0003)}.ffA5ya_nodesList{flex-direction:column;gap:2px;display:flex}.ffA5ya_nodeItem{cursor:pointer;box-sizing:border-box;border:1px solid #0000;border-radius:8px;padding:6px 10px;transition:all .18s cubic-bezier(.16,1,.3,1);position:relative}.ffA5ya_nodeItem:hover{background:#10b98105;border-color:#10b98140}.ffA5ya_nodeItemSelected{box-shadow:0 0 0 1px #10b981;background:#10b9810a!important;border-color:#10b981!important}.ffA5ya_nodeItemJustAdded{box-shadow:0 0 0 2px #10b98166;background:#10b98114!important;border-color:#10b981!important}.ffA5ya_nodeHoverBadge{z-index:20;background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-secondary,#6b7280);border:1px solid var(--dsw-alias-border-l2,#0000001a);pointer-events:none;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:500;position:absolute;top:4px;right:8px;box-shadow:0 1px 2px #0000000d}.ffA5ya_bottomActions{border-top:1px solid var(--dsw-alias-border-l1,#0000000f);flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;margin-top:8px;padding-top:16px;display:flex}body[data-ds-dark-theme] .ffA5ya_bottomActions{border-top-color:#ffffff0f}.ffA5ya_bottomActionBtn{border:1px solid var(--dsw-alias-border-l2,#0000001a);background:var(--dsw-alias-bg-layer-2,#f9fafb);color:var(--dsw-alias-label-secondary,#4b5563);cursor:pointer;user-select:none;border-radius:8px;align-items:center;gap:6px;padding:6px 14px;font-size:12px;font-weight:500;transition:all .15s;display:inline-flex;box-shadow:0 1px 2px #00000008}.ffA5ya_bottomActionBtn:hover{background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#111827);border-color:var(--dsw-alias-border-l3,#0003)}body[data-ds-dark-theme] .ffA5ya_bottomActionBtn{color:#d1d5db;background:#ffffff0d;border-color:#ffffff1a}body[data-ds-dark-theme] .ffA5ya_bottomActionBtn:hover{color:#fff;background:#ffffff1a}.ffA5ya_bottomActionIcon{color:#059669;width:14px;height:14px}.ffA5ya_shortcutsGuide{border-top:1px solid var(--dsw-alias-border-l1,#0000000a);font-size:11px;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-label-tertiary,#9ca3af);user-select:none;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;padding-top:12px;display:flex}.ffA5ya_shortcutsHeader{color:var(--dsw-alias-label-secondary,#6b7280);align-items:center;gap:4px;margin-right:4px;display:flex}.ffA5ya_shortcutPill{background:var(--dsw-alias-bg-layer-2,#00000008);border:1px solid var(--dsw-alias-border-l1,#0000000f);border-radius:4px;padding:2px 6px}body[data-ds-dark-theme] .ffA5ya_shortcutPill{background:#ffffff0a;border-color:#ffffff14}`},"src/client/features/core/components/WechatMultiArticleOverview.module.css":{text:context=>`.bXJRSa_container{user-select:none;box-sizing:border-box;flex-direction:column;gap:16px;width:100%;max-width:640px;margin:0 auto;padding:16px 0 32px;display:flex}.bXJRSa_feedCard{border:1px solid var(--dsw-alias-border-l1,#00000014);background:var(--dsw-alias-bg-base,#fff);border-radius:20px;flex-direction:column;display:flex;overflow:hidden;box-shadow:0 4px 20px -2px #0000000f}body[data-ds-dark-theme] .bXJRSa_feedCard{background:#1e1f24f2;border-color:#ffffff1a;box-shadow:0 8px 32px #0006}.bXJRSa_feedHeader{border-bottom:1px solid var(--dsw-alias-border-l1,#0000000f);background:var(--dsw-alias-bg-layer-2,#00000005);justify-content:space-between;align-items:center;padding:14px 18px;display:flex}.bXJRSa_accountRow{align-items:center;gap:10px;display:flex}.bXJRSa_accountAvatar{color:#059669;background:#10b98126;border-radius:50%;justify-content:center;align-items:center;width:36px;height:36px;font-size:11px;font-weight:700;display:flex}.bXJRSa_accountNameCol{flex-direction:column;gap:2px;display:flex}.bXJRSa_accountName{color:var(--dsw-alias-label-primary,#111827);align-items:center;gap:6px;font-size:13px;font-weight:700;display:flex}body[data-ds-dark-theme] .bXJRSa_accountName{color:#f3f4f6}.bXJRSa_feedMeta{color:var(--dsw-alias-label-tertiary,#9ca3af);font-size:11px}.bXJRSa_feedCountBadge{color:var(--dsw-alias-label-secondary,#6b7280);background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:9999px;align-items:center;gap:4px;padding:4px 10px;font-size:11px;display:flex}.bXJRSa_headlineSlot{cursor:pointer;border-bottom:1px solid var(--dsw-alias-border-l1,#0000000f);position:relative;overflow:hidden}.bXJRSa_headlineBanner{aspect-ratio:2.35;background:#0f172a;width:100%;position:relative;overflow:hidden}.bXJRSa_headlineImg{object-fit:cover;width:100%;height:100%;transition:transform .3s;display:block}.bXJRSa_headlineSlot:hover .bXJRSa_headlineImg{transform:scale(1.015)}.bXJRSa_headlineOverlay{color:#fff;background:linear-gradient(#0000 0%,#00000059 50%,#000000d9 100%);flex-direction:column;justify-content:flex-end;padding:16px 20px;display:flex;position:absolute;inset:0}.bXJRSa_headlineBadgeRow{align-items:center;gap:8px;margin-bottom:6px;display:flex}.bXJRSa_headlineBadge{color:#fff;background:#10b981;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700}.bXJRSa_headlineTitle{color:#fff;text-shadow:0 1px 3px #00000080;margin:0;font-size:16px;font-weight:700;line-height:1.4}.bXJRSa_subList{flex-direction:column;display:flex}.bXJRSa_subItem{border-bottom:1px solid var(--dsw-alias-border-l1,#0000000d);cursor:pointer;justify-content:space-between;align-items:center;gap:14px;padding:14px 18px;transition:background .15s;display:flex}.bXJRSa_subItem:hover{background:var(--dsw-alias-bg-layer-2,#00000005)}.bXJRSa_subInfo{flex-direction:column;flex:1;gap:4px;min-width:0;display:flex}.bXJRSa_subBadge{background:var(--dsw-alias-bg-layer-2,#0000000f);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:4px;width:fit-content;padding:1px 6px;font-size:10px;font-weight:600;display:inline-block}.bXJRSa_subTitle{color:var(--dsw-alias-label-primary,#111827);margin:0;font-size:13px;font-weight:600;line-height:1.4}body[data-ds-dark-theme] .bXJRSa_subTitle{color:#f3f4f6}.bXJRSa_subCoverWrap{border:1px solid var(--dsw-alias-border-l1,#00000014);background:var(--dsw-alias-bg-layer-2,#f9fafb);border-radius:8px;flex-shrink:0;width:64px;height:64px;overflow:hidden}.bXJRSa_subCoverImg{object-fit:cover;width:100%;height:100%;display:block}.bXJRSa_bottomStatus{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#0000000f);color:var(--dsw-alias-label-secondary,#6b7280);border-radius:12px;justify-content:space-between;align-items:center;padding:10px 16px;font-size:11px;display:flex}`},"src/client/views/SocialArticleRightTab.module.css":{text:context=>`.kdvtsa_container{background:var(--dsw-surface-base,#fff);width:100%;height:100%;color:var(--dsw-alias-label-primary,#111827);flex-direction:column;display:flex;overflow:hidden}.kdvtsa_header{border-bottom:1px solid var(--dsw-alias-border-l3,#7d7d7d26);background:var(--dsw-surface-base,#fff);flex-shrink:0;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;display:flex}.kdvtsa_navPillsScroll{scrollbar-width:none;flex:1;align-items:center;gap:4px;min-width:0;display:flex;overflow-x:auto}.kdvtsa_navPillsScroll::-webkit-scrollbar{display:none}.kdvtsa_navPill{border:1px solid var(--dsw-alias-border-l3,#7d7d7d33);background:var(--dsw-alias-surface-muted,#7d7d7d0f);color:var(--dsw-alias-label-tertiary,#6b7280);cursor:pointer;white-space:nowrap;border-radius:999px;flex-shrink:0;align-items:center;gap:4px;padding:3px 10px;font-size:11px;font-weight:500;transition:all .15s cubic-bezier(.16,1,.3,1);display:flex}.kdvtsa_navPill:hover{color:var(--dsw-alias-label-primary,#111827);background:var(--dsw-alias-surface-hover,#7d7d7d1a)}.kdvtsa_navPillActive{color:#fff;background:#10b981;border-color:#10b981;font-weight:600;box-shadow:0 1px 4px #10b9814d}.kdvtsa_navPillActive:hover{color:#fff;background:#059669}.kdvtsa_actionsGroup{flex-shrink:0;align-items:center;gap:4px;display:flex}.kdvtsa_iconBtn{border:1px solid var(--dsw-alias-border-l3,#7d7d7d33);background:var(--dsw-surface-base,#fff);width:26px;height:26px;color:var(--dsw-alias-label-tertiary,#6b7280);cursor:pointer;border-radius:6px;justify-content:center;align-items:center;transition:all .15s;display:flex}.kdvtsa_iconBtn:hover:not(:disabled){color:var(--dsw-alias-label-primary,#111827);background:var(--dsw-alias-surface-hover,#7d7d7d14)}.kdvtsa_iconBtn:disabled{opacity:.35;cursor:not-allowed}.kdvtsa_copyBtn{border:1px solid var(--dsw-alias-border-l3,#7d7d7d33);background:var(--dsw-surface-base,#fff);height:26px;color:var(--dsw-alias-label-primary,#111827);cursor:pointer;border-radius:6px;align-items:center;gap:4px;padding:0 8px;font-size:11px;font-weight:500;transition:all .15s;display:flex}.kdvtsa_copyBtn:hover{background:var(--dsw-alias-surface-hover,#7d7d7d14)}.kdvtsa_copyBtnSuccess{color:#059669;background:#10b9811a;border-color:#10b981}.kdvtsa_bodyArea{background:var(--dsw-alias-surface-muted,#f8fafc);flex:1;min-height:0;padding:12px;overflow-y:auto}[data-theme=dark] .kdvtsa_bodyArea{background:#141416}.kdvtsa_emptyState{text-align:center;height:100%;color:var(--dsw-alias-label-tertiary,#9ca3af);user-select:none;flex-direction:column;justify-content:center;align-items:center;padding:40px 20px;display:flex}.kdvtsa_emptyIcon{width:36px;height:36px;color:var(--dsw-alias-label-tertiary,#9ca3af);opacity:.4;margin-bottom:12px}.kdvtsa_emptyTitle{color:var(--dsw-alias-label-primary,#374151);margin-bottom:4px;font-size:13px;font-weight:600}[data-theme=dark] .kdvtsa_emptyTitle{color:#e5e7eb}.kdvtsa_emptySub{color:var(--dsw-alias-label-tertiary,#9ca3af);max-width:240px;font-size:11px;line-height:1.5}`},"src/client/settings/SocialPublisherSettings.module.css":{text:context=>`.cFy18a_settingsContainer{width:100%;max-width:none;height:100%;color:var(--dsw-alias-label-primary,#111827);box-sizing:border-box;flex-direction:column;gap:0;margin:0;padding:0;display:flex;overflow:hidden}body[data-ds-dark-theme] .cFy18a_settingsContainer{color:var(--dsw-alias-label-primary,#f3f4f6)}.cFy18a_card{border:1px solid var(--dsw-alias-border-l2,#7d7d7d26);background:var(--dsw-alias-bg-layer-2,#ffffffa6);backdrop-filter:blur(8px);box-sizing:border-box;border-radius:12px;padding:18px 20px;transition:border-color .15s;box-shadow:0 1px 3px #0000000a}body[data-ds-dark-theme] .cFy18a_card{background:var(--dsw-alias-bg-layer-2,#ffffff08);border-color:var(--dsw-alias-border-l2,#ffffff14)}.cFy18a_cardHeader{border-bottom:1px solid var(--dsw-alias-border-l1,#7d7d7d1a);justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;display:flex}body[data-ds-dark-theme] .cFy18a_cardHeader{border-bottom-color:var(--dsw-alias-border-l1,#ffffff14)}.cFy18a_cardTitle{color:var(--dsw-alias-label-primary,inherit);align-items:center;gap:8px;font-size:14px;font-weight:600;display:flex}.cFy18a_cardSubtitle{color:var(--dsw-alias-label-tertiary,#6b7280);font-size:12px}body[data-ds-dark-theme] .cFy18a_cardSubtitle{color:var(--dsw-alias-label-tertiary,#9ca3af)}.cFy18a_grid2{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;display:grid}.cFy18a_grid3{grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;display:grid}.cFy18a_grid4{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;display:grid}.cFy18a_formGroup{flex-direction:column;gap:6px;display:flex}.cFy18a_formLabel{color:var(--dsw-alias-label-secondary,#4b5563);justify-content:space-between;align-items:center;font-size:12px;font-weight:500;display:flex}body[data-ds-dark-theme] .cFy18a_formLabel{color:var(--dsw-alias-label-secondary,#9ca3af)}.cFy18a_select{border:1px solid var(--dsw-alias-border-l2,#7d7d7d40);background:var(--dsw-alias-bg-layer-2,#7d7d7d0d);width:100%;height:32px;color:var(--dsw-alias-label-primary,inherit);cursor:pointer;box-sizing:border-box;border-radius:6px;outline:none;padding:0 10px;font-size:13px;transition:border-color .15s}body[data-ds-dark-theme] .cFy18a_select{background:var(--dsw-alias-bg-layer-2,#ffffff0d);border-color:var(--dsw-alias-border-l2,#ffffff1f)}.cFy18a_select:focus{border-color:#10b981}.cFy18a_settingsContainer select{border:1px solid var(--dsw-alias-border-l2,#7d7d7d40);background:var(--dsw-alias-bg-layer-2,#7d7d7d0d);width:100%;height:34px;color:var(--dsw-alias-label-primary,inherit);cursor:pointer;box-sizing:border-box;border-radius:6px;outline:none;padding:0 10px;font-size:13px;transition:border-color .15s}body[data-ds-dark-theme] .cFy18a_settingsContainer select{background:var(--dsw-alias-bg-layer-2,#ffffff0d);border-color:var(--dsw-alias-border-l2,#ffffff1f)}.cFy18a_settingsContainer select:focus{border-color:#10b981}.cFy18a_settingsContainer select option{background:var(--dsw-alias-bg-layer-3,#fff);color:var(--dsw-alias-label-primary,#111827)}body[data-ds-dark-theme] .cFy18a_settingsContainer select option{color:#f3f4f6;background:#1f2937}.cFy18a_settingsContainer textarea{border:1px solid var(--dsw-alias-border-l2,#7d7d7d40);background:var(--dsw-alias-bg-layer-2,#7d7d7d0d);width:100%;color:var(--dsw-alias-label-primary,inherit);box-sizing:border-box;border-radius:8px;outline:none;padding:8px 12px;font-family:monospace;font-size:12px;transition:border-color .15s}body[data-ds-dark-theme] .cFy18a_settingsContainer textarea{background:var(--dsw-alias-bg-layer-2,#ffffff0d);border-color:var(--dsw-alias-border-l2,#ffffff1f)}.cFy18a_settingsContainer textarea:focus{border-color:#10b981}.cFy18a_accountCard{border:1px solid var(--dsw-alias-border-l2,#7d7d7d26);background:var(--dsw-alias-bg-layer-2,#7d7d7d0a);text-align:left;cursor:pointer;user-select:none;box-sizing:border-box;border-radius:10px;flex-direction:column;justify-content:space-between;padding:14px;transition:all .18s cubic-bezier(.16,1,.3,1);display:flex;position:relative}body[data-ds-dark-theme] .cFy18a_accountCard{background:var(--dsw-alias-bg-layer-2,#ffffff08);border-color:var(--dsw-alias-border-l2,#ffffff14)}.cFy18a_accountCard:hover{border-color:var(--dsw-alias-border-l3,#7d7d7d59);background:var(--dsw-alias-interactive-bg-hover,#7d7d7d12)}.cFy18a_accountCardSelected{background:#10b9810f!important;border-color:#10b981!important;box-shadow:0 0 0 1px #10b981,0 2px 8px #10b9811f!important}.cFy18a_accountCardDisabled{opacity:.65;border-style:dashed!important}.cFy18a_stickyBar{z-index:20;border:1px solid var(--dsw-alias-border-l2,#7d7d7d2e);background:var(--dsw-alias-bg-layer-3,#ffffffe6);backdrop-filter:blur(16px);box-sizing:border-box;border-radius:12px;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;margin-top:16px;padding:12px 18px;display:flex;position:sticky;bottom:16px;box-shadow:0 8px 32px #0000001a}body[data-ds-dark-theme] .cFy18a_stickyBar{background:var(--dsw-alias-bg-layer-3,#18181beb);border-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:0 8px 32px #00000059}.cFy18a_settingsContainer .flex{display:flex}.cFy18a_settingsContainer .inline-flex{display:inline-flex}.cFy18a_settingsContainer .flex-col{flex-direction:column}.cFy18a_settingsContainer .flex-row{flex-direction:row}.cFy18a_settingsContainer .flex-wrap{flex-wrap:wrap}.cFy18a_settingsContainer .shrink-0{flex-shrink:0}.cFy18a_settingsContainer .grow{flex-grow:1}.cFy18a_settingsContainer .items-center{align-items:center}.cFy18a_settingsContainer .items-start{align-items:flex-start}.cFy18a_settingsContainer .justify-between{justify-content:space-between}.cFy18a_settingsContainer .justify-center{justify-content:center}.cFy18a_settingsContainer .justify-end{justify-content:flex-end}.cFy18a_settingsContainer .gap-1{gap:4px}.cFy18a_settingsContainer .gap-1\\.5{gap:6px}.cFy18a_settingsContainer .gap-2{gap:8px}.cFy18a_settingsContainer .gap-2\\.5{gap:10px}.cFy18a_settingsContainer .gap-3{gap:12px}.cFy18a_settingsContainer .gap-3\\.5{gap:14px}.cFy18a_settingsContainer .gap-4{gap:16px}.cFy18a_settingsContainer .gap-5{gap:20px}.cFy18a_settingsContainer .gap-6{gap:24px}.cFy18a_settingsContainer .grid{display:grid}.cFy18a_settingsContainer .grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}@media (width>=640px){.cFy18a_settingsContainer .sm\\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}.cFy18a_settingsContainer .sm\\:col-span-2{grid-column:span 2/span 2}.cFy18a_settingsContainer .sm\\:flex-row{flex-direction:row}.cFy18a_settingsContainer .sm\\:items-center{align-items:center}.cFy18a_settingsContainer .sm\\:inline{display:inline}.cFy18a_settingsContainer .sm\\:inline-flex{display:inline-flex}.cFy18a_settingsContainer .sm\\:flex{display:flex}}@media (width>=768px){.cFy18a_settingsContainer .md\\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}}@media (width>=1024px){.cFy18a_settingsContainer .lg\\:flex-row{flex-direction:row}.cFy18a_settingsContainer .lg\\:items-center{align-items:center}}@media (width>=1280px){.cFy18a_settingsContainer .xl\\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}}.cFy18a_settingsContainer .space-y-1>*+*{margin-top:4px}.cFy18a_settingsContainer .space-y-1\\.5>*+*{margin-top:6px}.cFy18a_settingsContainer .space-y-2>*+*{margin-top:8px}.cFy18a_settingsContainer .space-y-3>*+*{margin-top:12px}.cFy18a_settingsContainer .space-y-4>*+*{margin-top:16px}.cFy18a_settingsContainer .space-y-5>*+*{margin-top:20px}.cFy18a_settingsContainer .rounded-md{border-radius:6px}.cFy18a_settingsContainer .rounded-lg{border-radius:8px}.cFy18a_settingsContainer .rounded-xl{border-radius:12px}.cFy18a_settingsContainer .rounded-full{border-radius:9999px}.cFy18a_settingsContainer .border{border:1px solid var(--dsw-alias-border-l2,#7d7d7d2e)}.cFy18a_settingsContainer .border-b{border-bottom:1px solid var(--dsw-alias-border-l1,#7d7d7d1f)}.cFy18a_settingsContainer .border-t{border-top:1px solid var(--dsw-alias-border-l1,#7d7d7d1f)}.cFy18a_settingsContainer .border-dashed{border-style:dashed}.cFy18a_settingsContainer .p-1{padding:4px}.cFy18a_settingsContainer .p-2{padding:8px}.cFy18a_settingsContainer .p-3{padding:12px}.cFy18a_settingsContainer .p-3\\.5{padding:14px}.cFy18a_settingsContainer .p-4{padding:16px}.cFy18a_settingsContainer .p-4\\.5{padding:18px}.cFy18a_settingsContainer .px-1\\.5{padding-left:6px;padding-right:6px}.cFy18a_settingsContainer .px-2{padding-left:8px;padding-right:8px}.cFy18a_settingsContainer .px-2\\.5{padding-left:10px;padding-right:10px}.cFy18a_settingsContainer .px-3{padding-left:12px;padding-right:12px}.cFy18a_settingsContainer .px-4{padding-left:16px;padding-right:16px}.cFy18a_settingsContainer .py-0\\.5{padding-top:2px;padding-bottom:2px}.cFy18a_settingsContainer .py-1{padding-top:4px;padding-bottom:4px}.cFy18a_settingsContainer .py-1\\.5{padding-top:6px;padding-bottom:6px}.cFy18a_settingsContainer .py-2{padding-top:8px;padding-bottom:8px}.cFy18a_settingsContainer .pb-1{padding-bottom:4px}.cFy18a_settingsContainer .pb-3{padding-bottom:12px}.cFy18a_settingsContainer .mt-0\\.5{margin-top:2px}.cFy18a_settingsContainer .mt-2{margin-top:8px}.cFy18a_settingsContainer .mt-4{margin-top:16px}.cFy18a_settingsContainer .text-ui-xs{font-size:11px}.cFy18a_settingsContainer .text-ui-sm{font-size:13px}.cFy18a_settingsContainer .text-ui-base{font-size:15px}.cFy18a_settingsContainer .text-sm{font-size:13px}.cFy18a_settingsContainer .text-xs{font-size:11px}.cFy18a_settingsContainer .font-medium{font-weight:500}.cFy18a_settingsContainer .font-semibold{font-weight:600}.cFy18a_settingsContainer .font-bold{font-weight:700}.cFy18a_settingsContainer .font-mono{font-family:monospace}.cFy18a_settingsContainer .truncate{text-overflow:ellipsis;white-space:nowrap;overflow:hidden}.cFy18a_settingsContainer .text-foreground{color:var(--dsw-alias-label-primary,inherit)}.cFy18a_settingsContainer .text-foreground-subtle,.cFy18a_settingsContainer .text-muted-foreground{color:var(--dsw-alias-label-tertiary,#6b7280)}body[data-ds-dark-theme] .cFy18a_settingsContainer .text-foreground-subtle,body[data-ds-dark-theme] .cFy18a_settingsContainer .text-muted-foreground{color:var(--dsw-alias-label-tertiary,#9ca3af)}.cFy18a_settingsContainer .bg-card,.cFy18a_settingsContainer .bg-card\\/70,.cFy18a_settingsContainer .bg-card\\/85{background:var(--dsw-alias-bg-layer-2,#ffffffa6)}body[data-ds-dark-theme] .cFy18a_settingsContainer .bg-card,body[data-ds-dark-theme] .cFy18a_settingsContainer .bg-card\\/70,body[data-ds-dark-theme] .cFy18a_settingsContainer .bg-card\\/85{background:var(--dsw-alias-bg-layer-2,#ffffff08)}.cFy18a_settingsContainer .bg-surface,.cFy18a_settingsContainer .bg-surface\\/50,.cFy18a_settingsContainer .bg-surface\\/60{background:var(--dsw-alias-bg-layer-1,#7d7d7d0d)}.cFy18a_settingsContainer .bg-muted,.cFy18a_settingsContainer .bg-muted\\/20{background:var(--dsw-alias-bg-layer-2,#7d7d7d14)}.cFy18a_settingsContainer .border-border,.cFy18a_settingsContainer .border-border\\/60,.cFy18a_settingsContainer .border-border\\/70,.cFy18a_settingsContainer .border-border\\/80,.cFy18a_settingsContainer .border-card-border{border-color:var(--dsw-alias-border-l2,#7d7d7d2e)}body[data-ds-dark-theme] .cFy18a_settingsContainer .border-border,body[data-ds-dark-theme] .cFy18a_settingsContainer .border-border\\/60,body[data-ds-dark-theme] .cFy18a_settingsContainer .border-border\\/70,body[data-ds-dark-theme] .cFy18a_settingsContainer .border-border\\/80,body[data-ds-dark-theme] .cFy18a_settingsContainer .border-card-border{border-color:var(--dsw-alias-border-l2,#ffffff14)}.cFy18a_settingsContainer .size-2{width:8px;height:8px}.cFy18a_settingsContainer .size-2\\.5{width:10px;height:10px}.cFy18a_settingsContainer .size-3{width:12px;height:12px}.cFy18a_settingsContainer .size-3\\.5{width:14px;height:14px}.cFy18a_settingsContainer .size-4{width:16px;height:16px}.cFy18a_settingsContainer .size-4\\.5{width:18px;height:18px}.cFy18a_settingsContainer .size-5{width:20px;height:20px}.cFy18a_settingsContainer .size-10{width:40px;height:40px}.cFy18a_settingsContainer .h-8{height:32px}.cFy18a_settingsContainer .h-9{height:36px}.cFy18a_settingsContainer .w-full{width:100%}.cFy18a_settingsContainer .cursor-pointer{cursor:pointer}.cFy18a_settingsContainer .overflow-x-auto{overflow-x:auto}.cFy18a_settingsContainer .relative{position:relative}.cFy18a_settingsContainer .absolute{position:absolute}.cFy18a_settingsContainer .sticky{position:sticky}.cFy18a_settingsContainer .hidden{display:none}.cFy18a_settingsContainer .backdrop-blur-md{backdrop-filter:blur(8px)}.cFy18a_settingsContainer .backdrop-blur-xl{backdrop-filter:blur(16px)}.cFy18a_settingsContainer .text-emerald-600{color:#059669}.cFy18a_settingsContainer .text-emerald-500{color:#10b981}.cFy18a_settingsContainer .text-emerald-400{color:#34d399}.cFy18a_settingsContainer .bg-emerald-500\\/10{background:#10b9811a}.cFy18a_settingsContainer .bg-emerald-500\\/\\[0\\.04\\]{background:#10b9810a}.cFy18a_settingsContainer .bg-emerald-500\\/\\[0\\.08\\]{background:#10b98114}.cFy18a_settingsContainer .border-emerald-500\\/20{border-color:#10b98133}.cFy18a_settingsContainer .border-emerald-500\\/25{border-color:#10b98140}.cFy18a_settingsContainer .border-emerald-500\\/30{border-color:#10b9814d}.cFy18a_settingsContainer .text-emerald-700{color:#047857}.cFy18a_settingsContainer .text-emerald-300{color:#6ee7b7}.cFy18a_settingsContainer .border-amber-500\\/25{border-color:#f59e0b40}.cFy18a_settingsContainer .bg-surface-active{background:var(--dsw-alias-interactive-bg-hover,#7d7d7d1f)}.cFy18a_settingsContainer .size-8{width:32px;height:32px}.cFy18a_settingsContainer .text-destructive{color:#ef4444}.cFy18a_settingsContainer .bg-destructive\\/\\[0\\.08\\]{background:#ef444414}.cFy18a_settingsContainer .border-destructive\\/25{border-color:#ef444440}.cFy18a_settingsContainer .text-amber-600{color:#d97706}.cFy18a_settingsContainer .text-amber-500{color:#f59e0b}.cFy18a_settingsContainer .text-amber-400{color:#fbbf24}.cFy18a_settingsContainer .bg-amber-500\\/5{background:#f59e0b0d}.cFy18a_settingsContainer .bg-amber-500\\/10{background:#f59e0b1a}.cFy18a_settingsContainer .border-amber-500\\/30{border-color:#f59e0b4d}.cFy18a_settingsContainer .text-blue-600{color:#2563eb}.cFy18a_settingsContainer .text-blue-500{color:#3b82f6}.cFy18a_settingsContainer .text-blue-400{color:#60a5fa}.cFy18a_settingsContainer .bg-blue-500\\/10{background:#3b82f61a}.cFy18a_settingsContainer .border-blue-500\\/20{border-color:#3b82f633}.cFy18a_settingsContainer .text-rose-600{color:#e11d48}.cFy18a_settingsContainer .text-rose-500{color:#f43f5e}.cFy18a_settingsContainer .text-rose-400{color:#fb7185}.cFy18a_settingsContainer .bg-rose-500\\/10{background:#f43f5e1a}.cFy18a_settingsContainer .border-rose-500\\/20{border-color:#f43f5e33}.cFy18a_settingsContainer .text-sky-600{color:#0284c7}.cFy18a_settingsContainer .text-sky-500{color:#0ea5e9}.cFy18a_settingsContainer .text-sky-400{color:#38bdf8}.cFy18a_settingsContainer .bg-sky-500\\/10{background:#0ea5e91a}.cFy18a_settingsContainer .border-sky-500\\/20{border-color:#0ea5e933}.cFy18a_settingsContainer .text-red-600{color:#dc2626}.cFy18a_settingsContainer .text-red-500{color:#ef4444}.cFy18a_settingsContainer .text-red-400{color:#f87171}.cFy18a_settingsContainer .bg-red-500\\/10{background:#ef44441a}.cFy18a_settingsContainer .border-red-500\\/20{border-color:#ef444433}.cFy18a_masterDetailLayout{width:100%;height:100%;min-height:0;box-shadow:none;background:0 0;border:none;border-radius:0;flex:1;display:flex;overflow:hidden}body[data-ds-dark-theme] .cFy18a_masterDetailLayout{background:0 0;border-color:#0000}.cFy18a_masterRail{background:var(--dsw-alias-bg-layer-2,#f8fafc);border-right:1px solid var(--dsw-alias-border-l1,#7d7d7d1f);flex-direction:column;flex-shrink:0;width:230px;height:100%;display:flex;overflow:hidden}body[data-ds-dark-theme] .cFy18a_masterRail{background:var(--dsw-alias-bg-layer-2,#18191d);border-right-color:var(--dsw-alias-border-l1,#ffffff14)}.cFy18a_railHeader{border-bottom:1px solid var(--dsw-alias-border-l1,#7d7d7d1a);flex-direction:column;flex-shrink:0;gap:6px;padding:10px 10px 6px;display:flex}.cFy18a_platformFilterStrip{scrollbar-width:none;align-items:center;gap:3px;padding:2px 2px 4px;display:flex;overflow-x:auto}.cFy18a_platformFilterStrip::-webkit-scrollbar{display:none}.cFy18a_filterChip{color:var(--dsw-alias-label-tertiary,#64748b);cursor:pointer;white-space:nowrap;user-select:none;background:0 0;border:1px solid #0000;border-radius:4px;padding:2px 7px;font-size:11px;font-weight:500;transition:all .12s}.cFy18a_filterChip:hover{color:var(--dsw-alias-label-primary,inherit);background:var(--dsw-alias-interactive-bg-hover,#7d7d7d14)}.cFy18a_filterChipActive{font-weight:600;box-shadow:0 1px 2px #0000000a;color:var(--dsw-alias-label-primary,inherit)!important;background:var(--dsw-alias-bg-layer-1,#fff)!important;border-color:var(--dsw-alias-border-l1,#7d7d7d33)!important}body[data-ds-dark-theme] .cFy18a_filterChipActive{background:var(--dsw-alias-bg-layer-1,#222327)!important;border-color:var(--dsw-alias-border-l1,#ffffff1f)!important}.cFy18a_railAccountList{flex-direction:column;flex:1;gap:2px;padding:6px 8px;display:flex;overflow-y:auto}.cFy18a_groupSection{margin-bottom:4px}.cFy18a_groupHeader{cursor:pointer;user-select:none;text-transform:uppercase;letter-spacing:.05em;color:var(--dsw-alias-label-tertiary,#64748b);border-radius:5px;justify-content:space-between;align-items:center;padding:5px 8px;font-size:10.5px;font-weight:600;transition:background .15s;display:flex}.cFy18a_groupHeader:hover{background:var(--dsw-alias-interactive-bg-hover,#7d7d7d0f);color:var(--dsw-alias-label-primary,inherit)}.cFy18a_accountItem{cursor:pointer;user-select:none;height:32px;min-height:32px;color:var(--dsw-alias-label-secondary,#475569);border:1px solid #0000;border-radius:6px;align-items:center;gap:8px;padding:0 8px;transition:all .12s;display:flex}.cFy18a_accountItem:hover{background:var(--dsw-alias-interactive-bg-hover,#7d7d7d14);color:var(--dsw-alias-label-primary,inherit)}.cFy18a_accountItemActive{font-weight:500;box-shadow:0 1px 3px #0000000f;background:var(--dsw-alias-bg-layer-1,#fff)!important;border-color:var(--dsw-alias-border-l2,#7d7d7d38)!important;color:var(--dsw-alias-label-primary,inherit)!important}body[data-ds-dark-theme] .cFy18a_accountItemActive{background:var(--dsw-alias-bg-layer-1,#25272e)!important;border-color:var(--dsw-alias-border-l2,#ffffff29)!important;color:#fff!important}.cFy18a_statusBeacon{border-radius:50%;flex-shrink:0;width:5px;height:5px;transition:transform .15s}.cFy18a_statusBeaconOnline{background:#10b981}.cFy18a_statusBeaconIdle{background:var(--dsw-alias-border-l2,#94a3b8)}.cFy18a_statusBeaconTesting{background:#f59e0b}.cFy18a_railBottom{border-top:1px solid var(--dsw-alias-border-l1,#7d7d7d1a);background:var(--dsw-alias-bg-layer-2,#f8fafc);flex-direction:column;flex-shrink:0;gap:4px;padding:8px;display:flex}body[data-ds-dark-theme] .cFy18a_railBottom{background:var(--dsw-alias-bg-layer-2,#18191d);border-top-color:var(--dsw-alias-border-l1,#ffffff14)}.cFy18a_systemNavBtn{cursor:pointer;height:30px;color:var(--dsw-alias-label-secondary,#475569);border:1px solid #0000;border-radius:6px;align-items:center;gap:8px;padding:0 8px;font-size:12px;font-weight:500;transition:all .12s;display:flex}.cFy18a_systemNavBtn:hover{background:var(--dsw-alias-interactive-bg-hover,#7d7d7d14);color:var(--dsw-alias-label-primary,inherit)}.cFy18a_systemNavBtnActive{box-shadow:0 1px 3px #0000000d;background:var(--dsw-alias-bg-layer-1,#fff)!important;border-color:var(--dsw-alias-border-l2,#7d7d7d33)!important;color:var(--dsw-alias-color-primary,#0f766e)!important}body[data-ds-dark-theme] .cFy18a_systemNavBtnActive{background:var(--dsw-alias-bg-layer-1,#222327)!important;border-color:var(--dsw-alias-border-l2,#ffffff24)!important;color:#2dd4bf!important}.cFy18a_detailStage{background:var(--dsw-alias-bg-layer-1,#f5f5f7);box-sizing:border-box;flex:1;min-width:0;height:100%;padding:24px 32px 80px;overflow-y:auto}body[data-ds-dark-theme] .cFy18a_detailStage{background:var(--dsw-alias-bg-layer-1,#131417)}.cFy18a_stageContainer{flex-direction:column;gap:22px;width:100%;min-width:0;max-width:860px;margin:0 auto;display:flex}.cFy18a_macosHero{background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:12px;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;padding:16px 20px;display:flex;box-shadow:0 1px 3px #00000005}body[data-ds-dark-theme] .cFy18a_macosHero{background:var(--dsw-alias-bg-layer-2,#1d1e22);border-color:var(--dsw-alias-border-l1,#ffffff12)}.cFy18a_macosHeroIdentity{align-items:center;gap:14px;min-width:0;display:flex}.cFy18a_macosHeroAvatar{border-radius:10px;flex-shrink:0;justify-content:center;align-items:center;width:44px;height:44px;font-size:17px;font-weight:700;display:flex;box-shadow:0 1px 2px #0000000a}.cFy18a_macosHeroActions{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.cFy18a_macosGroup{flex-direction:column;display:flex}.cFy18a_macosGroupHeader{color:var(--dsw-alias-label-tertiary,#6b7280);letter-spacing:-.01em;user-select:none;justify-content:space-between;align-items:center;padding:0 4px 6px;font-size:12px;font-weight:500;display:flex}body[data-ds-dark-theme] .cFy18a_macosGroupHeader{color:var(--dsw-alias-label-tertiary,#9ca3af)}.cFy18a_macosGroupCard{background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px #00000005}body[data-ds-dark-theme] .cFy18a_macosGroupCard{background:var(--dsw-alias-bg-layer-2,#1d1e22);border-color:var(--dsw-alias-border-l1,#ffffff12)}.cFy18a_macosRow{box-sizing:border-box;justify-content:space-between;align-items:center;gap:16px;min-height:44px;padding:10px 16px;display:flex;position:relative}.cFy18a_macosRow:after{content:"";background:var(--dsw-alias-border-l1,#0000000f);pointer-events:none;height:1px;position:absolute;bottom:0;left:16px;right:0}body[data-ds-dark-theme] .cFy18a_macosRow:after{background:var(--dsw-alias-border-l1,#ffffff0d)}.cFy18a_macosRow:last-child:after{display:none}.cFy18a_macosRowNoDivider:after{display:none!important}.cFy18a_macosRowInfo{flex-direction:column;flex:1;gap:1.5px;min-width:0;display:flex}.cFy18a_macosRowLabel{color:var(--dsw-alias-label-primary,inherit);font-size:13px;font-weight:500;line-height:1.35}.cFy18a_macosRowHint{color:var(--dsw-alias-label-tertiary,#64748b);font-size:11.5px;line-height:1.35}body[data-ds-dark-theme] .cFy18a_macosRowHint{color:var(--dsw-alias-label-tertiary,#9ca3af)}.cFy18a_macosRowControl{flex-shrink:0;align-items:center;gap:8px;display:flex}.cFy18a_macosGroupFooter{color:var(--dsw-alias-label-tertiary,#64748b);padding:6px 6px 0;font-size:11.5px;line-height:1.4}body[data-ds-dark-theme] .cFy18a_macosGroupFooter{color:var(--dsw-alias-label-tertiary,#9ca3af)}.cFy18a_appleColorStrip{flex-wrap:wrap;align-items:center;gap:10px;padding:4px 0;display:flex}.cFy18a_appleColorChip{cursor:pointer;user-select:none;box-sizing:border-box;border-radius:50%;justify-content:center;align-items:center;width:24px;height:24px;transition:transform .12s,box-shadow .12s;display:flex;position:relative}.cFy18a_appleColorChip:hover{transform:scale(1.08)}.cFy18a_appleColorChipActive{box-shadow:0 0 0 2px var(--dsw-alias-bg-layer-2,#fff), 0 0 0 4px var(--dsw-alias-color-primary,#0f766e)}body[data-ds-dark-theme] .cFy18a_appleColorChipActive{box-shadow:0 0 0 2px var(--dsw-alias-bg-layer-2,#1d1e22), 0 0 0 4px #2dd4bf}.cFy18a_craftGroup{flex-direction:column;margin-bottom:22px;display:flex}.cFy18a_craftGroupTitle{color:var(--dsw-alias-label-tertiary,#6b7280);letter-spacing:-.01em;padding:0 4px 6px;font-size:12px;font-weight:500}.cFy18a_craftGroupDesc{display:none}.cFy18a_craftPanel{background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:10px;overflow:hidden;box-shadow:0 1px 2px #00000005}body[data-ds-dark-theme] .cFy18a_craftPanel{background:var(--dsw-alias-bg-layer-2,#1d1e22);border-color:var(--dsw-alias-border-l1,#ffffff12)}.cFy18a_craftRow{justify-content:space-between;align-items:center;gap:16px;min-height:44px;padding:10px 16px;display:flex;position:relative}.cFy18a_craftRow:after{content:"";background:var(--dsw-alias-border-l1,#0000000f);pointer-events:none;height:1px;position:absolute;bottom:0;left:16px;right:0}body[data-ds-dark-theme] .cFy18a_craftRow:after{background:var(--dsw-alias-border-l1,#ffffff0d)}.cFy18a_craftRow:last-child:after{display:none}.cFy18a_craftRowInfo{flex:1;min-width:0}.cFy18a_craftRowLabel{color:var(--dsw-alias-label-primary,inherit);font-size:13px;font-weight:500}.cFy18a_craftRowHint{color:var(--dsw-alias-label-tertiary,#64748b);margin-top:1px;font-size:11.5px}.cFy18a_craftRowControl{flex-shrink:0;align-items:center;gap:8px;display:flex}`},"src/client/views/HeroWorkModePillSwitcher.module.css":{text:context=>`.ifRnVq_pillContainer{background-color:var(--dsw-fill-quaternary,#0000000a);border:1px solid var(--dsw-border-subtle,#0000000f);user-select:none;border-radius:9999px;justify-content:center;align-items:center;gap:4px;padding:3px;transition:all .2s cubic-bezier(.16,1,.3,1);display:inline-flex;box-shadow:0 1px 2px #00000005}[data-ds-dark-theme=true] .ifRnVq_pillContainer{background-color:#ffffff0f;border-color:#ffffff14}.ifRnVq_pillItem{cursor:pointer;color:var(--dsw-alias-label-secondary,#6b7280);background:0 0;border:1.5px solid #0000;border-radius:9999px;outline:none;justify-content:center;align-items:center;gap:6px;padding:6px 18px;font-size:13.5px;font-weight:500;line-height:1.2;transition:all .18s cubic-bezier(.16,1,.3,1);display:inline-flex}[data-ds-dark-theme=true] .ifRnVq_pillItem{color:#ffffffa6}.ifRnVq_pillItem:hover:not(.ifRnVq_active){color:var(--dsw-alias-label-primary,#1f2937);background:#00000006}[data-ds-dark-theme=true] .ifRnVq_pillItem:hover:not(.ifRnVq_active){color:#fff;background:#ffffff0a}.ifRnVq_pillItem.ifRnVq_active{color:var(--dsw-alias-label-primary,#111827);background-color:#fff;border-color:#f59e0b;font-weight:600;box-shadow:0 2px 6px #f59e0b1f,0 1px 3px #0000000d}[data-ds-dark-theme=true] .ifRnVq_pillItem.ifRnVq_active{color:#f9fafb;background-color:#262629;border-color:#f59e0b;box-shadow:0 2px 6px #0000004d,0 0 0 1px #f59e0b66}.ifRnVq_pillIcon{opacity:.85;flex-shrink:0}.ifRnVq_active .ifRnVq_pillIcon{opacity:1;color:#d97706}[data-ds-dark-theme=true] .ifRnVq_active .ifRnVq_pillIcon{color:#fbbf24}`},"src/client/features/core/components/SocialArticleBottomActionBar.module.css":{text:context=>`.oC5mVG_dockRoot{background:var(--dsw-alias-bg-base,#fff);border-top:1px solid var(--dsw-alias-border-l1,#00000014);user-select:none;box-sizing:border-box;flex-direction:column;flex-shrink:0;gap:8px;padding:8px 20px;display:flex;box-shadow:0 -2px 10px #00000008}body[data-ds-dark-theme] .oC5mVG_dockRoot{background:#1e1f24f2;border-top-color:#ffffff14}.oC5mVG_primeTimeBar{font-size:11px;font-family:var(--ds-font-family-code,monospace);flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;display:flex}.oC5mVG_primeTimeLeft{color:var(--dsw-alias-label-secondary,#6b7280);align-items:center;gap:6px;display:flex}.oC5mVG_primeTimeList{flex-wrap:wrap;align-items:center;gap:6px;display:flex}.oC5mVG_primeTimeBtn{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-secondary,#6b7280);border:1px solid var(--dsw-alias-border-l1,#00000014);cursor:pointer;border-radius:6px;align-items:center;gap:4px;padding:2px 8px;font-size:11px;transition:all .15s;display:inline-flex}.oC5mVG_primeTimeBtn:hover{background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#111827);border-color:var(--dsw-alias-border-l2,#00000026)}.oC5mVG_dockRow{flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;display:flex}.oC5mVG_dockLeft{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.oC5mVG_statusCapsule{height:30px;font-size:11px;font-family:var(--ds-font-family-code,monospace);color:var(--dsw-alias-label-secondary,#6b7280);background:var(--dsw-alias-bg-layer-2,#f9fafb);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:6px;align-items:center;gap:6px;padding:0 10px;display:flex}.oC5mVG_statusDot{border-radius:50%;flex-shrink:0;width:6px;height:6px}.oC5mVG_statusDotWarn{background:#f59e0b;animation:1.5s infinite oC5mVG_pulse}.oC5mVG_statusDotSuccess{background:#10b981}@keyframes oC5mVG_pulse{0%,to{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}.oC5mVG_toolButton{cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#0000001f);background:var(--dsw-alias-bg-base,#fff);height:30px;color:var(--dsw-alias-label-primary,#374151);user-select:none;border-radius:6px;align-items:center;gap:5px;padding:0 10px;font-size:12px;font-weight:500;transition:all .15s;display:inline-flex}.oC5mVG_toolButton:hover{background:var(--dsw-alias-bg-layer-2,#f3f4f6);color:var(--dsw-alias-label-primary,#111827);border-color:var(--dsw-alias-border-l3,#0003)}body[data-ds-dark-theme] .oC5mVG_toolButton{color:#e5e7eb;background:#ffffff0f;border-color:#ffffff1f}body[data-ds-dark-theme] .oC5mVG_toolButton:hover{color:#fff;background:#ffffff1f}.oC5mVG_toolButtonSuccess{color:#059669;background:#10b9810d;border-color:#10b9814d}.oC5mVG_dockRight{flex-wrap:wrap;align-items:center;gap:8px;display:flex}.oC5mVG_publishBtn{cursor:pointer;color:#fff;background:#10b981;border:1px solid #059669;border-radius:6px;align-items:center;gap:6px;height:32px;padding:0 14px;font-size:12px;font-weight:600;transition:all .15s;display:inline-flex;box-shadow:0 1px 3px #10b9814d}.oC5mVG_publishBtn:hover{background:#059669}`},"src/client/features/studio/components/StudioHeader.module.css":{text:context=>`.K3WtwG_header{border-bottom:1px solid var(--dsw-alias-border-l1,#00000014);background:var(--dsw-alias-bg-base,#fff);user-select:none;box-sizing:border-box;flex-shrink:0;justify-content:space-between;align-items:center;height:40px;min-height:40px;padding:0 16px;display:flex}body[data-ds-dark-theme] .K3WtwG_header{background:#1e1f24f2;border-bottom:1px solid #ffffff14}.K3WtwG_left{align-items:center;gap:10px;min-width:0;display:flex}.K3WtwG_brand{color:var(--dsw-alias-label-primary,#111827);letter-spacing:-.01em;align-items:center;gap:6px;font-size:13px;font-weight:600;display:flex}body[data-ds-dark-theme] .K3WtwG_brand{color:#f3f4f6}.K3WtwG_brandIcon{width:15px;height:15px;color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0}.K3WtwG_divider{background:var(--dsw-alias-border-l2,#0000001f);flex-shrink:0;width:1px;height:12px}body[data-ds-dark-theme] .K3WtwG_divider{background:#ffffff1f}.K3WtwG_stage{color:var(--dsw-alias-label-secondary,#6b7280);flex-shrink:0;align-items:center;gap:6px;font-size:12px;display:flex}body[data-ds-dark-theme] .K3WtwG_stage{color:#9ca3af}.K3WtwG_dot{border-radius:50%;flex-shrink:0;width:6px;height:6px}.K3WtwG_dotIdle{background:#9ca3af}.K3WtwG_dotAmber{background:#f59e0b}.K3WtwG_dotPulseAmber{background:#f59e0b;animation:1.8s infinite K3WtwG_dotPulse}.K3WtwG_dotPulsePrimary{background:#10b981;animation:1.8s infinite K3WtwG_dotPulse}.K3WtwG_dotSuccess{background:#10b981}@keyframes K3WtwG_dotPulse{0%,to{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.85)}}.K3WtwG_modeBadge{font-size:11px;font-family:var(--ds-font-family-code,monospace);border-radius:4px;flex-shrink:0;align-items:center;padding:2px 7px;font-weight:500;line-height:1.2;display:inline-flex}.K3WtwG_modeOfficial{color:#059669;background:#10b9811a;border:1px solid #10b98140}body[data-ds-dark-theme] .K3WtwG_modeOfficial{color:#34d399;background:#10b9812e}.K3WtwG_modeDryRun{color:#d97706;background:#f59e0b1a;border:1px solid #f59e0b40}body[data-ds-dark-theme] .K3WtwG_modeDryRun{color:#fbbf24;background:#f59e0b2e}.K3WtwG_right{color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0;align-items:center;gap:8px;font-size:11px;display:flex}.K3WtwG_syncState{align-items:center;gap:5px;display:flex}.K3WtwG_syncSuccess{color:#059669}body[data-ds-dark-theme] .K3WtwG_syncSuccess{color:#34d399}.K3WtwG_syncIcon{width:12px;height:12px}.K3WtwG_syncSpin{animation:1s linear infinite K3WtwG_spin}@keyframes K3WtwG_spin{0%{transform:rotate(0)}to{transform:rotate(360deg)}}.K3WtwG_syncError{color:#ef4444;font-weight:500}`},"src/client/features/studio/components/StudioTabNav.module.css":{text:context=>`._0ZrV9a_tabNav{border-bottom:1px solid var(--dsw-alias-border-l1,#0000000f);background:var(--dsw-alias-bg-base,#fff);user-select:none;box-sizing:border-box;flex-shrink:0;align-items:center;gap:8px;height:38px;min-height:38px;padding:0 16px;display:flex}body[data-ds-dark-theme] ._0ZrV9a_tabNav{background:#1c1d22f2;border-bottom:1px solid #ffffff0f}._0ZrV9a_overviewSection{flex-shrink:0;align-items:center;display:flex}._0ZrV9a_overviewBtn{cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#0000001a);background:var(--dsw-alias-bg-layer-2,#f9fafb);color:var(--dsw-alias-label-primary,#374151);user-select:none;border-radius:6px;align-items:center;gap:6px;padding:4px 10px;font-size:12px;font-weight:500;transition:all .15s;display:inline-flex}._0ZrV9a_overviewBtn:hover{background:var(--dsw-alias-bg-layer-2,#f3f4f6);border-color:var(--dsw-alias-border-l3,#00000029)}._0ZrV9a_overviewBtnActive{font-weight:600;box-shadow:0 1px 3px #0000000f;background:var(--dsw-alias-bg-base,#fff)!important;border-color:var(--dsw-alias-border-l3,#0003)!important}body[data-ds-dark-theme] ._0ZrV9a_overviewBtn{color:#e5e7eb;background:#ffffff0d;border-color:#ffffff1f}body[data-ds-dark-theme] ._0ZrV9a_overviewBtnActive{background:#ffffff1a!important;border-color:#fff3!important}._0ZrV9a_overviewIcon{width:13px;height:13px;color:var(--dsw-alias-label-secondary,#6b7280)}._0ZrV9a_overviewDivider{background:var(--dsw-alias-border-l2,#0000001a);flex-shrink:0;width:1px;height:16px;margin:0 6px 0 8px}body[data-ds-dark-theme] ._0ZrV9a_overviewDivider{background:#ffffff1a}._0ZrV9a_scrollArea{flex:1;align-items:center;min-width:0;display:flex;position:relative;overflow:hidden}._0ZrV9a_scrollRail{scrollbar-width:none;scroll-behavior:smooth;flex:1;align-items:center;min-width:0;padding:2px 0;display:flex;overflow-x:auto}._0ZrV9a_scrollRail::-webkit-scrollbar{display:none}._0ZrV9a_tabTrack{background:var(--dsw-alias-bg-layer-2,#00000008);border:1px solid var(--dsw-alias-border-l1,#0000000d);border-radius:8px;flex-shrink:0;align-items:center;gap:3px;padding:2px;display:flex}body[data-ds-dark-theme] ._0ZrV9a_tabTrack{background:#ffffff0a;border-color:#ffffff0f}._0ZrV9a_tabItem{cursor:pointer;color:var(--dsw-alias-label-secondary,#6b7280);white-space:nowrap;user-select:none;background:0 0;border:1px solid #0000;border-radius:6px;flex-shrink:0;align-items:center;gap:6px;padding:3px 10px;font-size:12px;font-weight:500;transition:all .15s;display:inline-flex}._0ZrV9a_tabItem:hover{color:var(--dsw-alias-label-primary,#111827);background:var(--dsw-alias-bg-base,#ffffff80)}._0ZrV9a_tabItemActive{font-weight:600;box-shadow:0 1px 2px #0000000f;background:var(--dsw-alias-bg-base,#fff)!important;color:var(--dsw-alias-label-primary,#111827)!important;border-color:var(--dsw-alias-border-l1,#0000000f)!important}body[data-ds-dark-theme] ._0ZrV9a_tabItem{color:#9ca3af}body[data-ds-dark-theme] ._0ZrV9a_tabItem:hover{color:#f3f4f6;background:#ffffff0f}body[data-ds-dark-theme] ._0ZrV9a_tabItemActive{color:#fff!important;background:#ffffff1f!important;border-color:#ffffff26!important}._0ZrV9a_dot{border-radius:50%;flex-shrink:0;width:6px;height:6px}._0ZrV9a_dotSuccess{background:#10b981}._0ZrV9a_dotAmber{background:#f59e0b;animation:1.8s infinite _0ZrV9a_tabDotPulse}._0ZrV9a_dotPrimary{background:#3b82f6;animation:1.8s infinite _0ZrV9a_tabDotPulse}@keyframes _0ZrV9a_tabDotPulse{0%,to{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.85)}}._0ZrV9a_tabIcon{width:12px;height:12px;color:var(--dsw-alias-label-tertiary,#9ca3af);flex-shrink:0}._0ZrV9a_tabLabel{text-overflow:ellipsis;white-space:nowrap;max-width:120px;overflow:hidden}._0ZrV9a_scrollArrowBtn{z-index:10;background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l2,#0000001f);width:22px;height:22px;color:var(--dsw-alias-label-secondary,#6b7280);cursor:pointer;border-radius:4px;justify-content:center;align-items:center;display:flex;position:absolute;top:50%;transform:translateY(-50%);box-shadow:0 1px 3px #00000014}._0ZrV9a_scrollArrowBtn:hover{color:var(--dsw-alias-label-primary,#111827);background:var(--dsw-alias-bg-layer-2,#f3f4f6)}._0ZrV9a_scrollArrowLeft{left:0}._0ZrV9a_scrollArrowRight{right:0}`},"src/client/features/studio/SocialStudioCanvas.module.css":{text:context=>`._9dECtW_canvasRoot{background:var(--dsw-alias-bg-layer-2,#f5f6f8);box-sizing:border-box;flex-direction:column;width:100%;height:100%;min-height:0;display:flex;position:relative;overflow:hidden}body[data-ds-dark-theme] ._9dECtW_canvasRoot{background:#18191d}._9dECtW_scrollArea{box-sizing:border-box;scrollbar-width:thin;flex-direction:column;flex:1;align-items:center;width:100%;min-height:0;display:flex;overflow:hidden auto}._9dECtW_contentContainer{box-sizing:border-box;justify-content:center;width:100%;display:flex}._9dECtW_emptyState{text-align:center;user-select:none;height:100%;min-height:360px;font-family:var(--ds-font-family-code,monospace);flex-direction:column;justify-content:center;align-items:center;gap:12px;padding:32px;display:flex}._9dECtW_emptyIconBox{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l1,#00000014);border-radius:12px;justify-content:center;align-items:center;width:44px;height:44px;display:flex;box-shadow:0 2px 6px #0000000a}body[data-ds-dark-theme] ._9dECtW_emptyIconBox{background:#1e1f24f2;border-color:#ffffff1a}._9dECtW_emptyDot{background:#10b981;border-radius:50%;width:8px;height:8px;animation:1.5s infinite _9dECtW_pulse}@keyframes _9dECtW_pulse{0%,to{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.85)}}._9dECtW_emptyTitle{color:var(--dsw-alias-label-primary,#111827);font-size:14px;font-weight:600}body[data-ds-dark-theme] ._9dECtW_emptyTitle{color:#f3f4f6}._9dECtW_emptySubtitle{color:var(--dsw-alias-label-tertiary,#9ca3af);font-size:11px}`},"src/client/views/SocialSplitStudioContainer.module.css":{text:context=>`.TRG0bG_container{background:var(--dsw-alias-bg-base,#fff);box-sizing:border-box;flex-direction:column;width:100%;height:100%;min-height:0;display:flex;overflow:hidden}.TRG0bG_body{flex:1;width:100%;height:100%;min-height:0;display:flex;position:relative;overflow:hidden}.TRG0bG_canvasPaneFull{flex:100%;width:100%;min-width:0;height:100%;overflow:hidden}`},"src/client/views/SocialPublisherToolView.module.css":{text:context=>`._4FWUG_summary{color:var(--dsw-alias-label-secondary,#4b5563);align-items:center;gap:8px;font-size:12px;display:inline-flex}._4FWUG_output{background:var(--dsw-alias-surface-muted,#7d7d7d0f);white-space:pre-wrap;word-break:break-all;border:1px solid var(--dsw-alias-border-l3,#7d7d7d26);max-height:180px;color:var(--dsw-alias-label-primary,#111827);border-radius:6px;margin:6px 0 0;padding:8px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;overflow-y:auto}._4FWUG_phaseBadge{color:#059669;background:#10b9811a;border:1px solid #10b98140;border-radius:4px;align-items:center;gap:4px;padding:1px 6px;font-size:10px;font-weight:600;display:inline-flex}._4FWUG_inspectBtn{color:#10b981;cursor:pointer;background:0 0;border:none;margin-top:6px;padding:0;font-size:11px;text-decoration:underline}`}}})});
+//# sourceMappingURL=client.js.map

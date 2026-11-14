@@ -1,0 +1,56 @@
+/* Wechat Editable Node Styling */
+
+.editableNode {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--dsw-alias-label-primary, #24292f);
+  user-select: text;
+  word-break: break-word;
+  outline: none;
+  box-sizing: border-box;
+}
+
+:global(body[data-ds-dark-theme]) .editableNode {
+  color: #e5e7eb;
+}
+
+.editableNode :global(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  cursor: zoom-in;
+  margin: 10px 0;
+  display: block;
+}
+
+.editableNode :global(h1),
+.editableNode :global(h2),
+.editableNode :global(h3) {
+  font-weight: 700;
+  margin: 16px 0 8px;
+  color: var(--dsw-alias-label-primary, #111827);
+  line-height: 1.4;
+}
+
+:global(body[data-ds-dark-theme]) .editableNode :global(h1),
+:global(body[data-ds-dark-theme]) .editableNode :global(h2),
+:global(body[data-ds-dark-theme]) .editableNode :global(h3) {
+  color: #f9fafb;
+}
+
+.editableNode :global(p) {
+  margin: 8px 0;
+}
+
+.editableNode :global(section) {
+  box-sizing: border-box;
+}
+
+.cursorText {
+  cursor: text;
+}
+
+.cursorPointer {
+  cursor: pointer;
+}

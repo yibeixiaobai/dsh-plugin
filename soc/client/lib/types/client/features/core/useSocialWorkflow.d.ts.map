@@ -1,0 +1,1 @@
+{"version":3,"file":"useSocialWorkflow.d.ts","sourceRoot":"","sources":["../../../../../src/client/features/core/useSocialWorkflow.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,uBAAuB,EAAe,MAAM,uCAAuC,CAAA;AAOjG,wBAAgB,iBAAiB,CAAC,SAAS,CAAC,EAAE,MAAM,GAAG;IACrD,QAAQ,EAAE,uBAAuB,CAAA;IACjC,QAAQ,EAAE,OAAO,CAAA;IACjB,WAAW,EAAE,OAAO,CAAA;IACpB,OAAO,EAAE,MAAM,IAAI,CAAA;CACpB,CA0MA"}

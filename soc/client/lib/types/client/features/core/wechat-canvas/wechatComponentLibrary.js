@@ -1,0 +1,20 @@
+import { WECHAT_MODERN_HEADING_TEMPLATES } from "./wechatModernHeadingTemplates.js";
+import { WECHAT_MODERN_THEME_TEMPLATES } from "./wechatModernThemeTemplates.js";
+import { WECHAT_MODERN_CARD_TEMPLATES } from "./wechatModernCardTemplates.js";
+import { WECHAT_FESTIVAL_TEMPLATES } from "./wechatFestivalTemplates.js";
+import { WECHAT_HEADING_TEMPLATES } from "./wechatHeadingTemplates.js";
+import { WECHAT_CARD_TEMPLATES } from "./wechatCardTemplates.js";
+import { WECHAT_IMAGE_TEMPLATES } from "./wechatImageTemplates.js";
+import { WECHAT_LAYOUT_TEMPLATES } from "./wechatLayoutTemplates.js";
+export const WECHAT_COMPONENT_TEMPLATES = [
+    ...WECHAT_MODERN_HEADING_TEMPLATES,
+    ...WECHAT_MODERN_THEME_TEMPLATES,
+    ...WECHAT_MODERN_CARD_TEMPLATES,
+    ...WECHAT_FESTIVAL_TEMPLATES,
+    ...WECHAT_HEADING_TEMPLATES,
+    ...WECHAT_CARD_TEMPLATES,
+    ...WECHAT_IMAGE_TEMPLATES,
+    ...WECHAT_LAYOUT_TEMPLATES,
+];
+export { WECHAT_MODERN_HEADING_TEMPLATES, WECHAT_MODERN_THEME_TEMPLATES, WECHAT_MODERN_CARD_TEMPLATES, WECHAT_FESTIVAL_TEMPLATES, WECHAT_HEADING_TEMPLATES, WECHAT_CARD_TEMPLATES, WECHAT_IMAGE_TEMPLATES, WECHAT_LAYOUT_TEMPLATES, };
+//# sourceMappingURL=wechatComponentLibrary.js.map

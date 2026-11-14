@@ -1,0 +1,57 @@
+.switcherRoot {
+  padding: 0 4px 6px 4px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.segmentedBox {
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+  background: var(--dsw-alias-surface-muted, rgba(125, 125, 125, 0.08));
+  padding: 2px;
+  border: 1px solid var(--dsw-alias-border-l3, rgba(125, 125, 125, 0.15));
+  gap: 2px;
+}
+
+.segmentBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary, #6b7280);
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.segmentBtn:hover {
+  color: var(--dsw-alias-label-primary, #111827);
+  background: var(--dsw-alias-surface-hover, rgba(125, 125, 125, 0.08));
+}
+
+.segmentBtnActive {
+  background: var(--dsw-surface-floating, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+:global([data-theme='dark']) .segmentBtnActive {
+  background: var(--dsw-surface-elevated, #2a2b30);
+  color: var(--dsw-alias-label-primary, #f3f4f6);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}

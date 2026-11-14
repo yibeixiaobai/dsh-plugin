@@ -1,0 +1,369 @@
+/* ==========================================================================
+   社媒发布内置隔离浏览器扫码登录弹窗 (Social Publisher Login Modal)
+   ========================================================================== */
+
+.modalRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-sizing: border-box;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.modalContainer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1080px;
+  height: 88vh;
+  max-height: 920px;
+  min-height: 580px;
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(125, 125, 125, 0.2));
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: modalZoomIn 0.2s ease-out;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(125, 125, 125, 0.15));
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+  flex-shrink: 0;
+}
+
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  gap: 12px;
+}
+
+.headerNavGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.headerNavBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(125, 125, 125, 0.2));
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #333333);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.headerNavBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.06));
+  border-color: var(--dsw-alias-border-l2, rgba(125, 125, 125, 0.35));
+}
+
+.headerNavBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.headerTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #111827);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.externalLinkBtn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(125, 125, 125, 0.2));
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.externalLinkBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--dsw-alias-label-primary, #111827);
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.closeBtn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.headerSub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 18px;
+  font-size: 11.5px;
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(125, 125, 125, 0.1));
+  gap: 12px;
+}
+
+.partitionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  font-weight: 600;
+  font-size: 11px;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  flex-shrink: 0;
+}
+
+.urlText {
+  color: var(--dsw-alias-label-tertiary, #6b7280);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 520px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.webviewWrapper {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 480px;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.webviewTag {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background-color: #ffffff;
+  -webkit-app-region: no-drag;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(125, 125, 125, 0.15));
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+  flex-shrink: 0;
+  gap: 16px;
+}
+
+.statusContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary, #111827);
+  min-width: 0;
+  flex: 1;
+}
+
+.statusIcon {
+  color: var(--dsw-alias-interactive-primary, #0969da);
+  flex-shrink: 0;
+}
+
+.statusMessage {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.syncBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(125, 125, 125, 0.25));
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.syncBtn:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+  border-color: var(--dsw-alias-interactive-primary, #0969da);
+}
+
+.syncBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cancelBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cancelBtn:hover {
+  background: var(--dsw-alias-interactive-bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--dsw-alias-label-primary, #111827);
+}
+
+.successOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  text-align: center;
+  padding: 24px;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.successTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+
+.successSubtitle {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+/* ==========================================================================
+   Dark Theme (深色主题适配)
+   ========================================================================== */
+:global(body[data-ds-dark-theme]) .modalContainer {
+  background: var(--dsw-alias-bg-layer-1, #18191c);
+  border-color: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+}
+
+:global(body[data-ds-dark-theme]) .header,
+:global(body[data-ds-dark-theme]) .footer {
+  background: var(--dsw-alias-bg-layer-2, #202125);
+  border-color: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+}
+
+:global(body[data-ds-dark-theme]) .headerSub {
+  background: var(--dsw-alias-bg-layer-1, #18191c);
+  border-color: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+}
+
+:global(body[data-ds-dark-theme]) .headerNavBtn,
+:global(body[data-ds-dark-theme]) .externalLinkBtn,
+:global(body[data-ds-dark-theme]) .syncBtn {
+  background: var(--dsw-alias-bg-layer-1, #18191c);
+  border-color: var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.12));
+  color: var(--dsw-alias-label-primary, #f3f4f6);
+}
+
+:global(body[data-ds-dark-theme]) .successOverlay {
+  background: rgba(24, 25, 28, 0.96);
+}
+
+:global(body[data-ds-dark-theme]) .successTitle {
+  color: #f3f4f6;
+}
+
+:global(body[data-ds-dark-theme]) .successSubtitle {
+  color: #9ca3af;
+}
+
+/* ==========================================================================
+   Animations
+   ========================================================================== */
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalZoomIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}

@@ -1,0 +1,226 @@
+/* Wechat Interactive Canvas Styling (Editorial Studio Paper) */
+
+.container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 48px;
+  box-sizing: border-box;
+  user-select: text;
+}
+
+.paperCard {
+  width: 100%;
+  max-width: 680px;
+  background: var(--dsw-alias-bg-base, #ffffff);
+  border-radius: 16px;
+  border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.08));
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  padding: 28px 32px 36px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:global(body[data-ds-dark-theme]) .paperCard {
+  background: rgba(30, 31, 36, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.titleArea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.06));
+}
+
+:global(body[data-ds-dark-theme]) .titleArea {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+.titleInput {
+  width: 100%;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--dsw-alias-label-primary, #111827);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  outline: none;
+  padding: 4px 0;
+  transition: border-color 0.15s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.titleInput:hover {
+  border-bottom-color: var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.15));
+}
+
+.titleInput:focus {
+  border-bottom-color: #10b981;
+}
+
+:global(body[data-ds-dark-theme]) .titleInput {
+  color: #f3f4f6;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-family: var(--ds-font-family-code, monospace);
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  user-select: none;
+}
+
+.metaDot {
+  color: var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.2));
+}
+
+/* 正文节点列表 */
+.nodesList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nodeItem {
+  position: relative;
+  border-radius: 8px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.nodeItem:hover {
+  border-color: rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.nodeItemSelected {
+  border-color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.04) !important;
+  box-shadow: 0 0 0 1px #10b981;
+}
+
+.nodeItemJustAdded {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.08) !important;
+}
+
+.nodeHoverBadge {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  z-index: 20;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-base, #ffffff);
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  pointer-events: none;
+}
+
+/* 底部操作区 */
+.bottomActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.06));
+  margin-top: 8px;
+}
+
+:global(body[data-ds-dark-theme]) .bottomActions {
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.bottomActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  background: var(--dsw-alias-bg-layer-2, #f9fafb);
+  color: var(--dsw-alias-label-secondary, #4b5563);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  user-select: none;
+}
+
+.bottomActionBtn:hover {
+  background: var(--dsw-alias-bg-base, #ffffff);
+  color: var(--dsw-alias-label-primary, #111827);
+  border-color: var(--dsw-alias-border-l3, rgba(0, 0, 0, 0.2));
+}
+
+:global(body[data-ds-dark-theme]) .bottomActionBtn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #d1d5db;
+}
+
+:global(body[data-ds-dark-theme]) .bottomActionBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.bottomActionIcon {
+  width: 14px;
+  height: 14px;
+  color: #059669;
+}
+
+/* 底部快捷键指南 */
+.shortcutsGuide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.04));
+  font-size: 11px;
+  font-family: var(--ds-font-family-code, monospace);
+  color: var(--dsw-alias-label-tertiary, #9ca3af);
+  user-select: none;
+}
+
+.shortcutsHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--dsw-alias-label-secondary, #6b7280);
+  margin-right: 4px;
+}
+
+.shortcutPill {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-2, rgba(0, 0, 0, 0.03));
+  border: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.06));
+}
+
+:global(body[data-ds-dark-theme]) .shortcutPill {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}

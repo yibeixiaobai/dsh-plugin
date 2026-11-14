@@ -1,0 +1,1 @@
+{"version":3,"file":"useWorkspaceServices.js","sourceRoot":"","sources":["../../../../../src/client/compat/hooks/useWorkspaceServices.ts"],"names":[],"mappings":"AAAA,MAAM,UAAU,oBAAoB,CAAC,GAAG,KAAY;IAClD,OAAO;QACL,SAAS,EAAE;YACT,WAAW,EAAE,GAAG,EAAE,CAAC,EAAE;SACtB;KACF,CAAA;AACH,CAAC"}
