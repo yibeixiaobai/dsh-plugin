@@ -8,7 +8,7 @@
 # 凭据留空 = 沿用 scripts/wx_config.json 现状；在 dsh web 设置界面可随时修改并热重载。
 - insert:
   - id: social-publisher-dev
-    name: 'file:///D:/666/gzh/dsh-plugin/src/index.ts'
+    name: 'file:///D:/666/dshplu/soc/src/index.ts'
     config:
       wechat:
         appid: ''

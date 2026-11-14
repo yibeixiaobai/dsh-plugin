@@ -6,7 +6,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$root = 'D:\666\gzh\dsh-plugin'
+$root = 'D:\666\dshplu\soc'
 $port = 3080
 $stateDir = Join-Path $env:LOCALAPPDATA 'dsh-social-publisher'
 $stateFile = Join-Path $stateDir 'web-url.txt'
