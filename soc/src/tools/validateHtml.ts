@@ -1,10 +1,17 @@
-import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { Config } from '../config.ts'
+import { defineTool } from '../tool-compat.ts'
+import { normalizePlatform, type Config } from '../config.ts'
+import {
+  calculateManifestFingerprint,
+  resolveTaskSandbox,
+  writeTaskManifest,
+} from '../sandbox/taskSandbox.ts'
 import { resolveAccount } from '../config-runtime.ts'
-import { accountScriptsDir, contentImagesPerArticle, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir } from './shared.ts'
+import { accountScriptsDir, contentImagesPerArticle, getActiveWorkspace, expectedArticleImageCount, renderJson, runPipeline, runtimeResourceDir } from './shared.ts'
 
 export interface ValidateReport {
   account_id: string
+  task_id?: string
+  manifest_fingerprint?: string
   passed: boolean
   results: Array<{
     file: string
@@ -20,20 +27,29 @@ export function validateHtmlTool(cfg: Config) {
     files?: string[]
     allow_placeholders?: boolean
     article_type?: 'news' | 'newspic'
+    platform?: string
     account_id?: string
     min_words?: number
     img_count?: number
+    task_id?: string
+    workspace?: string
   }, ValidateReport>({
     name: 'gzh_validate_html',
     description:
       '发布前机器校验：公众号校验换行/unicode 转义/占位符/纯文字字数/禁词/品牌引导语/图片数量/CDN 域名，' +
-      '可选叠加 gzh-design 合规 lint（ERROR 清零才能交付）；知乎/百家号账号校验 Markdown 文章的字数/禁词/图片占位符（百家号另查导流红线）。' +
+      '可选叠加 gzh-design 合规 lint（ERROR 清零才能交付）；知乎/百家号/头条号账号校验 Markdown 文章的字数/禁词/图片占位符（百家号/头条号另查导流红线）；' +
+      '小红书账号校验纯文本笔记的字数/禁词/违规导流红线/竖版卡片配图数。' +
       '支持通过 min_words / img_count 自定义校验阈值（优先支持用户补充要求的特殊设置）。发布前对全部文章跑一遍。',
     parameters: {
       files: {
         type: 'array',
-        description: '可选：文章文件名列表（scripts 目录内；公众号长文为 .html，小绿书为 _pic.json，知乎/百家号为 .md；缺省或留空自动校验该账号全部文章）',
+        description: '可选：文章文件名列表（scripts 目录内；公众号长文为 .html，小绿书为 _pic.json，知乎/百家号/头条号为 .md，小红书为 _xhs.txt；缺省或留空自动校验该账号全部文章）',
         items: { type: 'string' },
+      },
+      platform: {
+        type: 'string',
+        description: '可选：指定社媒平台（gzh / zhihu / xiaohongshu / baijiahao / toutiao），缺省结合账号或默认账号确定',
+        enum: ['gzh', 'zhihu', 'xiaohongshu', 'baijiahao', 'toutiao'],
       },
       article_type: {
         type: 'string',
@@ -46,32 +62,75 @@ export function validateHtmlTool(cfg: Config) {
       },
       account_id: {
         type: 'string',
-        description: '账号 ID；缺省使用默认账号',
+        description: '账号 ID；缺省结合 platform 自动寻找启用账号，或回退至默认账号',
       },
       min_words: {
         type: 'number',
         description: '可选：自定义纯文字下限（优先支持补充要求指定的字数）',
       },
+      task_id: {
+        type: 'string',
+        description: '可选：任务批次 ID（如 task_YYYYMMDD_xxxx）；用于沙箱物理隔离，缺省自动分配或沿用当前活跃沙箱',
+      },
       img_count: {
         type: 'number',
         description: '可选：自定义正文配图/卡片总数（优先支持补充要求指定的配图数）',
       },
+      workspace: {
+        type: 'string',
+        description: '可选：执行该任务会话所属的项目文件夹绝对路径（确保校验读取当前项目工作区真实产物）',
+      },
     },
-    output: { schema: { type: 'json' }, render: renderJson },
-    async execute(args) {
-      const account = resolveAccount(cfg, args.account_id)
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: true,
+      },
+      render: renderJson,
+    },
+    async execute(args, toolContext) {
+      if (!(args as any).from_unified_tool && !(args as any).force) {
+        throw new Error(
+          '❌ 【社媒工具统一收敛拦截】：系统已全面升级为极简确定性流水线！\n' +
+          '严禁直接调用散装工具 gzh_validate_html。\n' +
+          '请改用社媒发布插件唯一指定的统一门面工具：\n' +
+          '👉 创作阶段：social_publisher(action: "produce", account_id: "...", articles: [...] 或 title/content)\n' +
+          '👉 发布阶段：social_publisher(action: "publish", account_id: "...", task_id: "...", user_confirmed: true)',
+        )
+      }
+      const effectiveWs =
+        args.workspace ||
+        (toolContext as any)?.workspacePath ||
+        (toolContext as any)?.cwd ||
+        getActiveWorkspace()
+      const account = resolveAccount(cfg, args.account_id, args.platform)
       const content = account.profile.content
-      const platform = account.profile.platform === 'zhihu' ? 'zhihu' : account.profile.platform === 'xiaohongshu' ? 'xiaohongshu' : account.profile.platform === 'baijiahao' ? 'baijiahao' : 'gzh'
+      const platform = normalizePlatform(account.profile.platform)
       const isNewspic = platform === 'gzh' && (
         args.article_type === 'newspic' ||
         (!args.article_type && content.article_type === 'newspic') ||
-        Boolean(args.files && args.files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json')))
+        Boolean(args.files && args.files.some(f => f.endsWith('_pic.json') || f.endsWith('.json')))
       )
+      // [中文修复依据]：向 resolveTaskSandbox 显式传入 effectiveWs，彻底解决校验工具读取全局目录导致 0 字 0 图假阴性问题
+      const sandbox = resolveTaskSandbox(
+        cfg,
+        args.task_id,
+        platform,
+        account.id,
+        isNewspic ? 'newspic' : 'news',
+        undefined,
+        effectiveWs,
+      )
+      const sandboxedArticles = sandbox.targetGroup.articles || []
       const count = isNewspic ? (content.newspic_articles_per_day || 1) : content.articles_per_day
-      const requiredExt = platform === 'zhihu' || platform === 'baijiahao' ? '.md' : platform === 'xiaohongshu' ? '_xhs.txt' : isNewspic ? '_pic.json' : '.html'
+      const requiredExt = platform === 'zhihu' || platform === 'baijiahao' || platform === 'toutiao' ? '.md' : platform === 'xiaohongshu' ? '_xhs.txt' : isNewspic ? '_pic.json' : '.html'
       let files = Array.isArray(args.files) ? args.files.filter(Boolean).map(String) : []
       if (files.length === 0) {
-        files = Array.from({ length: count }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
+        if (sandboxedArticles.length > 0) {
+          files = sandboxedArticles.map(a => a.fileName).filter(Boolean)
+        } else {
+          files = Array.from({ length: count }, (_, i) => `article_v2_${i + 1}${requiredExt}`)
+        }
       } else {
         files = files.map((f) => {
           const trimmed = f.trim()
@@ -79,7 +138,7 @@ export function validateHtmlTool(cfg: Config) {
           return trimmed + requiredExt
         })
       }
-      const filesAreNewspic = isNewspic || files.some((f) => f.endsWith('_pic.json') || f.endsWith('.json'))
+      const filesAreNewspic = isNewspic || files.some(f => f.endsWith('_pic.json') || f.endsWith('.json'))
       for (const f of files) {
         if (/[\\/]/.test(f)) {
           throw new Error('files 不能包含路径分隔符: ' + String(f))
@@ -87,7 +146,7 @@ export function validateHtmlTool(cfg: Config) {
       }
       const defaultExpectedImgs = filesAreNewspic
         ? (content.newspic_images_per_article || 4)
-        : platform === 'zhihu' || platform === 'baijiahao'
+        : platform === 'zhihu' || platform === 'baijiahao' || platform === 'toutiao'
           ? contentImagesPerArticle(cfg)
           : platform === 'xiaohongshu'
             ? (content.xhs_images_per_note || 4)
@@ -107,7 +166,7 @@ export function validateHtmlTool(cfg: Config) {
 
       const cmd = [
         '--files', JSON.stringify(files),
-        '--scripts-dir', accountScriptsDir(cfg, account.id),
+        '--scripts-dir', sandbox.targetGroup.targetDir || accountScriptsDir(cfg, account.id),
         '--resource-dir', runtimeResourceDir(),
         '--min-words', String(minWords),
         '--forbidden', JSON.stringify(content.forbidden_words),
@@ -116,11 +175,23 @@ export function validateHtmlTool(cfg: Config) {
         '--platform', platform,
         '--article-type', filesAreNewspic ? 'newspic' : 'news',
       ]
-      if ((platform === 'zhihu' || platform === 'baijiahao' || platform === 'xiaohongshu' || filesAreNewspic) && content.ending_guide_required) cmd.push('--require-brand')
+      if ((platform === 'zhihu' || platform === 'baijiahao' || platform === 'toutiao' || platform === 'xiaohongshu' || filesAreNewspic) && content.ending_guide_required) cmd.push('--require-brand')
       if (platform === 'gzh' && !filesAreNewspic) cmd.push('--lint')
       if (args.allow_placeholders !== false) cmd.push('--allow-placeholders')
       const report = await runPipeline<Omit<ValidateReport, 'account_id'>>(cfg, 'check_html.py', cmd, 120000)
-      return { account_id: account.id, ...report }
+      sandbox.targetGroup.validation = {
+        passed: report.passed,
+        checkedAt: new Date().toISOString(),
+        errors: report.results.flatMap(r => r.problems || []),
+      }
+      writeTaskManifest(cfg, sandbox.manifest)
+
+      return {
+        account_id: account.id,
+        task_id: sandbox.taskId,
+        manifest_fingerprint: calculateManifestFingerprint(sandbox.manifest),
+        ...report,
+      }
     },
   })
 }
