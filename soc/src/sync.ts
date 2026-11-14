@@ -40,6 +40,7 @@ export function ensureWorkspace(cfg: Config): string {
     fs.mkdirSync(zhihuProfileDir(cfg, id), { recursive: true })
     fs.mkdirSync(xhsProfileDir(cfg, id), { recursive: true })
     fs.mkdirSync(baijiahaoProfileDir(cfg, id), { recursive: true })
+    fs.mkdirSync(toutiaoProfileDir(cfg, id), { recursive: true })
   }
   const defaults = path.join(runtimeResourceDir(), 'default-brand')
   for (const name of ['brand_top.jpg', 'brand_bot.jpg']) {
@@ -84,6 +85,11 @@ export function xhsProfileDir(cfg: Config, accountId: string): string {
 /** 百家号账号的浏览器用户数据目录（百度账号登录态持久化；扫码/账密一次后长期有效） */
 export function baijiahaoProfileDir(cfg: Config, accountId: string): string {
   return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'baijiahao_profile')
+}
+
+/** 头条号账号的浏览器用户数据目录（字节跳动账号登录态持久化；扫码/账密一次后长期有效） */
+export function toutiaoProfileDir(cfg: Config, accountId: string): string {
+  return path.join(workspaceDir(cfg), 'accounts', assertAccountId(accountId), 'toutiao_profile')
 }
 
 export function brandDir(cfg: Config): string {

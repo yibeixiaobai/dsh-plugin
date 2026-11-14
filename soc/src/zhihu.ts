@@ -89,6 +89,11 @@ export function cleanStaleChromeLocks(userDataDir: string): void {
   } catch {}
 }
 
+export {
+  launchBrowserSafely,
+  killStaleBrowserProcessesForDir,
+} from './browser/executable.ts'
+
 export function findBrowserExecutable(cfg: Config): string {
   const configured = String(cfg.runtime.chrome_path ?? '').trim()
   if (configured) {

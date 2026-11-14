@@ -7,7 +7,9 @@ const loginInFlight = new Map<string, boolean>()
 const loginStateCache = new Map<string, { loggedIn: boolean; checkedAt: number }>()
 
 function cacheKey(platform: string, accountId: string): string {
-  return platform + ':' + accountId
+  // 规范化平台别名（将 xiaohongshu 统一为 xhs，wechat 统一为 gzh），彻底杜绝因别名不一致导致的缓存孤岛与假阳性
+  const normPlat = (platform || '').toLowerCase().replace('xiaohongshu', 'xhs').replace('wechat', 'gzh')
+  return normPlat + ':' + (accountId || 'default')
 }
 
 export function isLoginInFlight(platform: string, accountId: string): boolean {
@@ -39,6 +41,10 @@ export function setCachedLoginState(platform: string, accountId: string, loggedI
 
 export function invalidateLoginCache(platform: string, accountId: string): void {
   loginStateCache.delete(cacheKey(platform, accountId))
+}
+
+export function clearLoginStateCache(): void {
+  loginStateCache.clear()
 }
 
 /**

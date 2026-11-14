@@ -91,9 +91,43 @@ export interface BrandImagesConfig {
   footer: BrandImageConfig
 }
 
-// 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化），xiaohongshu=小红书（浏览器自动化），baijiahao=百家号（浏览器自动化）
-export type Platform = 'gzh' | 'zhihu' | 'xiaohongshu' | 'baijiahao' | (string & {})
-export const PLATFORMS: Platform[] = ['gzh', 'zhihu', 'xiaohongshu', 'baijiahao']
+// 发布平台：gzh=微信公众号（现有链路），zhihu=知乎专栏（浏览器自动化），xiaohongshu=小红书（浏览器自动化），baijiahao=百家号（浏览器自动化），toutiao=头条号（浏览器自动化）
+export type Platform = 'gzh' | 'zhihu' | 'xiaohongshu' | 'baijiahao' | 'toutiao' | (string & {})
+export const PLATFORMS: Platform[] = ['gzh', 'zhihu', 'xiaohongshu', 'baijiahao', 'toutiao']
+
+/** 平台中文名（命令文案与设置界面共用） */
+export const PLATFORM_LABELS: Record<string, string> = {
+  gzh: '公众号',
+  zhihu: '知乎',
+  xiaohongshu: '小红书',
+  baijiahao: '百家号',
+  toutiao: '头条号',
+}
+
+/** 平台字符串归一化：已知平台原样保留，其余一律回落 gzh */
+export function normalizePlatform(raw?: string): Platform {
+  if (!raw || typeof raw !== 'string') return 'gzh'
+  const norm = raw.toLowerCase().trim()
+  if (norm === 'gzh' || norm === 'wechat') return 'gzh'
+  if (norm === 'zhihu') return 'zhihu'
+  if (norm === 'xiaohongshu' || norm === 'xhs') return 'xiaohongshu'
+  if (norm === 'baijiahao' || norm === 'bjh') return 'baijiahao'
+  if (norm === 'toutiao') return 'toutiao'
+  return (PLATFORMS as readonly string[]).includes(norm) ? (norm as Platform) : 'gzh'
+}
+
+/** 头条号文章单图封面比例（推荐 16:9 横图） */
+export const TOUTIAO_COVER_RATIO: CoverRatio = '16:9'
+/** 头条号标题字数上限（编辑器硬限 30 字含标点） */
+export const TOUTIAO_TITLE_MAX = 30
+
+/** 发布动作：draft=仅存草稿箱，publish_now=立即发布，schedule=定时发布 */
+export type PublishAction = 'draft' | 'publish_now' | 'schedule'
+export const PUBLISH_ACTIONS: PublishAction[] = ['draft', 'publish_now', 'schedule']
+
+export const DEFAULT_SCHEDULE_TIMES_ARTICLE: string[] = ['08:30', '20:00']
+export const DEFAULT_SCHEDULE_TIMES_NEWSPIC: string[] = ['12:00', '18:00', '21:30']
+export const DEFAULT_SCHEDULE_CONFLICT_INTERVAL_MINS = 30
 
 /** 知乎文章封面比例（编辑器按内容图自动取封面，生成尺寸用 16:9） */
 export const ZHIHU_COVER_RATIO: CoverRatio = '16:9'
@@ -306,7 +340,7 @@ const BrandImageSchema = Schema.object({
 })
 
 const AccountSchema = Schema.object({
-  platform: Schema.string().default('gzh').description('平台：gzh=公众号（凭据或扫码登录），zhihu=知乎专栏（扫码登录），xiaohongshu=小红书（扫码登录），baijiahao=百家号（扫码/账密登录）'),
+  platform: Schema.string().default('gzh').description('平台：gzh=公众号（凭据或扫码登录），zhihu=知乎专栏（扫码登录），xiaohongshu=小红书（扫码登录），baijiahao=百家号（扫码/账密登录），toutiao=头条号（扫码/账密登录）'),
   name: Schema.string().default('默认账号').description('账号显示名称'),
   enabled: Schema.boolean().default(true).description('是否启用'),
   publish_mode: Schema.union(['api', 'browser']).default('api').description('发布模式：api=官方 API 接口；browser=免 API 浏览器自动化（扫码登录，后台自动创建草稿）'),
@@ -314,7 +348,7 @@ const AccountSchema = Schema.object({
   app_secret: Schema.string().role('secret').default('').description('公众号 AppSecret（非公众号或免 API 模式留空）'),
   author_name: Schema.string().default('文映学术win00.cn').description('文章作者名'),
   brand_name: Schema.string().default('文映千秋学术网').description('品牌名（结尾引导语必须包含）'),
-  publish_immediately: Schema.boolean().default(false).description('知乎/百家号/小红书：保存后直接发布（默认只存草稿箱）'),
+  publish_immediately: Schema.boolean().default(false).description('知乎/百家号/小红书/头条号：保存后直接发布（默认只存草稿箱）'),
   auto_enable_original: Schema.boolean().default(false).description('公众号：草稿创建后自动通过浏览器模拟打开草稿箱批量开启原创并保存草稿'),
   content: ContentSchema,
   brand_images: Schema.object({
@@ -407,5 +441,7 @@ export const Config: Schema<Config> = Schema.object({
     xhs_headless: Schema.boolean().default(true).description('小红书发布用无头浏览器（排障或首次扫码时可关闭以观察自动化过程）'),
     baijiahao_headless: Schema.boolean().default(true).description('百家号发布用无头浏览器（排障或首次登录时可关闭以观察自动化过程）'),
     baijiahao_reveal_on_challenge: Schema.boolean().default(false).description('百家号全程无头，仅在遇到人机验证（滑块）时把浏览器窗口显示出来交给人工完成，验证后自动收回；默认关'),
+    toutiao_headless: Schema.boolean().default(true).description('头条号发布用无头浏览器（排障或首次登录时可关闭以观察自动化过程）'),
+    toutiao_reveal_on_challenge: Schema.boolean().default(false).description('头条号全程无头，仅在遇到人机验证（旋转/滑块验证码）时把浏览器窗口显示出来交给人工完成，验证后自动收回；默认关'),
   }).description('⑥ 运行'),
 }) as Schema<Config>

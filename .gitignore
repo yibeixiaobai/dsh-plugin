@@ -1,4 +1,5 @@
 wxmp_repo/
+dshcast_repo/
 node_modules/
 dist/
 tasks/default/accounts/
